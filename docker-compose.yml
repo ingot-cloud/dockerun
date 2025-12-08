@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  dockerun:
+    build: .
+    image: dockerun:latest
+    container_name: dockerun
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      # 挂载Docker socket，使容器能够管理宿主机的Docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 持久化数据库
+      - ./data:/app/data
+      # 可选：离线安装包目录
+      - ./docker-packages:/app/docker-packages:ro
+    environment:
+      - GIN_MODE=release
+      - SERVER_ADDR=:8080
+      - DATABASE_PATH=/app/data/dockerun.db
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
+    # 如果需要访问Docker，容器需要有相应的权限
+    privileged: true
+    networks:
+      - dockerun-net
+
+networks:
+  dockerun-net:
+    driver: bridge
+

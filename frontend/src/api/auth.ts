@@ -1,0 +1,33 @@
+import request from './request'
+
+export interface LoginParams {
+  username: string
+  password: string
+}
+
+export interface SetPasswordParams {
+  new_password: string
+}
+
+export interface ChangePasswordParams {
+  old_password: string
+  new_password: string
+}
+
+export const authApi = {
+  // 登录
+  login: (data: LoginParams) => request.post('/auth/login', data),
+  
+  // 检查初始设置
+  checkSetup: () => request.get('/auth/check-setup'),
+  
+  // 设置初始密码
+  setInitialPassword: (data: SetPasswordParams) => request.post('/auth/setup', data),
+  
+  // 修改密码
+  changePassword: (data: ChangePasswordParams) => request.post('/auth/change-password', data),
+  
+  // 获取当前用户信息
+  getCurrentUser: () => request.get('/auth/me')
+}
+
