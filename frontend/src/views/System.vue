@@ -1,146 +1,182 @@
 <template>
   <div class="system-view">
-    <el-row :gutter="20">
-      <el-col :span="24">
-        <el-card>
-          <template #header>
-            <span>Docker状态</span>
-          </template>
-          
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="Docker状态">
-              <el-tag :type="dockerStatus ? 'success' : 'danger'">
-                {{ dockerStatus ? '已安装' : '未安装' }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="操作">
-              <el-button 
-                type="primary" 
-                size="small" 
-                @click="checkStatus"
-              >
-                检查状态
-              </el-button>
-            </el-descriptions-item>
-          </el-descriptions>
-        </el-card>
-      </el-col>
+    <div class="page-header">
+      <h1>System</h1>
+    </div>
+
+    <!-- Docker Status Card -->
+    <div class="content-card">
+      <div class="card-header">
+        <div class="header-left">
+          <el-icon class="header-icon"><Monitor /></el-icon>
+          <span>Docker Status</span>
+        </div>
+      </div>
       
-      <el-col :span="24" style="margin-top: 20px;">
-        <el-card>
-          <template #header>
-            <span>系统信息</span>
-          </template>
-          
-          <el-descriptions :column="2" border v-if="systemInfo">
-            <el-descriptions-item label="操作系统">
-              {{ systemInfo.os }}
-            </el-descriptions-item>
-            <el-descriptions-item label="架构">
-              {{ systemInfo.arch }}
-            </el-descriptions-item>
-            <el-descriptions-item label="发行版">
-              {{ systemInfo.distribution }}
-            </el-descriptions-item>
-            <el-descriptions-item label="版本">
-              {{ systemInfo.version }}
-            </el-descriptions-item>
-            <el-descriptions-item label="网络连接">
-              <el-tag :type="systemInfo.has_internet ? 'success' : 'warning'">
-                {{ systemInfo.has_internet ? '可访问互联网' : '无网络连接' }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="Docker">
-              <el-tag :type="systemInfo.docker_exists ? 'success' : 'info'">
-                {{ systemInfo.docker_exists ? '已安装' : '未安装' }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="Docker Compose">
-              <el-tag :type="systemInfo.compose_exists ? 'success' : 'info'">
-                {{ systemInfo.compose_exists ? '已安装' : '未安装' }}
-              </el-tag>
-            </el-descriptions-item>
-          </el-descriptions>
-          
-          <div style="margin-top: 20px;">
-            <el-button type="primary" @click="loadSystemInfo">
-              刷新信息
+      <div class="card-body">
+        <div class="info-row">
+          <div class="info-label">Docker Status</div>
+          <div class="info-value">
+            <el-tag :type="dockerStatus ? 'success' : 'danger'" size="large">
+              {{ dockerStatus ? 'Installed' : 'Not Installed' }}
+            </el-tag>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Action</div>
+          <div class="info-value">
+            <el-button type="primary" @click="checkStatus">
+              Check Status
             </el-button>
           </div>
-        </el-card>
-      </el-col>
+        </div>
+      </div>
+    </div>
+    
+    <!-- System Info Card -->
+    <div class="content-card" style="margin-top: 20px;">
+      <div class="card-header">
+        <div class="header-left">
+          <el-icon class="header-icon"><InfoFilled /></el-icon>
+          <span>System Information</span>
+        </div>
+        <div class="header-right">
+          <el-button :icon="Refresh" @click="loadSystemInfo">
+            Refresh
+          </el-button>
+        </div>
+      </div>
       
-      <el-col :span="24" style="margin-top: 20px;" v-if="systemInfo && !systemInfo.docker_exists">
-        <el-card>
-          <template #header>
-            <span>Docker安装</span>
-          </template>
+      <div class="card-body" v-if="systemInfo">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="item-label">Operating System</div>
+            <div class="item-value">{{ systemInfo.os }}</div>
+          </div>
+          <div class="info-item">
+            <div class="item-label">Architecture</div>
+            <div class="item-value">{{ systemInfo.arch }}</div>
+          </div>
+          <div class="info-item">
+            <div class="item-label">Distribution</div>
+            <div class="item-value">{{ systemInfo.distribution }}</div>
+          </div>
+          <div class="info-item">
+            <div class="item-label">Version</div>
+            <div class="item-value">{{ systemInfo.version }}</div>
+          </div>
+          <div class="info-item">
+            <div class="item-label">Internet Connection</div>
+            <div class="item-value">
+              <el-tag :type="systemInfo.has_internet ? 'success' : 'warning'">
+                {{ systemInfo.has_internet ? 'Connected' : 'Offline' }}
+              </el-tag>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="item-label">Docker</div>
+            <div class="item-value">
+              <el-tag :type="systemInfo.docker_exists ? 'success' : 'info'">
+                {{ systemInfo.docker_exists ? 'Installed' : 'Not Installed' }}
+              </el-tag>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="item-label">Docker Compose</div>
+            <div class="item-value">
+              <el-tag :type="systemInfo.compose_exists ? 'success' : 'info'">
+                {{ systemInfo.compose_exists ? 'Installed' : 'Not Installed' }}
+              </el-tag>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Docker Installation Card -->
+    <div 
+      class="content-card" 
+      style="margin-top: 20px;" 
+      v-if="systemInfo && !systemInfo.docker_exists"
+    >
+      <div class="card-header">
+        <div class="header-left">
+          <el-icon class="header-icon"><Download /></el-icon>
+          <span>Docker Installation</span>
+        </div>
+      </div>
+      
+      <div class="card-body">
+        <el-form :model="installForm" label-width="150px" class="install-form">
+          <el-form-item label="Installation Method">
+            <el-radio-group v-model="installForm.method">
+              <el-radio label="online" :disabled="!systemInfo?.has_internet">
+                Online Installation
+              </el-radio>
+              <el-radio label="offline-rpm">
+                Offline (RPM)
+              </el-radio>
+              <el-radio label="offline-deb">
+                Offline (DEB)
+              </el-radio>
+              <el-radio label="offline-binary">
+                Offline (Binary)
+              </el-radio>
+            </el-radio-group>
+          </el-form-item>
           
-          <el-form :model="installForm" label-width="120px">
-            <el-form-item label="安装方式">
-              <el-radio-group v-model="installForm.method">
-                <el-radio label="online" :disabled="!systemInfo?.has_internet">
-                  在线安装
-                </el-radio>
-                <el-radio label="offline-rpm">
-                  离线安装 (RPM)
-                </el-radio>
-                <el-radio label="offline-deb">
-                  离线安装 (DEB)
-                </el-radio>
-                <el-radio label="offline-binary">
-                  离线安装 (二进制)
-                </el-radio>
-              </el-radio-group>
-            </el-form-item>
-            
-            <el-form-item 
-              v-if="installForm.method === 'online'" 
-              label="Linux发行版"
+          <el-form-item 
+            v-if="installForm.method === 'online'" 
+            label="Linux Distribution"
+          >
+            <el-select v-model="installForm.distribution" style="width: 300px">
+              <el-option label="Ubuntu/Debian" value="ubuntu" />
+              <el-option label="CentOS/RHEL" value="centos" />
+              <el-option label="Fedora" value="fedora" />
+            </el-select>
+          </el-form-item>
+          
+          <el-form-item 
+            v-if="installForm.method.startsWith('offline')" 
+            label="Package Path"
+          >
+            <el-input 
+              v-model="installForm.package_path" 
+              placeholder="/path/to/docker-package"
+              style="width: 500px"
+            />
+          </el-form-item>
+          
+          <el-form-item>
+            <el-button 
+              type="primary" 
+              @click="handleInstall"
+              :loading="installing"
             >
-              <el-select v-model="installForm.distribution" style="width: 300px">
-                <el-option label="Ubuntu/Debian" value="ubuntu" />
-                <el-option label="CentOS/RHEL" value="centos" />
-                <el-option label="Fedora" value="fedora" />
-              </el-select>
-            </el-form-item>
-            
-            <el-form-item 
-              v-if="installForm.method.startsWith('offline')" 
-              label="安装包路径"
-            >
-              <el-input 
-                v-model="installForm.package_path" 
-                placeholder="/path/to/docker-package"
-                style="width: 500px"
-              />
-            </el-form-item>
-            
-            <el-form-item>
-              <el-button 
-                type="primary" 
-                @click="handleInstall"
-                :loading="installing"
-              >
-                开始安装
-              </el-button>
-              <el-alert
-                style="margin-top: 10px"
-                title="注意：安装Docker需要root权限，请确保当前用户有sudo权限"
-                type="warning"
-                :closable="false"
-              />
-            </el-form-item>
-          </el-form>
-        </el-card>
-      </el-col>
-    </el-row>
+              Start Installation
+            </el-button>
+          </el-form-item>
+          
+          <el-alert
+            title="Note: Installing Docker requires root privileges. Please ensure the current user has sudo access."
+            type="warning"
+            :closable="false"
+          />
+        </el-form>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import {
+  Monitor,
+  InfoFilled,
+  Refresh,
+  Download
+} from '@element-plus/icons-vue'
 import { systemApi, type InstallDockerParams } from '@/api/system'
 
 const dockerStatus = ref(false)
@@ -158,12 +194,12 @@ const checkStatus = async () => {
     const res: any = await systemApi.checkDockerStatus()
     dockerStatus.value = res.available
     if (res.available) {
-      ElMessage.success('Docker运行正常')
+      ElMessage.success('Docker is running')
     } else {
-      ElMessage.warning('Docker未运行或未安装')
+      ElMessage.warning('Docker is not running or not installed')
     }
   } catch (error) {
-    ElMessage.error('检查Docker状态失败')
+    ElMessage.error('Failed to check Docker status')
   }
 }
 
@@ -171,24 +207,24 @@ const loadSystemInfo = async () => {
   try {
     systemInfo.value = await systemApi.getSystemInfo()
   } catch (error) {
-    ElMessage.error('加载系统信息失败')
+    ElMessage.error('Failed to load system info')
   }
 }
 
 const handleInstall = async () => {
   if (installForm.method.startsWith('offline') && !installForm.package_path) {
-    ElMessage.warning('请输入安装包路径')
+    ElMessage.warning('Please enter package path')
     return
   }
   
   installing.value = true
   try {
     await systemApi.installDocker(installForm)
-    ElMessage.success('Docker安装成功，请重启系统后生效')
+    ElMessage.success('Docker installed successfully, please restart the system')
     loadSystemInfo()
     checkStatus()
   } catch (error) {
-    ElMessage.error('Docker安装失败，请查看日志')
+    ElMessage.error('Docker installation failed, please check logs')
   } finally {
     installing.value = false
   }
@@ -202,7 +238,153 @@ onMounted(() => {
 
 <style scoped>
 .system-view {
+  width: 100%;
   max-width: 1200px;
 }
-</style>
 
+.page-header {
+  margin-bottom: 20px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 400;
+  color: #fff;
+}
+
+.content-card {
+  background-color: #23252a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 400;
+  color: #fff;
+}
+
+.header-icon {
+  font-size: 18px;
+  color: #8a929c;
+}
+
+.header-right :deep(.el-button) {
+  height: 32px;
+  padding: 0 15px;
+  font-size: 13px;
+}
+
+.card-body {
+  padding: 20px;
+}
+
+.info-row {
+  display: flex;
+  padding: 15px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  width: 200px;
+  color: #8a929c;
+  font-size: 14px;
+}
+
+.info-value {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 15px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.item-label {
+  color: #8a929c;
+  font-size: 13px;
+}
+
+.item-value {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.install-form {
+  max-width: 800px;
+}
+
+.install-form :deep(.el-form-item__label) {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.install-form :deep(.el-input__wrapper),
+.install-form :deep(.el-select__wrapper) {
+  background-color: #2a2d31;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.install-form :deep(.el-input__inner) {
+  color: #fff;
+}
+
+.install-form :deep(.el-radio__label) {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.install-form :deep(.el-radio__input.is-checked .el-radio__inner) {
+  background-color: #4a9eff;
+  border-color: #4a9eff;
+}
+
+.install-form :deep(.el-radio__input.is-disabled .el-radio__inner) {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.install-form :deep(.el-radio__input.is-disabled + .el-radio__label) {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.install-form :deep(.el-alert) {
+  background-color: rgba(230, 162, 60, 0.1);
+  border: 1px solid rgba(230, 162, 60, 0.3);
+  margin-top: 10px;
+}
+
+.install-form :deep(.el-alert__title) {
+  color: #e6a23c;
+  font-size: 13px;
+}
+</style>

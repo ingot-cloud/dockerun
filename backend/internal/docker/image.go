@@ -11,7 +11,7 @@ import (
 // ListImages 列出所有镜像
 func ListImages() ([]image.Summary, error) {
 	ctx := context.Background()
-	return Client.ImageList(ctx, image.ListOptions{All: true})
+	return Client.ImageList(ctx, types.ImageListOptions{All: true})
 }
 
 // InspectImage 获取镜像详情
@@ -24,13 +24,13 @@ func InspectImage(imageID string) (types.ImageInspect, error) {
 // PullImage 拉取镜像
 func PullImage(imageName string) (io.ReadCloser, error) {
 	ctx := context.Background()
-	return Client.ImagePull(ctx, imageName, image.PullOptions{})
+	return Client.ImagePull(ctx, imageName, types.ImagePullOptions{})
 }
 
 // RemoveImage 删除镜像
 func RemoveImage(imageID string, force bool) ([]image.DeleteResponse, error) {
 	ctx := context.Background()
-	return Client.ImageRemove(ctx, imageID, image.RemoveOptions{Force: force})
+	return Client.ImageRemove(ctx, imageID, types.ImageRemoveOptions{Force: force})
 }
 
 // TagImage 给镜像打标签

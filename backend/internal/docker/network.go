@@ -4,25 +4,24 @@ import (
 	"context"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/network"
 )
 
 // ListNetworks 列出所有网络
 func ListNetworks() ([]types.NetworkResource, error) {
 	ctx := context.Background()
-	return Client.NetworkList(ctx, network.ListOptions{})
+	return Client.NetworkList(ctx, types.NetworkListOptions{})
 }
 
 // InspectNetwork 获取网络详情
 func InspectNetwork(networkID string) (types.NetworkResource, error) {
 	ctx := context.Background()
-	return Client.NetworkInspect(ctx, networkID, network.InspectOptions{})
+	return Client.NetworkInspect(ctx, networkID, types.NetworkInspectOptions{})
 }
 
 // CreateNetwork 创建网络
 func CreateNetwork(name string, driver string) (types.NetworkCreateResponse, error) {
 	ctx := context.Background()
-	return Client.NetworkCreate(ctx, name, network.CreateOptions{
+	return Client.NetworkCreate(ctx, name, types.NetworkCreate{
 		Driver: driver,
 	})
 }

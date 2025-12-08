@@ -15,6 +15,9 @@ install-deps: ## 安装依赖
 build: ## 构建项目
 	@echo "构建前端..."
 	cd frontend && pnpm run build
+	@echo "复制前端构建产物到后端..."
+	rm -rf backend/static
+	cp -r frontend/dist backend/static
 	@echo "构建后端..."
 	cd backend && go build -o ../bin/dockerun
 

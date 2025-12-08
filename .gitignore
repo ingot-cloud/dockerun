@@ -52,6 +52,7 @@ logs/
 # Build artifacts
 frontend/dist/
 backend/tmp/
+backend/static/
 
 # Docker volumes data
 data/

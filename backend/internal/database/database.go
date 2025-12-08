@@ -38,15 +38,13 @@ func Init(dbPath string) error {
 	var count int64
 	DB.Model(&models.User{}).Count(&count)
 	if count == 0 {
-		// 创建默认管理员账号（首次运行需要修改密码）
+		// 创建默认管理员账号（密码为空，标记需要首次设置）
 		admin := &models.User{
 			Username: "admin",
 			IsAdmin:  true,
+			Password: "", // 密码为空，标记需要首次设置
 		}
-		// 默认密码为空，需要首次设置
-		if err := admin.HashPassword(""); err == nil {
-			DB.Create(admin)
-		}
+		DB.Create(admin)
 	}
 
 	return nil
