@@ -1,6 +1,6 @@
 .PHONY: run build test clean
 
-run:
+dev:
 	go run main.go
 
 build:
