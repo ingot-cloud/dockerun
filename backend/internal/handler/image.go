@@ -89,3 +89,42 @@ func TagImage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "标签创建成功"})
 }
 
+// LoadImage 从文件导入镜像
+func LoadImage(c *gin.Context) {
+	var req struct {
+		Path string `json:"path" binding:"required"`
+	}
+	
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
+		return
+	}
+
+	if err := docker.LoadImage(req.Path); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "镜像导入成功"})
+}
+
+// SaveImage 导出镜像到文件
+func SaveImage(c *gin.Context) {
+	var req struct {
+		ImageID string `json:"image_id" binding:"required"`
+		Path    string `json:"path" binding:"required"`
+	}
+	
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
+		return
+	}
+
+	if err := docker.SaveImage(req.ImageID, req.Path); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "镜像导出成功"})
+}
+

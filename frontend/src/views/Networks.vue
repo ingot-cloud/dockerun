@@ -90,13 +90,13 @@
         </el-table-column>
         
         <el-table-column label="IPv6 IPAM Subnet" width="150">
-          <template #default="{ row }">
+          <template #default>
             <span class="text-normal">-</span>
           </template>
         </el-table-column>
         
         <el-table-column label="IPv6 IPAM Gateway" width="150">
-          <template #default="{ row }">
+          <template #default>
             <span class="text-normal">-</span>
           </template>
         </el-table-column>
@@ -120,21 +120,186 @@
     <el-dialog 
       v-model="createDialogVisible" 
       title="Create network" 
-      width="600px"
+      width="800px"
       class="create-dialog"
+      :close-on-click-modal="false"
     >
-      <el-form :model="form" label-width="120px">
-        <el-form-item label="Name">
-          <el-input v-model="form.name" placeholder="e.g. my-network" />
-        </el-form-item>
-        <el-form-item label="Driver">
-          <el-select v-model="form.driver" style="width: 100%">
-            <el-option label="bridge" value="bridge" />
-            <el-option label="overlay" value="overlay" />
-            <el-option label="host" value="host" />
-            <el-option label="macvlan" value="macvlan" />
-          </el-select>
-        </el-form-item>
+      <el-form :model="form" label-width="180px" class="network-form">
+        <div class="form-section">
+          <h3>Name</h3>
+          <el-form-item label="Name">
+            <el-input v-model="form.name" placeholder="e.g. myNetwork" />
+          </el-form-item>
+        </div>
+        
+        <div class="form-section">
+          <h3>Driver configuration</h3>
+          <el-form-item label="Driver">
+            <el-select v-model="form.driver" style="width: 100%">
+              <el-option label="bridge" value="bridge" />
+              <el-option label="overlay" value="overlay" />
+              <el-option label="host" value="host" />
+              <el-option label="macvlan" value="macvlan" />
+            </el-select>
+          </el-form-item>
+          
+          <el-form-item label="Driver options">
+            <div class="options-list">
+              <div 
+                v-for="(opt, index) in form.driver_options" 
+                :key="index" 
+                class="option-item"
+              >
+                <el-input v-model="opt.key" placeholder="name" class="option-key" />
+                <el-input v-model="opt.value" placeholder="value" class="option-value" />
+                <el-button 
+                  :icon="Delete" 
+                  type="danger" 
+                  circle 
+                  size="small"
+                  @click="form.driver_options.splice(index, 1)"
+                />
+              </div>
+              <el-button 
+                :icon="Plus" 
+                type="primary" 
+                text 
+                @click="form.driver_options.push({ key: '', value: '' })"
+              >
+                Add driver option
+              </el-button>
+            </div>
+          </el-form-item>
+        </div>
+        
+        <div class="form-section">
+          <h3>IPv4 Network configuration</h3>
+          <el-form-item label="Subnet">
+            <el-input v-model="form.ipv4_subnet" placeholder="e.g. 172.20.0.0/16" />
+          </el-form-item>
+          
+          <el-form-item label="Gateway">
+            <el-input v-model="form.ipv4_gateway" placeholder="e.g. 172.20.10.11" />
+          </el-form-item>
+          
+          <el-form-item label="IP range">
+            <el-input v-model="form.ipv4_ip_range" placeholder="e.g. 172.20.10.128/25" />
+          </el-form-item>
+          
+          <el-form-item label="Excluded IPs">
+            <div class="options-list">
+              <div 
+                v-for="(_, index) in form.ipv4_excluded_ips" 
+                :key="index" 
+                class="option-item"
+              >
+                <el-input v-model="form.ipv4_excluded_ips[index]" placeholder="e.g. 172.20.10.1" />
+                <el-button 
+                  :icon="Delete" 
+                  type="danger" 
+                  circle 
+                  size="small"
+                  @click="form.ipv4_excluded_ips.splice(index, 1)"
+                />
+              </div>
+              <el-button 
+                :icon="Plus" 
+                type="primary" 
+                text 
+                @click="form.ipv4_excluded_ips.push('')"
+              >
+                Add excluded IP
+              </el-button>
+            </div>
+          </el-form-item>
+        </div>
+        
+        <div class="form-section">
+          <h3>IPv6 Network configuration</h3>
+          <el-form-item label="Enable IPv6">
+            <el-switch v-model="form.enable_ipv6" />
+          </el-form-item>
+          
+          <template v-if="form.enable_ipv6">
+            <el-form-item label="Subnet">
+              <el-input v-model="form.ipv6_subnet" placeholder="e.g. 2001:db8::/48" />
+            </el-form-item>
+            
+            <el-form-item label="Gateway">
+              <el-input v-model="form.ipv6_gateway" placeholder="e.g. 2001:db8::1" />
+            </el-form-item>
+            
+            <el-form-item label="IP range">
+              <el-input v-model="form.ipv6_ip_range" placeholder="e.g. 2001:db8::/64" />
+            </el-form-item>
+            
+            <el-form-item label="Excluded IPs">
+              <div class="options-list">
+                <div 
+                  v-for="(_, index) in form.ipv6_excluded_ips" 
+                  :key="index" 
+                  class="option-item"
+                >
+                  <el-input v-model="form.ipv6_excluded_ips[index]" placeholder="e.g. 2001:db8::1" />
+                  <el-button 
+                    :icon="Delete" 
+                    type="danger" 
+                    circle 
+                    size="small"
+                    @click="form.ipv6_excluded_ips.splice(index, 1)"
+                  />
+                </div>
+                <el-button 
+                  :icon="Plus" 
+                  type="primary" 
+                  text 
+                  @click="form.ipv6_excluded_ips.push('')"
+                >
+                  Add excluded IP
+                </el-button>
+              </div>
+            </el-form-item>
+          </template>
+        </div>
+        
+        <div class="form-section">
+          <h3>Advanced configuration</h3>
+          <el-form-item label="Labels">
+            <div class="options-list">
+              <div 
+                v-for="(label, index) in form.labels" 
+                :key="index" 
+                class="option-item"
+              >
+                <el-input v-model="label.key" placeholder="name" class="option-key" />
+                <el-input v-model="label.value" placeholder="value" class="option-value" />
+                <el-button 
+                  :icon="Delete" 
+                  type="danger" 
+                  circle 
+                  size="small"
+                  @click="form.labels.splice(index, 1)"
+                />
+              </div>
+              <el-button 
+                :icon="Plus" 
+                type="primary" 
+                text 
+                @click="form.labels.push({ key: '', value: '' })"
+              >
+                Add label
+              </el-button>
+            </div>
+          </el-form-item>
+          
+          <el-form-item label="Isolated network">
+            <el-switch v-model="form.internal" />
+          </el-form-item>
+          
+          <el-form-item label="Enable manual container attachment">
+            <el-switch v-model="form.attachable" />
+          </el-form-item>
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">Cancel</el-button>
@@ -152,10 +317,7 @@ import {
   Connection,
   Delete,
   Plus,
-  User,
-  Download,
-  Upload,
-  MoreFilled
+  User
 } from '@element-plus/icons-vue'
 import { dockerApi } from '@/api/docker'
 
@@ -167,7 +329,20 @@ const createDialogVisible = ref(false)
 
 const form = reactive({
   name: '',
-  driver: 'bridge'
+  driver: 'bridge',
+  driver_options: [] as Array<{ key: string; value: string }>,
+  ipv4_subnet: '',
+  ipv4_gateway: '',
+  ipv4_ip_range: '',
+  ipv4_excluded_ips: [] as string[],
+  enable_ipv6: false,
+  ipv6_subnet: '',
+  ipv6_gateway: '',
+  ipv6_ip_range: '',
+  ipv6_excluded_ips: [] as string[],
+  labels: [] as Array<{ key: string; value: string }>,
+  internal: false,
+  attachable: false
 })
 
 const filteredNetworks = computed(() => {
@@ -201,15 +376,97 @@ const handleCreate = async () => {
   }
   
   try {
-    await dockerApi.networks.create(form.name, form.driver)
+    // 构建请求参数
+    const params: any = {
+      name: form.name,
+      driver: form.driver,
+      internal: form.internal,
+      attachable: form.attachable,
+      ipam: {
+        driver: 'default',
+        config: [] as any[]
+      }
+    }
+    
+    // Driver options
+    if (form.driver_options.length > 0) {
+      params.options = {}
+      form.driver_options.forEach(opt => {
+        if (opt.key && opt.value) {
+          params.options[opt.key] = opt.value
+        }
+      })
+    }
+    
+    // IPv4 configuration
+    const ipv4Config: any = {}
+    if (form.ipv4_subnet) ipv4Config.subnet = form.ipv4_subnet
+    if (form.ipv4_gateway) ipv4Config.gateway = form.ipv4_gateway
+    if (form.ipv4_ip_range) ipv4Config.ip_range = form.ipv4_ip_range
+    if (form.ipv4_excluded_ips.length > 0) {
+      ipv4Config.aux_addresses = {}
+      form.ipv4_excluded_ips.forEach((ip, index) => {
+        if (ip) ipv4Config.aux_addresses[`excluded_${index}`] = ip
+      })
+    }
+    if (Object.keys(ipv4Config).length > 0) {
+      params.ipam.config.push(ipv4Config)
+    }
+    
+    // IPv6 configuration
+    if (form.enable_ipv6) {
+      params.enable_ipv6 = true
+      const ipv6Config: any = {}
+      if (form.ipv6_subnet) ipv6Config.subnet = form.ipv6_subnet
+      if (form.ipv6_gateway) ipv6Config.gateway = form.ipv6_gateway
+      if (form.ipv6_ip_range) ipv6Config.ip_range = form.ipv6_ip_range
+      if (form.ipv6_excluded_ips.length > 0) {
+        ipv6Config.aux_addresses = {}
+        form.ipv6_excluded_ips.forEach((ip, index) => {
+          if (ip) ipv6Config.aux_addresses[`excluded_${index}`] = ip
+        })
+      }
+      if (Object.keys(ipv6Config).length > 0) {
+        params.ipam.config.push(ipv6Config)
+      }
+    }
+    
+    // Labels
+    if (form.labels.length > 0) {
+      params.labels = {}
+      form.labels.forEach(label => {
+        if (label.key && label.value) {
+          params.labels[label.key] = label.value
+        }
+      })
+    }
+    
+    await dockerApi.networks.create(params)
     ElMessage.success('Network created successfully')
     createDialogVisible.value = false
-    form.name = ''
-    form.driver = 'bridge'
+    resetForm()
     loadNetworks()
-  } catch (error) {
-    ElMessage.error('Failed to create network')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || 'Failed to create network')
   }
+}
+
+const resetForm = () => {
+  form.name = ''
+  form.driver = 'bridge'
+  form.driver_options = []
+  form.ipv4_subnet = ''
+  form.ipv4_gateway = ''
+  form.ipv4_ip_range = ''
+  form.ipv4_excluded_ips = []
+  form.enable_ipv6 = false
+  form.ipv6_subnet = ''
+  form.ipv6_gateway = ''
+  form.ipv6_ip_range = ''
+  form.ipv6_excluded_ips = []
+  form.labels = []
+  form.internal = false
+  form.attachable = false
 }
 
 const handleBatchRemove = async () => {
@@ -436,5 +693,58 @@ onMounted(() => {
 
 .create-dialog :deep(.el-input__inner) {
   color: #fff;
+}
+
+.network-form {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.form-section {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.form-section:last-child {
+  border-bottom: none;
+}
+
+.form-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.options-list {
+  width: 100%;
+}
+
+.option-item {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.option-key {
+  flex: 1;
+}
+
+.option-value {
+  flex: 2;
+}
+
+.network-form :deep(.el-switch.is-checked .el-switch__core) {
+  background-color: #4a9eff;
+}
+
+.network-form :deep(.el-button.is-text) {
+  color: #4a9eff;
+}
+
+.network-form :deep(.el-button.is-text:hover) {
+  color: #79bbff;
 }
 </style>

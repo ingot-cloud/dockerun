@@ -61,12 +61,6 @@
           >
             Remove
           </el-button>
-          <el-button
-            type="primary"
-            :icon="Plus"
-          >
-            Add container
-          </el-button>
         </div>
       </div>
       
@@ -216,8 +210,7 @@ import {
   VideoPlay,
   VideoPause,
   More,
-  Delete,
-  Plus
+  Delete
 } from '@element-plus/icons-vue'
 import { dockerApi } from '@/api/docker'
 
@@ -303,12 +296,101 @@ const handleStats = (container: any) => {
   ElMessage.info('Stats feature coming soon')
 }
 
-const handleBatchAction = (action: string) => {
+const handleBatchAction = async (action: string) => {
   if (selectedContainers.value.length === 0) {
     ElMessage.warning('Please select at least one container')
     return
   }
-  ElMessage.info(`${action} action will be implemented`)
+  
+  const actionMap: Record<string, string> = {
+    start: 'start',
+    stop: 'stop',
+    restart: 'restart',
+    kill: 'kill',
+    pause: 'pause',
+    resume: 'unpause',
+    remove: 'remove'
+  }
+  
+  const actionName = actionMap[action]
+  if (!actionName) {
+    ElMessage.error('Unknown action')
+    return
+  }
+  
+  // 如果是删除操作，需要确认
+  if (action === 'remove') {
+    try {
+      await ElMessageBox.confirm(
+        `Are you sure you want to remove ${selectedContainers.value.length} container(s)?`,
+        'Confirm',
+        {
+          confirmButtonText: 'Remove',
+          cancelButtonText: 'Cancel',
+          type: 'warning'
+        }
+      )
+    } catch {
+      return
+    }
+  }
+  
+  const loading = ElMessage({
+    message: `Processing ${action} action...`,
+    type: 'info',
+    duration: 0
+  })
+  
+  let successCount = 0
+  let failCount = 0
+  
+  for (const container of selectedContainers.value) {
+    try {
+      const id = container.Id
+      
+      switch (action) {
+        case 'start':
+          await dockerApi.containers.start(id)
+          break
+        case 'stop':
+          await dockerApi.containers.stop(id)
+          break
+        case 'restart':
+          await dockerApi.containers.restart(id)
+          break
+        case 'kill':
+          await dockerApi.containers.stop(id) // 使用 stop API，后端可以实现 kill
+          break
+        case 'pause':
+          // 暂停功能需要后端支持
+          ElMessage.warning('Pause feature is not implemented yet')
+          break
+        case 'resume':
+          // 恢复功能需要后端支持
+          ElMessage.warning('Resume feature is not implemented yet')
+          break
+        case 'remove':
+          await dockerApi.containers.remove(id, false)
+          break
+      }
+      
+      successCount++
+    } catch (error) {
+      console.error(`Failed to ${action} container:`, container.Names?.[0])
+      failCount++
+    }
+  }
+  
+  loading.close()
+  
+  if (successCount > 0) {
+    ElMessage.success(`${successCount} container(s) ${action}ed successfully`)
+    loadContainers()
+  }
+  
+  if (failCount > 0) {
+    ElMessage.warning(`${failCount} container(s) failed`)
+  }
 }
 
 onMounted(() => {

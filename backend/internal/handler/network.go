@@ -33,13 +33,15 @@ func InspectNetwork(c *gin.Context) {
 
 // CreateNetwork 创建网络
 func CreateNetwork(c *gin.Context) {
-	var req struct {
-		Name   string `json:"name" binding:"required"`
-		Driver string `json:"driver"`
-	}
+	var req docker.NetworkCreateRequest
 	
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
+		return
+	}
+
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "网络名称不能为空"})
 		return
 	}
 
@@ -47,7 +49,7 @@ func CreateNetwork(c *gin.Context) {
 		req.Driver = "bridge"
 	}
 
-	response, err := docker.CreateNetwork(req.Name, req.Driver)
+	response, err := docker.CreateNetworkWithConfig(req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -67,6 +67,8 @@ func Setup() *gin.Engine {
 		protected.POST("/images/pull", handler.PullImage)
 		protected.DELETE("/images/:id", handler.RemoveImage)
 		protected.POST("/images/tag", handler.TagImage)
+		protected.POST("/images/load", handler.LoadImage)
+		protected.POST("/images/save", handler.SaveImage)
 
 		// 网络管理
 		protected.GET("/networks", handler.ListNetworks)

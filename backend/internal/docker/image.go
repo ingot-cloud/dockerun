@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"io"
+	"os"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
@@ -37,5 +38,51 @@ func RemoveImage(imageID string, force bool) ([]image.DeleteResponse, error) {
 func TagImage(source, target string) error {
 	ctx := context.Background()
 	return Client.ImageTag(ctx, source, target)
+}
+
+// LoadImage 从文件导入镜像
+func LoadImage(path string) error {
+	ctx := context.Background()
+	
+	// 打开文件
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	
+	// 加载镜像
+	resp, err := Client.ImageLoad(ctx, file, false)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	
+	// 读取响应（确保完成）
+	_, err = io.Copy(io.Discard, resp.Body)
+	return err
+}
+
+// SaveImage 导出镜像到文件
+func SaveImage(imageID, path string) error {
+	ctx := context.Background()
+	
+	// 保存镜像
+	reader, err := Client.ImageSave(ctx, []string{imageID})
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+	
+	// 创建文件
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	
+	// 写入文件
+	_, err = io.Copy(file, reader)
+	return err
 }
 

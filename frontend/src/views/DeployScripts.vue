@@ -118,7 +118,7 @@
       :close-on-click-modal="false"
       class="script-dialog"
     >
-      <el-form :model="form" label-width="120px">
+      <el-form :model="form" label-width="120px" style="margin-top: 10px;">
         <el-form-item label="Name">
           <el-input v-model="form.name" placeholder="e.g. deploy-nginx" />
         </el-form-item>

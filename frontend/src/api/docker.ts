@@ -19,14 +19,16 @@ export const dockerApi = {
     inspect: (id: string) => request.get(`/images/${id}`),
     pull: (imageName: string) => request.post('/images/pull', { image_name: imageName }),
     remove: (id: string, force = false) => request.delete(`/images/${id}`, { params: { force } }),
-    tag: (source: string, target: string) => request.post('/images/tag', { source, target })
+    tag: (source: string, target: string) => request.post('/images/tag', { source, target }),
+    load: (path: string) => request.post('/images/load', { path }),
+    save: (id: string, path: string) => request.post('/images/save', { image_id: id, path })
   },
 
   // 网络相关
   networks: {
     list: () => request.get('/networks'),
     inspect: (id: string) => request.get(`/networks/${id}`),
-    create: (name: string, driver = 'bridge') => request.post('/networks', { name, driver }),
+    create: (params: any) => request.post('/networks', params),
     remove: (id: string) => request.delete(`/networks/${id}`),
     connect: (id: string, containerId: string) => request.post(`/networks/${id}/connect`, { container_id: containerId }),
     disconnect: (id: string, containerId: string, force = false) => request.post(`/networks/${id}/disconnect`, { container_id: containerId, force })

@@ -60,11 +60,13 @@
           </el-button>
           <el-button
             :icon="Download"
+            @click="handleImport"
           >
             Import
           </el-button>
           <el-button
             :icon="Upload"
+            @click="handleExport"
           >
             Export
           </el-button>
@@ -75,7 +77,6 @@
           >
             Build a new image
           </el-button>
-          <el-button class="more-btn" :icon="MoreFilled" />
         </div>
       </div>
       
@@ -145,8 +146,7 @@ import {
   Delete,
   Download,
   Upload,
-  Plus,
-  MoreFilled
+  Plus
 } from '@element-plus/icons-vue'
 import { dockerApi } from '@/api/docker'
 
@@ -245,6 +245,92 @@ const handleBatchRemove = async () => {
     }
     ElMessage.success('Images removed')
     loadImages()
+  })
+}
+
+const handleImport = () => {
+  ElMessageBox.prompt(
+    'Please enter the path to the image tar file to import',
+    'Import Image',
+    {
+      confirmButtonText: 'Import',
+      cancelButtonText: 'Cancel',
+      inputPlaceholder: '/path/to/image.tar'
+    }
+  ).then(async ({ value }) => {
+    if (!value) {
+      ElMessage.warning('Please enter a file path')
+      return
+    }
+    
+    const loading = ElMessage({
+      message: 'Importing image...',
+      type: 'info',
+      duration: 0
+    })
+    
+    try {
+      // 注意：实际实现需要后端支持文件上传或路径导入
+      // 这里暂时使用 API 调用的方式
+      await dockerApi.images.load(value)
+      loading.close()
+      ElMessage.success('Image imported successfully')
+      loadImages()
+    } catch (error: any) {
+      loading.close()
+      ElMessage.error(error.response?.data?.message || 'Failed to import image')
+    }
+  }).catch(() => {
+    // 用户取消
+  })
+}
+
+const handleExport = () => {
+  if (selectedImages.value.length === 0) {
+    ElMessage.warning('Please select at least one image to export')
+    return
+  }
+  
+  if (selectedImages.value.length > 1) {
+    ElMessage.warning('Please select only one image to export')
+    return
+  }
+  
+  const image = selectedImages.value[0]
+  const imageName = image.RepoTags?.[0] || image.Id.replace('sha256:', '').substring(0, 12)
+  
+  ElMessageBox.prompt(
+    `Please enter the output path for the exported image`,
+    'Export Image',
+    {
+      confirmButtonText: 'Export',
+      cancelButtonText: 'Cancel',
+      inputPlaceholder: `/tmp/${imageName}.tar`,
+      inputValue: `/tmp/${imageName}.tar`
+    }
+  ).then(async ({ value }) => {
+    if (!value) {
+      ElMessage.warning('Please enter a file path')
+      return
+    }
+    
+    const loading = ElMessage({
+      message: 'Exporting image...',
+      type: 'info',
+      duration: 0
+    })
+    
+    try {
+      // 注意：实际实现需要后端支持文件保存
+      await dockerApi.images.save(image.Id, value)
+      loading.close()
+      ElMessage.success(`Image exported to ${value}`)
+    } catch (error: any) {
+      loading.close()
+      ElMessage.error(error.response?.data?.message || 'Failed to export image')
+    }
+  }).catch(() => {
+    // 用户取消
   })
 }
 
