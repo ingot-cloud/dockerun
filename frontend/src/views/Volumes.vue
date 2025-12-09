@@ -395,10 +395,21 @@ onMounted(() => {
 
 .create-dialog :deep(.el-dialog__header) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #2a2d31;
 }
 
 .create-dialog :deep(.el-dialog__title) {
   color: #fff;
+}
+
+.create-dialog :deep(.el-dialog__body) {
+  background-color: #2a2d31;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.create-dialog :deep(.el-dialog__footer) {
+  background-color: #2a2d31;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .create-dialog :deep(.el-form-item__label) {
@@ -414,5 +425,9 @@ onMounted(() => {
 
 .create-dialog :deep(.el-input__inner) {
   color: #fff;
+}
+
+.create-dialog :deep(.el-select__placeholder) {
+  color: #8a929c;
 }
 </style>

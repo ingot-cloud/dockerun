@@ -21,7 +21,13 @@ export const dockerApi = {
     remove: (id: string, force = false) => request.delete(`/images/${id}`, { params: { force } }),
     tag: (source: string, target: string) => request.post('/images/tag', { source, target }),
     load: (path: string) => request.post('/images/load', { path }),
-    save: (id: string, path: string) => request.post('/images/save', { image_id: id, path })
+    save: (id: string, path: string) => request.post('/images/save', { image_id: id, path }),
+    loadFile: (formData: FormData) => request.post('/images/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+    saveFile: (id: string) => request.get(`/images/${id}/export`, { 
+      responseType: 'blob'
+    })
   },
 
   // 网络相关

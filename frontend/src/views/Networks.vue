@@ -400,13 +400,13 @@ const handleCreate = async () => {
     
     // IPv4 configuration
     const ipv4Config: any = {}
-    if (form.ipv4_subnet) ipv4Config.subnet = form.ipv4_subnet
-    if (form.ipv4_gateway) ipv4Config.gateway = form.ipv4_gateway
-    if (form.ipv4_ip_range) ipv4Config.ip_range = form.ipv4_ip_range
+    if (form.ipv4_subnet) ipv4Config.Subnet = form.ipv4_subnet
+    if (form.ipv4_gateway) ipv4Config.Gateway = form.ipv4_gateway
+    if (form.ipv4_ip_range) ipv4Config.IPRange = form.ipv4_ip_range
     if (form.ipv4_excluded_ips.length > 0) {
-      ipv4Config.aux_addresses = {}
+      ipv4Config.AuxAddress = {}
       form.ipv4_excluded_ips.forEach((ip, index) => {
-        if (ip) ipv4Config.aux_addresses[`excluded_${index}`] = ip
+        if (ip) ipv4Config.AuxAddress[`excluded_${index}`] = ip
       })
     }
     if (Object.keys(ipv4Config).length > 0) {
@@ -417,13 +417,13 @@ const handleCreate = async () => {
     if (form.enable_ipv6) {
       params.enable_ipv6 = true
       const ipv6Config: any = {}
-      if (form.ipv6_subnet) ipv6Config.subnet = form.ipv6_subnet
-      if (form.ipv6_gateway) ipv6Config.gateway = form.ipv6_gateway
-      if (form.ipv6_ip_range) ipv6Config.ip_range = form.ipv6_ip_range
+      if (form.ipv6_subnet) ipv6Config.Subnet = form.ipv6_subnet
+      if (form.ipv6_gateway) ipv6Config.Gateway = form.ipv6_gateway
+      if (form.ipv6_ip_range) ipv6Config.IPRange = form.ipv6_ip_range
       if (form.ipv6_excluded_ips.length > 0) {
-        ipv6Config.aux_addresses = {}
+        ipv6Config.AuxAddress = {}
         form.ipv6_excluded_ips.forEach((ip, index) => {
-          if (ip) ipv6Config.aux_addresses[`excluded_${index}`] = ip
+          if (ip) ipv6Config.AuxAddress[`excluded_${index}`] = ip
         })
       }
       if (Object.keys(ipv6Config).length > 0) {
@@ -674,10 +674,21 @@ onMounted(() => {
 
 .create-dialog :deep(.el-dialog__header) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #2a2d31;
 }
 
 .create-dialog :deep(.el-dialog__title) {
   color: #fff;
+}
+
+.create-dialog :deep(.el-dialog__body) {
+  background-color: #2a2d31;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.create-dialog :deep(.el-dialog__footer) {
+  background-color: #2a2d31;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .create-dialog :deep(.el-form-item__label) {
@@ -693,6 +704,10 @@ onMounted(() => {
 
 .create-dialog :deep(.el-input__inner) {
   color: #fff;
+}
+
+.create-dialog :deep(.el-select__placeholder) {
+  color: #8a929c;
 }
 
 .network-form {

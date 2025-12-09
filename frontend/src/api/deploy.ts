@@ -1,12 +1,26 @@
 import request from './request'
 
+export interface DeployScriptFile {
+  id?: number
+  deploy_script_id?: number
+  file_name: string
+  file_path: string
+  file_type: 'compose' | 'config' | 'script' | 'other'
+  content: string
+  description?: string
+  created_at?: string
+  updated_at?: string
+}
+
 export interface DeployScript {
   id?: number
   name: string
   description: string
   script_type: 'shell' | 'docker-compose'
-  content: string
-  compose_file?: string
+  main_script: string
+  work_dir?: string
+  env_vars?: Record<string, string>
+  files?: DeployScriptFile[]
   container_id?: string
   status?: string
   created_at?: string

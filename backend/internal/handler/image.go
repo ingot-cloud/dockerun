@@ -128,3 +128,48 @@ func SaveImage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "镜像导出成功"})
 }
 
+// ImportImage 通过文件上传导入镜像
+func ImportImage(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请上传文件"})
+		return
+	}
+
+	// 打开上传的文件
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法读取文件"})
+		return
+	}
+	defer src.Close()
+
+	// 导入镜像
+	if err := docker.LoadImageFromReader(src); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "镜像导入成功"})
+}
+
+// ExportImage 导出镜像并下载
+func ExportImage(c *gin.Context) {
+	imageID := c.Param("id")
+	
+	// 获取镜像导出流
+	reader, err := docker.SaveImageToReader(imageID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer reader.Close()
+
+	// 设置响应头
+	c.Header("Content-Type", "application/x-tar")
+	c.Header("Content-Disposition", "attachment; filename=image.tar")
+	
+	// 流式传输
+	io.Copy(c.Writer, reader)
+}
+

@@ -249,19 +249,14 @@ const handleBatchRemove = async () => {
 }
 
 const handleImport = () => {
-  ElMessageBox.prompt(
-    'Please enter the path to the image tar file to import',
-    'Import Image',
-    {
-      confirmButtonText: 'Import',
-      cancelButtonText: 'Cancel',
-      inputPlaceholder: '/path/to/image.tar'
-    }
-  ).then(async ({ value }) => {
-    if (!value) {
-      ElMessage.warning('Please enter a file path')
-      return
-    }
+  // 创建文件选择输入
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.tar,.tar.gz,.tgz'
+  
+  input.onchange = async (e: any) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
     
     const loading = ElMessage({
       message: 'Importing image...',
@@ -270,9 +265,11 @@ const handleImport = () => {
     })
     
     try {
-      // 注意：实际实现需要后端支持文件上传或路径导入
-      // 这里暂时使用 API 调用的方式
-      await dockerApi.images.load(value)
+      // 创建 FormData 上传文件
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      await dockerApi.images.loadFile(formData)
       loading.close()
       ElMessage.success('Image imported successfully')
       loadImages()
@@ -280,12 +277,12 @@ const handleImport = () => {
       loading.close()
       ElMessage.error(error.response?.data?.message || 'Failed to import image')
     }
-  }).catch(() => {
-    // 用户取消
-  })
+  }
+  
+  input.click()
 }
 
-const handleExport = () => {
+const handleExport = async () => {
   if (selectedImages.value.length === 0) {
     ElMessage.warning('Please select at least one image to export')
     return
@@ -297,41 +294,36 @@ const handleExport = () => {
   }
   
   const image = selectedImages.value[0]
-  const imageName = image.RepoTags?.[0] || image.Id.replace('sha256:', '').substring(0, 12)
+  const imageName = (image.RepoTags?.[0] || image.Id.replace('sha256:', '').substring(0, 12))
+    .replace(/[/:]/g, '_')
   
-  ElMessageBox.prompt(
-    `Please enter the output path for the exported image`,
-    'Export Image',
-    {
-      confirmButtonText: 'Export',
-      cancelButtonText: 'Cancel',
-      inputPlaceholder: `/tmp/${imageName}.tar`,
-      inputValue: `/tmp/${imageName}.tar`
-    }
-  ).then(async ({ value }) => {
-    if (!value) {
-      ElMessage.warning('Please enter a file path')
-      return
-    }
-    
-    const loading = ElMessage({
-      message: 'Exporting image...',
-      type: 'info',
-      duration: 0
-    })
-    
-    try {
-      // 注意：实际实现需要后端支持文件保存
-      await dockerApi.images.save(image.Id, value)
-      loading.close()
-      ElMessage.success(`Image exported to ${value}`)
-    } catch (error: any) {
-      loading.close()
-      ElMessage.error(error.response?.data?.message || 'Failed to export image')
-    }
-  }).catch(() => {
-    // 用户取消
+  const loading = ElMessage({
+    message: 'Exporting image...',
+    type: 'info',
+    duration: 0
   })
+  
+  try {
+    // 直接下载文件
+    const response = await dockerApi.images.saveFile(image.Id)
+    loading.close()
+    
+    // 创建下载链接
+    const blob = new Blob([response.data], { type: 'application/x-tar' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${imageName}.tar`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success('Image exported successfully')
+  } catch (error: any) {
+    loading.close()
+    ElMessage.error(error.response?.data?.message || 'Failed to export image')
+  }
 }
 
 onMounted(() => {
@@ -372,6 +364,7 @@ onMounted(() => {
   justify-content: space-between;
   padding: 15px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #23252a;
 }
 
 .header-left {
@@ -390,6 +383,7 @@ onMounted(() => {
 
 .pull-body {
   padding: 20px;
+  background-color: #23252a;
 }
 
 .form-row {

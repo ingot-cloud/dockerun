@@ -59,19 +59,19 @@
           </template>
         </el-table-column>
         
+        <el-table-column label="Files" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag type="info" size="small">
+              {{ row.files?.length || 0 }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        
         <el-table-column prop="status" label="Status" width="120">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small" class="status-tag">
               {{ row.status }}
             </el-tag>
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="Container" width="150">
-          <template #default="{ row }">
-            <span class="container-id">
-              {{ row.container_id ? row.container_id.substring(0, 12) : '-' }}
-            </span>
           </template>
         </el-table-column>
         
@@ -114,53 +114,182 @@
     <el-dialog 
       v-model="dialogVisible" 
       :title="isEdit ? 'Edit script' : 'Add script'" 
-      width="70%"
+      width="90%"
       :close-on-click-modal="false"
       class="script-dialog"
+      top="5vh"
     >
-      <el-form :model="form" label-width="120px" style="margin-top: 10px;">
-        <el-form-item label="Name">
-          <el-input v-model="form.name" placeholder="e.g. deploy-nginx" />
-        </el-form-item>
+      <el-form :model="form" label-width="120px" class="script-form">
+        <!-- 基本信息 -->
+        <div class="form-section">
+          <h3>Basic Information</h3>
+          <el-form-item label="Name">
+            <el-input v-model="form.name" placeholder="e.g. deploy-nginx" />
+          </el-form-item>
+          
+          <el-form-item label="Description">
+            <el-input v-model="form.description" placeholder="Script description" />
+          </el-form-item>
+          
+          <el-form-item label="Type">
+            <el-radio-group v-model="form.script_type">
+              <el-radio label="shell">Shell Script</el-radio>
+              <el-radio label="docker-compose">Docker Compose</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          
+          <el-form-item label="Work Directory">
+            <el-input v-model="form.work_dir" placeholder="/tmp/deploy/my-app" />
+            <div class="form-tip">Directory where files will be saved and script will be executed</div>
+          </el-form-item>
+        </div>
         
-        <el-form-item label="Description">
-          <el-input v-model="form.description" placeholder="Script description" />
-        </el-form-item>
-        
-        <el-form-item label="Type">
-          <el-radio-group v-model="form.script_type">
-            <el-radio label="shell">Shell Script</el-radio>
-            <el-radio label="docker-compose">Docker Compose</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        
-        <el-form-item label="Script">
+        <!-- 主脚本 -->
+        <div class="form-section">
+          <h3>Main Script</h3>
           <el-input
-            v-model="form.content"
+            v-model="form.main_script"
             type="textarea"
-            :rows="15"
-            placeholder="Enter your script content..."
+            :rows="12"
+            placeholder="Enter your main execution script..."
             class="code-input"
           />
-        </el-form-item>
+          <div class="form-tip">This is the main script that will be executed. It should handle directory creation, file copying, and service startup.</div>
+        </div>
         
-        <el-form-item 
-          v-if="form.script_type === 'docker-compose'" 
-          label="Compose File"
-        >
-          <el-input
-            v-model="form.compose_file"
-            type="textarea"
-            :rows="15"
-            placeholder="Enter docker-compose.yml content..."
-            class="code-input"
-          />
-        </el-form-item>
+        <!-- 文件管理 -->
+        <div class="form-section">
+          <div class="section-header">
+            <h3>Files</h3>
+            <el-button 
+              :icon="Plus" 
+              type="primary" 
+              size="small"
+              @click="addFile"
+            >
+              Add File
+            </el-button>
+          </div>
+          
+          <el-table :data="form.files" class="files-table" max-height="400">
+            <el-table-column label="File Name" width="200">
+              <template #default="{ row }">
+                <el-input v-model="row.file_name" placeholder="e.g. docker-compose.yml" size="small" />
+              </template>
+            </el-table-column>
+            
+            <el-table-column label="File Path" width="250">
+              <template #default="{ row }">
+                <el-input v-model="row.file_path" placeholder="e.g. ./docker-compose.yml" size="small" />
+              </template>
+            </el-table-column>
+            
+            <el-table-column label="Type" width="150">
+              <template #default="{ row }">
+                <el-select v-model="row.file_type" size="small">
+                  <el-option label="Docker Compose" value="compose" />
+                  <el-option label="Config" value="config" />
+                  <el-option label="Script" value="script" />
+                  <el-option label="Other" value="other" />
+                </el-select>
+              </template>
+            </el-table-column>
+            
+            <el-table-column label="Description" min-width="200">
+              <template #default="{ row }">
+                <el-input v-model="row.description" placeholder="File description" size="small" />
+              </template>
+            </el-table-column>
+            
+            <el-table-column label="Actions" width="120" fixed="right">
+              <template #default="{ row, $index }">
+                <el-button 
+                  :icon="Edit" 
+                  size="small"
+                  @click="editFileContent(row)"
+                >
+                  Edit
+                </el-button>
+                <el-button 
+                  :icon="Delete" 
+                  type="danger" 
+                  size="small"
+                  @click="form.files.splice($index, 1)"
+                />
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+        
+        <!-- 环境变量 -->
+        <div class="form-section">
+          <div class="section-header">
+            <h3>Environment Variables</h3>
+            <el-button 
+              :icon="Plus" 
+              type="primary" 
+              size="small"
+              @click="addEnvVar"
+            >
+              Add Variable
+            </el-button>
+          </div>
+          
+          <div class="env-vars-list">
+            <div 
+              v-for="(_, key, index) in form.env_vars" 
+              :key="index" 
+              class="env-var-item"
+            >
+              <el-input 
+                :model-value="key"
+                @update:model-value="updateEnvKey(key, $event)"
+                placeholder="VARIABLE_NAME" 
+                class="env-key" 
+              />
+              <span class="env-equals">=</span>
+              <el-input 
+                v-model="form.env_vars[key]"
+                placeholder="value" 
+                class="env-value" 
+              />
+              <el-button 
+                :icon="Delete" 
+                type="danger" 
+                circle 
+                size="small"
+                @click="deleteEnvVar(key)"
+              />
+            </div>
+            <div v-if="Object.keys(form.env_vars).length === 0" class="empty-tip">
+              No environment variables defined
+            </div>
+          </div>
+        </div>
       </el-form>
       
       <template #footer>
         <el-button @click="dialogVisible = false">Cancel</el-button>
         <el-button type="primary" @click="handleSave">Save</el-button>
+      </template>
+    </el-dialog>
+    
+    <!-- 编辑文件内容对话框 -->
+    <el-dialog 
+      v-model="fileDialogVisible" 
+      :title="`Edit File: ${currentFile?.file_name}`" 
+      width="70%"
+      class="file-dialog"
+    >
+      <el-input
+        v-model="currentFile.content"
+        type="textarea"
+        :rows="20"
+        placeholder="Enter file content..."
+        class="code-input"
+      />
+      <template #footer>
+        <el-button @click="fileDialogVisible = false">Close</el-button>
       </template>
     </el-dialog>
     
@@ -191,46 +320,56 @@ import {
   Delete,
   Plus,
   VideoPlay,
-  Edit,
-  User
+  Edit
 } from '@element-plus/icons-vue'
-import { deployApi, type DeployScript } from '@/api/deploy'
+import { deployApi, type DeployScript, type DeployScriptFile } from '@/api/deploy'
 
 const scripts = ref<DeployScript[]>([])
 const loading = ref(false)
 const searchText = ref('')
 const selectedScripts = ref<DeployScript[]>([])
 const dialogVisible = ref(false)
+const fileDialogVisible = ref(false)
 const outputVisible = ref(false)
 const output = ref('')
 const isEdit = ref(false)
 const currentId = ref(0)
+const currentFile = ref<DeployScriptFile>({
+  file_name: '',
+  file_path: '',
+  file_type: 'other',
+  content: ''
+})
 
 const form = reactive<DeployScript>({
   name: '',
   description: '',
   script_type: 'shell',
-  content: '',
-  compose_file: ''
+  main_script: '',
+  work_dir: '/tmp/deploy',
+  env_vars: {},
+  files: []
 })
 
 const exampleScript = `#!/usr/bin/env bash
 
-VERSION=latest
-IMAGE_NAME=nginx
-SERVICE_NAME=my-nginx
+set -e
 
-# Stop and remove old container
-docker ps -q --filter name="\${SERVICE_NAME}" | xargs -r docker rm -f
+# 设置工作目录
+WORK_DIR="\${WORK_DIR:-/opt/myapp}"
+cd "$WORK_DIR"
 
-# Pull latest image
-docker pull \${IMAGE_NAME}:\${VERSION}
+# 创建必要的目录
+mkdir -p data logs config
 
-# Start new container
-docker run -d --name \${SERVICE_NAME} \\
-  --restart always \\
-  -p 8080:80 \\
-  \${IMAGE_NAME}:\${VERSION}
+# 复制配置文件
+# (配置文件应该已经在工作目录中)
+
+# 启动服务
+echo "Starting services..."
+docker-compose up -d
+
+echo "Deployment completed!"
 `
 
 const filteredScripts = computed(() => {
@@ -284,8 +423,10 @@ const handleCreate = () => {
   form.name = ''
   form.description = ''
   form.script_type = 'shell'
-  form.content = exampleScript
-  form.compose_file = ''
+  form.main_script = exampleScript
+  form.work_dir = '/tmp/deploy'
+  form.env_vars = {}
+  form.files = []
   dialogVisible.value = true
 }
 
@@ -298,8 +439,10 @@ const handleEdit = async (script: DeployScript) => {
     form.name = data.name
     form.description = data.description
     form.script_type = data.script_type
-    form.content = data.content
-    form.compose_file = data.compose_file || ''
+    form.main_script = data.main_script || ''
+    form.work_dir = data.work_dir || '/tmp/deploy'
+    form.env_vars = data.env_vars || {}
+    form.files = data.files || []
     dialogVisible.value = true
   } catch (error) {
     ElMessage.error('Failed to load script')
@@ -307,7 +450,7 @@ const handleEdit = async (script: DeployScript) => {
 }
 
 const handleSave = async () => {
-  if (!form.name || !form.content) {
+  if (!form.name || !form.main_script) {
     ElMessage.warning('Please fill in required fields')
     return
   }
@@ -382,6 +525,41 @@ const handleBatchDelete = async () => {
     ElMessage.success('Scripts removed')
     loadScripts()
   })
+}
+
+const addFile = () => {
+  form.files!.push({
+    file_name: '',
+    file_path: './',
+    file_type: 'other',
+    content: '',
+    description: ''
+  })
+}
+
+const editFileContent = (file: DeployScriptFile) => {
+  currentFile.value = file
+  fileDialogVisible.value = true
+}
+
+const addEnvVar = () => {
+  const key = `ENV_VAR_${Object.keys(form.env_vars!).length + 1}`
+  form.env_vars![key] = ''
+}
+
+const updateEnvKey = (oldKey: string, newKey: string) => {
+  if (oldKey === newKey) return
+  if (newKey in form.env_vars!) {
+    ElMessage.warning('Variable name already exists')
+    return
+  }
+  const val = form.env_vars![oldKey]
+  delete form.env_vars![oldKey]
+  form.env_vars![newKey] = val
+}
+
+const deleteEnvVar = (key: string) => {
+  delete form.env_vars![key]
 }
 
 onMounted(() => {
@@ -528,12 +706,6 @@ onMounted(() => {
   border: none;
 }
 
-.container-id {
-  color: #4a9eff;
-  font-family: monospace;
-  font-size: 12px;
-}
-
 .date-text {
   color: rgba(255, 255, 255, 0.85);
   font-size: 13px;
@@ -561,41 +733,193 @@ onMounted(() => {
 
 .script-dialog :deep(.el-dialog__header) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #2a2d31;
 }
 
 .script-dialog :deep(.el-dialog__title) {
   color: #fff;
 }
 
-.script-dialog :deep(.el-form-item__label) {
+.script-dialog :deep(.el-dialog__body) {
+  background-color: #2a2d31;
   color: rgba(255, 255, 255, 0.85);
 }
 
-.script-dialog :deep(.el-input__wrapper),
-.script-dialog :deep(.el-select__wrapper) {
+.script-dialog :deep(.el-dialog__footer) {
+  background-color: #2a2d31;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.script-form {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.form-section {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.form-section:last-child {
+  border-bottom: none;
+}
+
+.form-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header h3 {
+  margin: 0;
+}
+
+.script-form :deep(.el-form-item__label) {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.script-form :deep(.el-input__wrapper),
+.script-form :deep(.el-select__wrapper),
+.script-form :deep(.el-textarea__inner) {
   background-color: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: none;
 }
 
-.script-dialog :deep(.el-input__inner),
-.script-dialog :deep(.el-textarea__inner) {
+.script-form :deep(.el-input__inner),
+.script-form :deep(.el-textarea__inner) {
   color: #fff;
 }
 
-.script-dialog :deep(.el-radio__label) {
+.script-form :deep(.el-radio__label) {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.script-dialog :deep(.el-radio__input.is-checked .el-radio__inner) {
+.script-form :deep(.el-radio__input.is-checked .el-radio__inner) {
   background-color: #4a9eff;
   border-color: #4a9eff;
+}
+
+.form-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8a929c;
 }
 
 .code-input :deep(.el-textarea__inner) {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
-  background-color: #1e1e1e;
+  background-color: #1e1e1e !important;
+  line-height: 1.6;
+}
+
+.files-table {
+  background-color: transparent;
+}
+
+.files-table :deep(.el-table__inner-wrapper) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.files-table :deep(.el-table__header th) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #8a929c;
+}
+
+.files-table :deep(.el-table tr) {
+  background-color: transparent;
+  color: #fff;
+}
+
+.files-table :deep(.el-table__row) {
+  background-color: transparent !important;
+}
+
+.files-table :deep(.el-table__row:hover > td) {
+  background-color: rgba(74, 158, 255, 0.08) !important;
+}
+
+.files-table :deep(.el-table td) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: transparent !important;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.files-table :deep(.el-input__wrapper) {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: none;
+}
+
+.files-table :deep(.el-input__inner) {
+  color: #fff;
+}
+
+.files-table :deep(.el-select__wrapper) {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: none;
+}
+
+.files-table :deep(.el-select__placeholder) {
+  color: #8a929c;
+}
+
+.files-table :deep(.el-select__input) {
+  color: #fff;
+}
+
+.env-vars-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.env-var-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.env-key {
+  flex: 1;
+}
+
+.env-equals {
+  color: #8a929c;
+  font-weight: bold;
+}
+
+.env-value {
+  flex: 2;
+}
+
+.empty-tip {
+  padding: 20px;
+  text-align: center;
+  color: #8a929c;
+  font-size: 14px;
+}
+
+.file-dialog :deep(.el-dialog) {
+  background-color: #2a2d31;
+}
+
+.file-dialog :deep(.el-dialog__header) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.file-dialog :deep(.el-dialog__title) {
+  color: #fff;
 }
 
 .output-dialog :deep(.el-dialog) {
@@ -616,5 +940,36 @@ onMounted(() => {
   color: #fff;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 12px;
+}
+</style>
+
+<style>
+/* 全局样式：Select 下拉菜单 dark 模式 */
+.el-select-dropdown {
+  background-color: #2a2d31 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.el-select-dropdown__item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.el-select-dropdown__item:hover {
+  background-color: rgba(74, 158, 255, 0.15) !important;
+}
+
+.el-select-dropdown__item.is-selected {
+  color: #4a9eff !important;
+  font-weight: 500;
+}
+
+.el-popper {
+  background-color: #2a2d31 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.el-popper__arrow::before {
+  background-color: #2a2d31 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 </style>

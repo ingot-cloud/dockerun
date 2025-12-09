@@ -146,16 +146,14 @@
           </template>
         </el-table-column>
         
-        <el-table-column label="Published Ports" width="180">
+        <el-table-column label="Published Ports" min-width="200">
           <template #default="{ row }">
             <div class="ports-cell">
-              <div v-for="(port, index) in row.Ports?.slice(0, 2)" :key="index" class="port-item">
+              <div v-for="(port, index) in row.Ports" :key="index" class="port-item">
                 <el-icon class="port-icon"><Link /></el-icon>
                 <span>{{ formatPort(port) }}</span>
               </div>
-              <span v-if="row.Ports && row.Ports.length > 2" class="more-ports">
-                +{{ row.Ports.length - 2 }} more
-              </span>
+              <span v-if="!row.Ports || row.Ports.length === 0" class="no-ports">-</span>
             </div>
           </template>
         </el-table-column>
@@ -606,8 +604,8 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.more-ports {
-  font-size: 11px;
+.no-ports {
+  font-size: 12px;
   color: #8a929c;
 }
 
@@ -643,10 +641,15 @@ onMounted(() => {
 
 .logs-dialog :deep(.el-dialog__header) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #2a2d31;
 }
 
 .logs-dialog :deep(.el-dialog__title) {
   color: #fff;
+}
+
+.logs-dialog :deep(.el-dialog__body) {
+  background-color: #2a2d31;
 }
 
 .logs-textarea :deep(.el-textarea__inner) {

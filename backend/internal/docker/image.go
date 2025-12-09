@@ -86,3 +86,25 @@ func SaveImage(imageID, path string) error {
 	return err
 }
 
+// LoadImageFromReader 从 io.Reader 导入镜像
+func LoadImageFromReader(reader io.Reader) error {
+	ctx := context.Background()
+	
+	// 加载镜像
+	resp, err := Client.ImageLoad(ctx, reader, false)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	
+	// 读取响应（确保完成）
+	_, err = io.Copy(io.Discard, resp.Body)
+	return err
+}
+
+// SaveImageToReader 导出镜像到 io.ReadCloser
+func SaveImageToReader(imageID string) (io.ReadCloser, error) {
+	ctx := context.Background()
+	return Client.ImageSave(ctx, []string{imageID})
+}
+

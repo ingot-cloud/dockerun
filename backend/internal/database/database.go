@@ -28,6 +28,7 @@ func Init(dbPath string) error {
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.DeployScript{},
+		&models.DeployScriptFile{},
 	); err != nil {
 		return err
 	}
