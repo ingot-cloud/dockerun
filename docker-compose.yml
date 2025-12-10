@@ -21,6 +21,11 @@ services:
       - DATABASE_PATH=/app/data/dockerun.db
       - TEMPLATE_DIR=/app/templates
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
+      # Docker Network 配置
+      - DOCKER_NETWORK_NAME=dockerun-net
+      - DOCKER_NETWORK_DRIVER=bridge
+      - DOCKER_NETWORK_SUBNET=172.20.0.0/16
+      - DOCKER_NETWORK_GATEWAY=172.20.0.1
     # 如果需要访问Docker，容器需要有相应的权限
     privileged: true
     networks:

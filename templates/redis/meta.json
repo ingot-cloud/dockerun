@@ -8,6 +8,8 @@
   "work_dir": "/ingot-data/dockerun/redis-deploy",
   "env_vars": {
     "CONTEINER_NAME": "redis",
+    "DOCKER_NETWORK": "dockerun-net",
+    "DOCKER_NETWORK_IP": "172.25.0.90",
     "REDIS_IMAGE": "docker-registry.ingotcloud.top/redis",
     "REDIS_PORT": "6379",
     "REDIS_VERSION": "8.2.0"

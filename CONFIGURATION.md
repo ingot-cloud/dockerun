@@ -50,6 +50,25 @@ TEMPLATE_DIR=./templates
 TEMPLATE_DIR=/app/templates
 ```
 
+### Docker Network 配置
+
+应用启动时会自动创建一个 Docker 网络，用于容器间通信。
+
+| 环境变量 | 说明 | 默认值 | 示例 |
+|---------|------|--------|------|
+| `DOCKER_NETWORK_NAME` | 网络名称 | `dockerun-net` | `my-app-net` |
+| `DOCKER_NETWORK_DRIVER` | 网络驱动 | `bridge` | `bridge`, `overlay` |
+| `DOCKER_NETWORK_SUBNET` | 子网 | `172.20.0.0/16` | `10.10.0.0/16` |
+| `DOCKER_NETWORK_GATEWAY` | 网关 | `172.20.0.1` | `10.10.0.1` |
+
+#### 功能说明
+
+- ✅ 启动时自动检查网络是否存在
+- ✅ 如果不存在则自动创建
+- ✅ 如果已存在则跳过创建
+- ✅ 支持自定义子网和网关
+- ✅ 部署的容器可以连接到此网络
+
 ---
 
 ## 配置方式

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bufio"
+	"dockerun/internal/config"
 	"dockerun/internal/database"
 	"dockerun/internal/docker"
 	"dockerun/internal/models"
@@ -212,6 +213,10 @@ func ExecuteDeployScript(c *gin.Context) {
 	}
 	// 添加工作目录环境变量
 	env = append(env, fmt.Sprintf("WORK_DIR=%s", workDir))
+	
+	// 添加 Docker 网络名称（从配置中获取）
+	cfg := config.Load()
+	env = append(env, fmt.Sprintf("DOCKER_NETWORK=%s", cfg.NetworkName))
 
 	// 执行脚本（流式输出）
 	cmd := exec.Command("/bin/bash", mainScriptPath)

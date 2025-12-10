@@ -23,6 +23,11 @@ func main() {
 	if err := docker.Init(); err != nil {
 		log.Printf("Warning: Failed to initialize Docker client: %v", err)
 		log.Println("Docker functionality may not be available")
+	} else {
+		// 初始化 Docker 网络
+		if err := docker.InitializeNetwork(); err != nil {
+			log.Printf("Warning: Failed to initialize Docker network: %v", err)
+		}
 	}
 
 	// 设置Gin模式
