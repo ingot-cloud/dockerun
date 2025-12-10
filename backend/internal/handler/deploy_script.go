@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"bufio"
 	"dockerun/internal/database"
+	"dockerun/internal/docker"
 	"dockerun/internal/models"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -22,13 +27,20 @@ func ListDeployScripts(c *gin.Context) {
 		return
 	}
 
+	// 填充容器名称
+	for i := range scripts {
+		if scripts[i].ContainerID != "" {
+			scripts[i].ContainerName = docker.GetContainerName(scripts[i].ContainerID)
+		}
+	}
+
 	c.JSON(http.StatusOK, scripts)
 }
 
 // GetDeployScript 获取部署脚本详情
 func GetDeployScript(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var script models.DeployScript
 	// Preload Files 关联
 	if err := database.GetDB().Preload("Files").First(&script, id).Error; err != nil {
@@ -53,7 +65,7 @@ func CreateDeployScript(c *gin.Context) {
 
 	// 如果没有设置工作目录，使用默认值
 	if req.WorkDir == "" {
-		req.WorkDir = "/tmp/deploy"
+		req.WorkDir = "/ingot-data/dockerun"
 	}
 
 	// 创建脚本（包括关联的文件）
@@ -68,7 +80,7 @@ func CreateDeployScript(c *gin.Context) {
 // UpdateDeployScript 更新部署脚本
 func UpdateDeployScript(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var script models.DeployScript
 	if err := database.GetDB().Preload("Files").First(&script, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "脚本不存在"})
@@ -107,7 +119,7 @@ func UpdateDeployScript(c *gin.Context) {
 // DeleteDeployScript 删除部署脚本
 func DeleteDeployScript(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var script models.DeployScript
 	if err := database.GetDB().First(&script, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "脚本不存在"})
@@ -128,7 +140,7 @@ func DeleteDeployScript(c *gin.Context) {
 // ExecuteDeployScript 执行部署脚本
 func ExecuteDeployScript(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var script models.DeployScript
 	if err := database.GetDB().Preload("Files").First(&script, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "脚本不存在"})
@@ -137,7 +149,7 @@ func ExecuteDeployScript(c *gin.Context) {
 
 	// 使用配置的工作目录或创建临时目录
 	var workDir string
-	if script.WorkDir != "" && script.WorkDir != "/tmp/deploy" {
+	if script.WorkDir != "" && script.WorkDir != "/ingot-data/dockerun" {
 		// 使用用户指定的工作目录
 		workDir = script.WorkDir
 		if err := os.MkdirAll(workDir, 0755); err != nil {
@@ -171,6 +183,7 @@ func ExecuteDeployScript(c *gin.Context) {
 		if file.FileType == "script" {
 			perm = 0755
 		}
+		log.Println("写入文件: ", fileFullPath)
 		if err := os.WriteFile(fileFullPath, []byte(file.Content), perm); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("写入文件失败: %s", file.FileName),
@@ -200,41 +213,165 @@ func ExecuteDeployScript(c *gin.Context) {
 	// 添加工作目录环境变量
 	env = append(env, fmt.Sprintf("WORK_DIR=%s", workDir))
 
-	// 执行脚本
+	// 执行脚本（流式输出）
 	cmd := exec.Command("/bin/bash", mainScriptPath)
 	cmd.Dir = workDir
 	cmd.Env = env
-	output, err := cmd.CombinedOutput()
 
-	outputStr := string(output)
-
+	// 获取输出管道
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		script.Status = "failed"
-		database.GetDB().Save(&script)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":  "脚本执行失败: " + err.Error(),
-			"output": outputStr,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建输出管道失败"})
+		return
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建错误管道失败"})
 		return
 	}
 
-	// 尝试获取容器ID（从脚本输出中提取）
-	lines := strings.Split(outputStr, "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if len(trimmed) == 64 || len(trimmed) == 12 { // Docker容器ID长度
-			script.ContainerID = trimmed
-			break
+	// 设置流式响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	// 启动命令
+	if err := cmd.Start(); err != nil {
+		script.Status = "failed"
+		database.GetDB().Save(&script)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "启动脚本失败: " + err.Error()})
+		return
+	}
+
+	// 用于收集所有输出
+	var fullOutput strings.Builder
+	flusher, _ := c.Writer.(http.Flusher)
+
+	// 发送日志事件
+	sendLogEvent := func(line string) {
+		fullOutput.WriteString(line + "\n")
+		data, _ := json.Marshal(map[string]string{
+			"type": "log",
+			"data": line,
+		})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		if flusher != nil {
+			flusher.Flush()
 		}
 	}
 
-	script.Status = "stopped"
+	// 读取标准输出
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			sendLogEvent(scanner.Text())
+		}
+	}()
+
+	// 读取标准错误
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			sendLogEvent("[STDERR] " + scanner.Text())
+		}
+	}()
+
+	// 等待命令完成
+	cmdErr := cmd.Wait()
+
+	outputStr := fullOutput.String()
+
+	// 发送完成事件
+	if cmdErr != nil {
+		script.Status = "failed"
+		database.GetDB().Save(&script)
+
+		data, _ := json.Marshal(map[string]interface{}{
+			"type":    "error",
+			"message": "脚本执行失败: " + cmdErr.Error(),
+			"output":  outputStr,
+		})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		if flusher != nil {
+			flusher.Flush()
+		}
+		return
+	}
+
+	// 智能提取容器ID
+	containerID := extractContainerID(outputStr)
+	if containerID != "" {
+		script.ContainerID = containerID
+		script.ContainerName = docker.GetContainerName(containerID)
+
+		// 检查容器是否真的在运行
+		if docker.IsContainerRunning(containerID) {
+			script.Status = "running"
+		} else {
+			script.Status = "stopped"
+		}
+	} else {
+		script.Status = "stopped"
+	}
+
 	database.GetDB().Save(&script)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "脚本执行成功",
-		"output":  outputStr,
-		"script":  script,
+	// 发送成功事件
+	data, _ := json.Marshal(map[string]interface{}{
+		"type":         "complete",
+		"message":      "脚本执行成功",
+		"output":       outputStr,
+		"script":       script,
+		"container_id": containerID,
 	})
+	fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+	if flusher != nil {
+		flusher.Flush()
+	}
 }
 
+// extractContainerID 智能提取容器ID
+func extractContainerID(output string) string {
+	// 方法1: 查找标准的Docker容器ID（64位或12位十六进制）
+	// 匹配 "Container ID:" 或类似的输出
+	patterns := []string{
+		`(?i)container\s+id[:\s]+([a-f0-9]{12,64})`,
+		`(?i)started\s+([a-f0-9]{12,64})`,
+		`(?i)created\s+([a-f0-9]{12,64})`,
+		// 匹配单独一行的容器ID
+		`^([a-f0-9]{64})$`,
+		`^([a-f0-9]{12})$`,
+	}
+
+	for _, pattern := range patterns {
+		re := regexp.MustCompile(pattern)
+		if matches := re.FindStringSubmatch(output); len(matches) > 1 {
+			return matches[1]
+		}
+	}
+
+	// 方法2: 查找 docker-compose 的输出
+	// 例如: "Creating network...", "Creating container_name...", "Container xxx Started"
+	composePattern := regexp.MustCompile(`(?i)container\s+(\S+)\s+(?:started|created)`)
+	if matches := composePattern.FindStringSubmatch(output); len(matches) > 1 {
+		containerName := matches[1]
+		// 尝试通过容器名称获取ID
+		if id := docker.GetContainerIDByName(containerName); id != "" {
+			return id
+		}
+	}
+
+	// 方法3: 如果输出中有明确的十六进制ID行
+	hexIDPattern := regexp.MustCompile(`^[a-f0-9]{12,64}$`)
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// 检查是否是纯十六进制的容器ID
+		if hexIDPattern.MatchString(trimmed) {
+			return trimmed
+		}
+	}
+
+	return ""
+}

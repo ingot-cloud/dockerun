@@ -34,20 +34,21 @@ func (m StringMap) Value() (driver.Value, error) {
 }
 
 type DeployScript struct {
-	ID          uint               `gorm:"primarykey" json:"id"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt     `gorm:"index" json:"-"`
-	Name        string             `gorm:"not null" json:"name"`
-	Description string             `json:"description"`
-	ScriptType  string             `gorm:"not null;default:'shell'" json:"script_type"` // shell, docker-compose
-	MainScript  string             `gorm:"type:text" json:"main_script"`                // 主执行脚本
-	WorkDir     string             `gorm:"default:'/tmp/deploy'" json:"work_dir"`       // 工作目录
-	EnvVars     StringMap          `gorm:"type:json" json:"env_vars"`                   // 环境变量
-	Files       []DeployScriptFile `gorm:"foreignKey:DeployScriptID" json:"files"`      // 关联文件
-	ContainerID string             `json:"container_id"`                                // 关联的容器ID
-	Status      string             `gorm:"default:'idle'" json:"status"`                // idle, running, stopped, failed
-	UserID      uint               `json:"user_id"`
+	ID            uint               `gorm:"primarykey" json:"id"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
+	DeletedAt     gorm.DeletedAt     `gorm:"index" json:"-"`
+	Name          string             `gorm:"not null" json:"name"`
+	Description   string             `json:"description"`
+	ScriptType    string             `gorm:"not null;default:'shell'" json:"script_type"`    // shell, docker-compose
+	MainScript    string             `gorm:"type:text" json:"main_script"`                   // 主执行脚本
+	WorkDir       string             `gorm:"default:'/ingot-data/dockerun'" json:"work_dir"` // 工作目录
+	EnvVars       StringMap          `gorm:"type:json" json:"env_vars"`                      // 环境变量
+	Files         []DeployScriptFile `gorm:"foreignKey:DeployScriptID" json:"files"`         // 关联文件
+	ContainerID   string             `json:"container_id"`                                   // 关联的容器ID
+	ContainerName string             `gorm:"-" json:"container_name"`                        // 容器名称（不存储在数据库）
+	Status        string             `gorm:"default:'idle'" json:"status"`                   // idle, running, stopped, failed
+	UserID        uint               `json:"user_id"`
 }
 
 type DeployScriptFile struct {

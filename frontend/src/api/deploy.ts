@@ -22,9 +22,30 @@ export interface DeployScript {
   env_vars?: Record<string, string>
   files?: DeployScriptFile[]
   container_id?: string
+  container_name?: string
   status?: string
   created_at?: string
   updated_at?: string
+}
+
+export interface TemplateFile {
+  file_name: string
+  file_path: string
+  file_type: string
+  content: string
+  description?: string
+}
+
+export interface ScriptTemplate {
+  id: string
+  name: string
+  description: string
+  category: string
+  icon: string
+  main_script: string
+  work_dir: string
+  env_vars: Record<string, string>
+  files: TemplateFile[]
 }
 
 export const deployApi = {
@@ -33,6 +54,10 @@ export const deployApi = {
   create: (data: DeployScript) => request.post('/deploy-scripts', data),
   update: (id: number, data: DeployScript) => request.put(`/deploy-scripts/${id}`, data),
   delete: (id: number) => request.delete(`/deploy-scripts/${id}`),
-  execute: (id: number) => request.post(`/deploy-scripts/${id}/execute`)
+  execute: (id: number) => request.post(`/deploy-scripts/${id}/execute`),
+  
+  // 模版相关
+  getTemplates: () => request.get<ScriptTemplate[]>('/templates'),
+  getTemplate: (id: string) => request.get<ScriptTemplate>(`/templates/${id}`)
 }
 

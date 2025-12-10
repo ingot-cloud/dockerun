@@ -92,6 +92,10 @@ func Setup() *gin.Engine {
 		protected.PUT("/deploy-scripts/:id", handler.UpdateDeployScript)
 		protected.DELETE("/deploy-scripts/:id", handler.DeleteDeployScript)
 		protected.POST("/deploy-scripts/:id/execute", handler.ExecuteDeployScript)
+		
+		// 脚本模版
+		protected.GET("/templates", handler.GetTemplates)
+		protected.GET("/templates/:id", handler.GetTemplate)
 	}
 
 	// 静态文件服务（前端）

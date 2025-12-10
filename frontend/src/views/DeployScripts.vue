@@ -26,6 +26,13 @@
             Remove
           </el-button>
           <el-button
+            type="success"
+            :icon="DocumentCopy"
+            @click="showTemplates"
+          >
+            From Template
+          </el-button>
+          <el-button
             type="primary"
             :icon="Plus"
             @click="handleCreate"
@@ -51,19 +58,21 @@
         
         <el-table-column prop="description" label="Description" min-width="250" />
         
-        <el-table-column prop="script_type" label="Type" width="150">
-          <template #default="{ row }">
-            <el-tag class="type-tag" size="small">
-              {{ row.script_type }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        
         <el-table-column label="Files" width="100" align="center">
           <template #default="{ row }">
             <el-tag type="info" size="small">
               {{ row.files?.length || 0 }}
             </el-tag>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="Container" width="200">
+          <template #default="{ row }">
+            <div v-if="row.container_id" class="container-info">
+              <div class="container-name">{{ row.container_name || 'Unknown' }}</div>
+              <div class="container-id">{{ row.container_id.substring(0, 12) }}</div>
+            </div>
+            <span v-else class="no-container">-</span>
           </template>
         </el-table-column>
         
@@ -131,16 +140,9 @@
             <el-input v-model="form.description" placeholder="Script description" />
           </el-form-item>
           
-          <el-form-item label="Type">
-            <el-radio-group v-model="form.script_type">
-              <el-radio label="shell">Shell Script</el-radio>
-              <el-radio label="docker-compose">Docker Compose</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          
           <el-form-item label="Work Directory">
-            <el-input v-model="form.work_dir" placeholder="/tmp/deploy/my-app" />
-            <div class="form-tip">Directory where files will be saved and script will be executed</div>
+            <el-input v-model="form.work_dir" placeholder="/ingot-data/dockerun/my-app" />
+            <div class="form-tip">Directory where files will be saved and script will be executed. If not exists, it will be created automatically.</div>
           </el-form-item>
         </div>
         
@@ -208,13 +210,12 @@
                   size="small"
                   @click="editFileContent(row)"
                 >
-                  Edit
                 </el-button>
                 <el-button 
                   :icon="Delete" 
                   type="danger" 
                   size="small"
-                  @click="form.files.splice($index, 1)"
+                  @click="form.files?.splice($index, 1)"
                 />
               </template>
             </el-table-column>
@@ -249,7 +250,7 @@
               />
               <span class="env-equals">=</span>
               <el-input 
-                v-model="form.env_vars[key]"
+                v-model="form.env_vars![key]"
                 placeholder="value" 
                 class="env-value" 
               />
@@ -261,7 +262,7 @@
                 @click="deleteEnvVar(key)"
               />
             </div>
-            <div v-if="Object.keys(form.env_vars).length === 0" class="empty-tip">
+            <div v-if="Object.keys(form.env_vars || {}).length === 0" class="empty-tip">
               No environment variables defined
             </div>
           </div>
@@ -308,6 +309,33 @@
         class="output-textarea"
       />
     </el-dialog>
+    
+    <!-- 模版选择对话框 -->
+    <el-dialog 
+      v-model="templatesVisible" 
+      title="Choose a Template" 
+      width="80%"
+      class="templates-dialog"
+    >
+      <div v-loading="templatesLoading" class="templates-container">
+        <div 
+          v-for="template in templates" 
+          :key="template.id" 
+          class="template-card"
+          @click="useTemplate(template)"
+        >
+          <div class="template-icon">{{ template.icon }}</div>
+          <div class="template-content">
+            <h3>{{ template.name }}</h3>
+            <p class="template-category">{{ template.category }}</p>
+            <p class="template-description">{{ template.description }}</p>
+          </div>
+        </div>
+        <div v-if="templates.length === 0 && !templatesLoading" class="no-templates">
+          No templates available
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -320,9 +348,10 @@ import {
   Delete,
   Plus,
   VideoPlay,
-  Edit
+  Edit,
+  DocumentCopy
 } from '@element-plus/icons-vue'
-import { deployApi, type DeployScript, type DeployScriptFile } from '@/api/deploy'
+import { deployApi, type DeployScript, type DeployScriptFile, type ScriptTemplate } from '@/api/deploy'
 
 const scripts = ref<DeployScript[]>([])
 const loading = ref(false)
@@ -333,6 +362,9 @@ const fileDialogVisible = ref(false)
 const outputVisible = ref(false)
 const output = ref('')
 const isEdit = ref(false)
+const templatesVisible = ref(false)
+const templates = ref<ScriptTemplate[]>([])
+const templatesLoading = ref(false)
 const currentId = ref(0)
 const currentFile = ref<DeployScriptFile>({
   file_name: '',
@@ -346,7 +378,7 @@ const form = reactive<DeployScript>({
   description: '',
   script_type: 'shell',
   main_script: '',
-  work_dir: '/tmp/deploy',
+  work_dir: '/ingot-data/dockerun',
   env_vars: {},
   files: []
 })
@@ -424,7 +456,7 @@ const handleCreate = () => {
   form.description = ''
   form.script_type = 'shell'
   form.main_script = exampleScript
-  form.work_dir = '/tmp/deploy'
+  form.work_dir = '/ingot-data/dockerun'
   form.env_vars = {}
   form.files = []
   dialogVisible.value = true
@@ -436,16 +468,22 @@ const handleEdit = async (script: DeployScript) => {
   
   try {
     const data = await deployApi.get(script.id!) as any
-    form.name = data.name
-    form.description = data.description
-    form.script_type = data.script_type
+    
+    console.log('Loaded script data:', data)
+    
+    // 重置表单
+    form.name = data.name || ''
+    form.description = data.description || ''
+    form.script_type = data.script_type || 'shell'
     form.main_script = data.main_script || ''
-    form.work_dir = data.work_dir || '/tmp/deploy'
+    form.work_dir = data.work_dir || '/ingot-data/dockerun'
     form.env_vars = data.env_vars || {}
     form.files = data.files || []
+    
     dialogVisible.value = true
-  } catch (error) {
-    ElMessage.error('Failed to load script')
+  } catch (error: any) {
+    console.error('Failed to load script:', error)
+    ElMessage.error(error.response?.data?.error || error.message || 'Failed to load script')
   }
 }
 
@@ -480,22 +518,81 @@ const handleExecute = async (script: DeployScript) => {
       type: 'warning'
     }
   ).then(async () => {
-    const loading = ElMessage({
-      message: 'Executing script...',
-      type: 'info',
-      duration: 0
-    })
+    // 清空输出并打开输出对话框
+    output.value = '=== Starting execution ===\n'
+    outputVisible.value = true
+    
+    const token = localStorage.getItem('token')
+    const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+    const url = `${window.location.origin}${baseURL}/deploy-scripts/${script.id}/execute`
     
     try {
-      const res: any = await deployApi.execute(script.id!)
-      loading.close()
-      output.value = res.output || 'Execution completed'
-      outputVisible.value = true
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream'
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      
+      if (reader) {
+        let buffer = ''
+        
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          const chunk = decoder.decode(value, { stream: true })
+          buffer += chunk
+          console.log('Received chunk:', chunk)
+          
+          // 处理完整的消息（以 \n\n 分隔）
+          const messages = buffer.split('\n\n')
+          buffer = messages.pop() || '' // 保留最后一个不完整的消息
+          
+          for (const message of messages) {
+            if (message.trim() === '') continue
+            
+            const lines = message.split('\n')
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.substring(6))
+                  console.log('Parsed SSE data:', data)
+                  
+                  if (data.type === 'log') {
+                    output.value += data.data + '\n'
+                  } else if (data.type === 'error') {
+                    output.value += '\n=== Execution failed ===\n'
+                    output.value += data.message + '\n'
+                    ElMessage.error('Script execution failed')
+                  } else if (data.type === 'complete') {
+                    output.value += '\n=== Execution completed successfully ===\n'
+                    if (data.container_id) {
+                      output.value += `Container ID: ${data.container_id}\n`
+                    }
+                    ElMessage.success('Script executed successfully')
+                  }
+                } catch (e) {
+                  console.error('Failed to parse SSE data:', line, e)
+                }
+              }
+            }
+          }
+        }
+      }
+      
       loadScripts()
     } catch (error: any) {
-      loading.close()
-      output.value = error.response?.data?.output || 'Execution failed'
-      outputVisible.value = true
+      output.value += '\n=== Error ===\n' + error.message
+      ElMessage.error('Failed to execute script')
     }
   })
 }
@@ -560,6 +657,42 @@ const updateEnvKey = (oldKey: string, newKey: string) => {
 
 const deleteEnvVar = (key: string) => {
   delete form.env_vars![key]
+}
+
+// 显示模版选择
+const showTemplates = async () => {
+  templatesVisible.value = true
+  templatesLoading.value = true
+  try {
+    const res = await deployApi.getTemplates()
+    templates.value = res.data as any
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.error || 'Failed to load templates')
+    templatesVisible.value = false // 加载失败时关闭对话框
+  } finally {
+    templatesLoading.value = false
+  }
+}
+
+// 使用模版
+const useTemplate = (template: ScriptTemplate) => {
+  form.name = template.name
+  form.description = template.description
+  form.script_type = 'shell'
+  form.main_script = template.main_script
+  form.work_dir = template.work_dir || '/ingot-data/dockerun'
+  form.env_vars = template.env_vars || {}
+  form.files = (template.files || []).map(f => ({
+    file_name: f.file_name || '',
+    file_path: f.file_path || '',
+    file_type: (f.file_type as any) || 'other',
+    content: f.content || '',
+    description: f.description || ''
+  }))
+  
+  templatesVisible.value = false
+  dialogVisible.value = true
+  isEdit.value = false
 }
 
 onMounted(() => {
@@ -971,5 +1104,97 @@ onMounted(() => {
 .el-popper__arrow::before {
   background-color: #2a2d31 !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 模版对话框样式 */
+.templates-dialog :deep(.el-dialog__body) {
+  padding: 20px;
+}
+
+.templates-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  min-height: 300px;
+}
+
+.template-card {
+  display: flex;
+  gap: 15px;
+  padding: 20px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.template-card:hover {
+  background-color: rgba(74, 158, 255, 0.08);
+  border-color: #4a9eff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 158, 255, 0.15);
+}
+
+.template-icon {
+  font-size: 36px;
+  flex-shrink: 0;
+}
+
+.template-content {
+  flex: 1;
+}
+
+.template-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.template-category {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: #8a929c;
+}
+
+.template-description {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
+.no-templates {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #8a929c;
+  font-size: 14px;
+}
+
+.no-container {
+  color: #8a929c;
+  font-size: 13px;
+}
+
+.container-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.container-name {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.container-id {
+  color: #8a929c;
+  font-size: 12px;
+  font-family: monospace;
 }
 </style>
