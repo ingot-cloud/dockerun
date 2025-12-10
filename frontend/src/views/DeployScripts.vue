@@ -48,7 +48,7 @@
         class="data-table"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="45" />
+        <el-table-column type="selection" width="45" fixed="left"/>
         
         <el-table-column prop="name" label="Name" width="200">
           <template #default="{ row }">
@@ -302,6 +302,7 @@
       class="output-dialog"
     >
       <el-input
+        ref="outputTextarea"
         v-model="output"
         type="textarea"
         :rows="20"
@@ -361,6 +362,7 @@ const dialogVisible = ref(false)
 const fileDialogVisible = ref(false)
 const outputVisible = ref(false)
 const output = ref('')
+const outputTextarea = ref()
 const isEdit = ref(false)
 const templatesVisible = ref(false)
 const templates = ref<ScriptTemplate[]>([])
@@ -422,6 +424,16 @@ const loadScripts = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 滚动到输出底部
+const scrollToBottom = () => {
+  setTimeout(() => {
+    if (outputTextarea.value && outputTextarea.value.textarea) {
+      const textarea = outputTextarea.value.textarea
+      textarea.scrollTop = textarea.scrollHeight
+    }
+  }, 0)
 }
 
 const handleSelectionChange = (selection: DeployScript[]) => {
@@ -523,7 +535,7 @@ const handleExecute = async (script: DeployScript) => {
     outputVisible.value = true
     
     const token = localStorage.getItem('token')
-    const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+    const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || '/api'
     const url = `${window.location.origin}${baseURL}/deploy-scripts/${script.id}/execute`
     
     try {
@@ -569,15 +581,18 @@ const handleExecute = async (script: DeployScript) => {
                   
                   if (data.type === 'log') {
                     output.value += data.data + '\n'
+                    scrollToBottom()
                   } else if (data.type === 'error') {
                     output.value += '\n=== Execution failed ===\n'
                     output.value += data.message + '\n'
+                    scrollToBottom()
                     ElMessage.error('Script execution failed')
                   } else if (data.type === 'complete') {
                     output.value += '\n=== Execution completed successfully ===\n'
                     if (data.container_id) {
                       output.value += `Container ID: ${data.container_id}\n`
                     }
+                    scrollToBottom()
                     ElMessage.success('Script executed successfully')
                   }
                 } catch (e) {
@@ -664,11 +679,12 @@ const showTemplates = async () => {
   templatesVisible.value = true
   templatesLoading.value = true
   try {
-    const res = await deployApi.getTemplates()
-    templates.value = res.data as any
+    const data = await deployApi.getTemplates() as any
+    templates.value = data || []
   } catch (error: any) {
     ElMessage.error(error.response?.data?.error || 'Failed to load templates')
     templatesVisible.value = false // 加载失败时关闭对话框
+    templates.value = [] // 确保是空数组而不是 undefined
   } finally {
     templatesLoading.value = false
   }
@@ -1115,6 +1131,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
+  padding: 20px;
   min-height: 300px;
 }
 

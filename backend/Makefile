@@ -1,7 +1,7 @@
 .PHONY: run build test clean
 
 dev:
-	go run main.go
+	TEMPLATE_DIR=../templates go run main.go
 
 build:
 	go build -o ../bin/dockerun main.go

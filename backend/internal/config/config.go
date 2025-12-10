@@ -9,6 +9,7 @@ type Config struct {
 	DatabasePath string
 	JWTSecret    string
 	Mode         string
+	TemplateDir  string
 }
 
 func Load() *Config {
@@ -17,6 +18,7 @@ func Load() *Config {
 		DatabasePath: getEnv("DATABASE_PATH", "./data/dockerun.db"),
 		JWTSecret:    getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 		Mode:         getEnv("GIN_MODE", "debug"),
+		TemplateDir:  getEnv("TEMPLATE_DIR", "./templates"),
 	}
 }
 
@@ -27,4 +29,3 @@ func getEnv(key, defaultValue string) string {
 	}
 	return value
 }
-

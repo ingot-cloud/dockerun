@@ -52,6 +52,9 @@ WORKDIR /app
 COPY --from=backend-builder /backend/main .
 COPY --from=frontend-builder /frontend/dist ./static
 
+# 复制模板目录
+COPY templates ./templates
+
 # 创建数据目录
 RUN mkdir -p /app/data
 
@@ -62,6 +65,7 @@ EXPOSE 8080
 ENV GIN_MODE=release
 ENV SERVER_ADDR=:8080
 ENV DATABASE_PATH=/app/data/dockerun.db
+ENV TEMPLATE_DIR=/app/templates
 
 # 运行应用
 CMD ["./main"]

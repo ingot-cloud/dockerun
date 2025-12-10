@@ -1,0 +1,23 @@
+{
+  "id": "docker-compose",
+  "name": "Docker Compose App",
+  "description": "Deploy multi-container application using Docker Compose",
+  "category": "Multi-Container",
+  "icon": "🐳",
+  "main_script": "deploy.sh",
+  "work_dir": "/opt/compose-deploy",
+  "env_vars": {
+    "APP_NAME": "myapp",
+    "APP_PORT": "8080"
+  },
+  "files": [
+    {
+      "file_name": "docker-compose.yml",
+      "file_path": "docker-compose.yml",
+      "source": "files/docker-compose.yml",
+      "file_type": "compose",
+      "description": "Docker Compose configuration"
+    }
+  ]
+}
+

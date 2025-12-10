@@ -19,6 +19,7 @@ services:
       - GIN_MODE=release
       - SERVER_ADDR=:8080
       - DATABASE_PATH=/app/data/dockerun.db
+      - TEMPLATE_DIR=/app/templates
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
     # 如果需要访问Docker，容器需要有相应的权限
     privileged: true

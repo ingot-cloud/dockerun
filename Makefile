@@ -29,7 +29,7 @@ dev-frontend: ## 开发模式运行前端
 	cd frontend && pnpm run dev
 
 dev-backend: ## 开发模式运行后端
-	cd backend && go run main.go
+	cd backend && TEMPLATE_DIR=../templates go run main.go
 
 clean: ## 清理构建文件
 	@echo "清理构建文件..."

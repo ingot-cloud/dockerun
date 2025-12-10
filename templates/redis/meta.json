@@ -1,0 +1,16 @@
+{
+  "id": "redis",
+  "name": "Redis Cache",
+  "description": "Deploy Redis cache server",
+  "category": "Cache",
+  "icon": "⚡",
+  "main_script": "deploy.sh",
+  "work_dir": "/opt/redis-deploy",
+  "env_vars": {
+    "REDIS_PORT": "6379",
+    "REDIS_VERSION": "latest",
+    "REDIS_PASSWORD": "changeme"
+  },
+  "files": []
+}
+

@@ -3,7 +3,7 @@
     <el-aside width="200px" class="sidebar">
       <div class="logo">
         <h2>DOCKERUN</h2>
-        <span class="edition">COMMUNITY EDITION</span>
+        <span class="edition">Ingot Cloud</span>
       </div>
       
       <el-menu
@@ -46,7 +46,7 @@
       </el-menu>
       
       <div class="sidebar-footer">
-        <div class="version-info">Community Edition</div>
+        <div class="version-info">Ingot Cloud</div>
       </div>
     </el-aside>
     

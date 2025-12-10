@@ -255,7 +255,7 @@ const getStateType = (state: string) => {
     paused: 'warning',
     dead: 'danger'
   }
-  return map[state] || ''
+  return map[state] || 'info'
 }
 
 const formatDate = (timestamp: number) => {

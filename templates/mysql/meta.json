@@ -1,0 +1,19 @@
+{
+  "id": "mysql",
+  "name": "MySQL Database",
+  "description": "Deploy MySQL database server with persistent storage",
+  "category": "Database",
+  "icon": "🗄️",
+  "main_script": "deploy.sh",
+  "work_dir": "/opt/mysql-deploy",
+  "env_vars": {
+    "MYSQL_PORT": "3306",
+    "MYSQL_VERSION": "8.0",
+    "MYSQL_ROOT_PASSWORD": "changeme",
+    "MYSQL_DATABASE": "mydb",
+    "MYSQL_USER": "user",
+    "MYSQL_PASSWORD": "password"
+  },
+  "files": []
+}
+
