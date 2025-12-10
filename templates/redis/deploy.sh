@@ -6,7 +6,7 @@ echo "Deploying Redis..."
 # Create data directory
 mkdir -p ${WORK_DIR}/volumes/data
 mkdir -p ${WORK_DIR}/volumes/conf
-cp ${WORK_DIR}/files/redis.conf ${WORK_DIR}/volumes/conf/redis.conf
+cp ${WORK_DIR}/config/redis.conf ${WORK_DIR}/volumes/conf/redis.conf
 
 # Stop and remove existing container if exists
 docker stop ${CONTEINER_NAME:-redis} 2>/dev/null || true
