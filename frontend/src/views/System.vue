@@ -4,234 +4,156 @@
       <h1>System</h1>
     </div>
 
-    <!-- Docker Status Card -->
+    <!-- Docker Information Card -->
     <div class="content-card">
       <div class="card-header">
         <div class="header-left">
           <el-icon class="header-icon"><Monitor /></el-icon>
-          <span>Docker Status</span>
-        </div>
-      </div>
-      
-      <div class="card-body">
-        <div class="info-row">
-          <div class="info-label">Docker Status</div>
-          <div class="info-value">
-            <el-tag :type="dockerStatus ? 'success' : 'danger'" size="large">
-              {{ dockerStatus ? 'Installed' : 'Not Installed' }}
-            </el-tag>
-          </div>
-        </div>
-        <div class="info-row">
-          <div class="info-label">Action</div>
-          <div class="info-value">
-            <el-button type="primary" @click="checkStatus">
-              Check Status
-            </el-button>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- System Info Card -->
-    <div class="content-card" style="margin-top: 20px;">
-      <div class="card-header">
-        <div class="header-left">
-          <el-icon class="header-icon"><InfoFilled /></el-icon>
-          <span>System Information</span>
+          <span>Docker Environment</span>
         </div>
         <div class="header-right">
-          <el-button :icon="Refresh" @click="loadSystemInfo">
+          <el-button :icon="Refresh" @click="loadSystemInfo" :loading="loading">
             Refresh
           </el-button>
         </div>
       </div>
       
-      <div class="card-body" v-if="systemInfo">
-        <div class="info-grid">
-          <div class="info-item">
-            <div class="item-label">Operating System</div>
-            <div class="item-value">{{ systemInfo.os }}</div>
-          </div>
-          <div class="info-item">
-            <div class="item-label">Architecture</div>
-            <div class="item-value">{{ systemInfo.arch }}</div>
-          </div>
-          <div class="info-item">
-            <div class="item-label">Distribution</div>
-            <div class="item-value">{{ systemInfo.distribution }}</div>
-          </div>
-          <div class="info-item">
-            <div class="item-label">Version</div>
-            <div class="item-value">{{ systemInfo.version }}</div>
-          </div>
-          <div class="info-item">
-            <div class="item-label">Internet Connection</div>
-            <div class="item-value">
-              <el-tag :type="systemInfo.has_internet ? 'success' : 'warning'">
-                {{ systemInfo.has_internet ? 'Connected' : 'Offline' }}
-              </el-tag>
-            </div>
-          </div>
-          <div class="info-item">
-            <div class="item-label">Docker</div>
-            <div class="item-value">
-              <el-tag :type="systemInfo.docker_exists ? 'success' : 'info'">
-                {{ systemInfo.docker_exists ? 'Installed' : 'Not Installed' }}
-              </el-tag>
-            </div>
-          </div>
-          <div class="info-item">
-            <div class="item-label">Docker Compose</div>
-            <div class="item-value">
-              <el-tag :type="systemInfo.compose_exists ? 'success' : 'info'">
-                {{ systemInfo.compose_exists ? 'Installed' : 'Not Installed' }}
-              </el-tag>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Docker Installation Card -->
-    <div 
-      class="content-card" 
-      style="margin-top: 20px;" 
-      v-if="systemInfo && !systemInfo.docker_exists"
-    >
-      <div class="card-header">
-        <div class="header-left">
-          <el-icon class="header-icon"><Download /></el-icon>
-          <span>Docker Installation</span>
-        </div>
-      </div>
-      
       <div class="card-body">
-        <el-form :model="installForm" label-width="150px" class="install-form">
-          <el-form-item label="Installation Method">
-            <el-radio-group v-model="installForm.method">
-              <el-radio label="online" :disabled="!systemInfo?.has_internet">
-                Online Installation
-              </el-radio>
-              <el-radio label="offline-rpm">
-                Offline (RPM)
-              </el-radio>
-              <el-radio label="offline-deb">
-                Offline (DEB)
-              </el-radio>
-              <el-radio label="offline-binary">
-                Offline (Binary)
-              </el-radio>
-            </el-radio-group>
-          </el-form-item>
-          
-          <el-form-item 
-            v-if="installForm.method === 'online'" 
-            label="Linux Distribution"
-          >
-            <el-select v-model="installForm.distribution" style="width: 300px">
-              <el-option label="Ubuntu/Debian" value="ubuntu" />
-              <el-option label="CentOS/RHEL" value="centos" />
-              <el-option label="Fedora" value="fedora" />
-            </el-select>
-          </el-form-item>
-          
-          <el-form-item 
-            v-if="installForm.method.startsWith('offline')" 
-            label="Package Path"
-          >
-            <el-input 
-              v-model="installForm.package_path" 
-              placeholder="/path/to/docker-package"
-              style="width: 500px"
-            />
-          </el-form-item>
-          
-          <el-form-item>
-            <el-button 
-              type="primary" 
-              @click="handleInstall"
-              :loading="installing"
-            >
-              Start Installation
-            </el-button>
-          </el-form-item>
-          
-          <el-alert
-            title="Note: Installing Docker requires root privileges. Please ensure the current user has sudo access."
-            type="warning"
-            :closable="false"
-          />
-        </el-form>
+        <div v-if="loading" class="loading-state">
+          <el-icon class="loading-icon"><Loading /></el-icon>
+          <span>Loading system information...</span>
+        </div>
+        
+        <div v-else-if="dockerInfo" class="info-container">
+          <!-- Docker Version Section -->
+          <div class="info-section">
+            <div class="section-title">
+              <el-icon><Box /></el-icon>
+              <span>Docker</span>
+            </div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="item-label">Client Version</div>
+                <div class="item-value">
+                  <el-tag type="success" size="large">{{ dockerInfo.docker_version || 'N/A' }}</el-tag>
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="item-label">Server Version</div>
+                <div class="item-value">
+                  <el-tag type="success" size="large">{{ dockerInfo.server_version || 'N/A' }}</el-tag>
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="item-label">API Version</div>
+                <div class="item-value">{{ dockerInfo.docker_api_version || 'N/A' }}</div>
+              </div>
+              <div class="info-item">
+                <div class="item-label">Docker Compose</div>
+                <div class="item-value">
+                  <el-tag 
+                    :type="dockerInfo.compose_version === 'Not Installed' ? 'warning' : 'success'"
+                    size="large"
+                  >
+                    {{ dockerInfo.compose_version || 'N/A' }}
+                  </el-tag>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Server Information Section -->
+          <div class="info-section">
+            <div class="section-title">
+              <el-icon><Platform /></el-icon>
+              <span>Server Information</span>
+            </div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="item-label">Operating System</div>
+                <div class="item-value">{{ dockerInfo.operating_system || 'N/A' }}</div>
+              </div>
+              <div class="info-item">
+                <div class="item-label">Kernel Version</div>
+                <div class="item-value">{{ dockerInfo.kernel_version || 'N/A' }}</div>
+              </div>
+              <div class="info-item">
+                <div class="item-label">Architecture</div>
+                <div class="item-value">{{ dockerInfo.server_arch || dockerInfo.arch || 'N/A' }}</div>
+              </div>
+              <div class="info-item">
+                <div class="item-label">Host OS</div>
+                <div class="item-value">{{ dockerInfo.server_os || dockerInfo.os || 'N/A' }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resources Section -->
+          <div class="info-section">
+            <div class="section-title">
+              <el-icon><DataAnalysis /></el-icon>
+              <span>Resources</span>
+            </div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="item-label">Total Memory</div>
+                <div class="item-value">
+                  <el-tag type="info" size="large">{{ dockerInfo.total_memory || 'N/A' }}</el-tag>
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="item-label">CPUs</div>
+                <div class="item-value">
+                  <el-tag type="info" size="large">{{ dockerInfo.cpus || 'N/A' }}</el-tag>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div v-else class="error-state">
+          <el-icon class="error-icon"><WarningFilled /></el-icon>
+          <h3>Failed to Load System Information</h3>
+          <p>Unable to connect to Docker daemon or retrieve system information.</p>
+          <el-button type="primary" @click="loadSystemInfo">Retry</el-button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Monitor,
-  InfoFilled,
   Refresh,
-  Download
+  Loading,
+  WarningFilled,
+  Box,
+  Platform,
+  DataAnalysis
 } from '@element-plus/icons-vue'
-import { systemApi, type InstallDockerParams } from '@/api/system'
+import { systemApi, type DockerInfo } from '@/api/system'
 
-const dockerStatus = ref(false)
-const systemInfo = ref<any>(null)
-const installing = ref(false)
-
-const installForm = reactive<InstallDockerParams>({
-  method: 'online',
-  distribution: 'ubuntu',
-  package_path: ''
-})
-
-const checkStatus = async () => {
-  try {
-    const res: any = await systemApi.checkDockerStatus()
-    dockerStatus.value = res.available
-    if (res.available) {
-      ElMessage.success('Docker is running')
-    } else {
-      ElMessage.warning('Docker is not running or not installed')
-    }
-  } catch (error) {
-    ElMessage.error('Failed to check Docker status')
-  }
-}
+const loading = ref(false)
+const dockerInfo = ref<DockerInfo | null>(null)
 
 const loadSystemInfo = async () => {
+  loading.value = true
   try {
-    systemInfo.value = await systemApi.getSystemInfo()
-  } catch (error) {
-    ElMessage.error('Failed to load system info')
-  }
-}
-
-const handleInstall = async () => {
-  if (installForm.method.startsWith('offline') && !installForm.package_path) {
-    ElMessage.warning('Please enter package path')
-    return
-  }
-  
-  installing.value = true
-  try {
-    await systemApi.installDocker(installForm)
-    ElMessage.success('Docker installed successfully, please restart the system')
-    loadSystemInfo()
-    checkStatus()
-  } catch (error) {
-    ElMessage.error('Docker installation failed, please check logs')
+    const res = await systemApi.getSystemInfo()
+    console.log(res)
+    dockerInfo.value = res as any
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.error || 'Failed to load system information')
+    dockerInfo.value = null
   } finally {
-    installing.value = false
+    loading.value = false
   }
 }
 
 onMounted(() => {
-  checkStatus()
   loadSystemInfo()
 })
 </script>
@@ -239,6 +161,7 @@ onMounted(() => {
 <style scoped>
 .system-view {
   width: 100%;
+  max-width: 1200px;
 }
 
 .page-header {
@@ -264,6 +187,7 @@ onMounted(() => {
   justify-content: space-between;
   padding: 15px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #23252a;
 }
 
 .header-left {
@@ -288,102 +212,149 @@ onMounted(() => {
 
 .card-body {
   padding: 20px;
+  background-color: #23252a;
 }
 
-.info-row {
+.loading-state,
+.error-state {
   display: flex;
-  padding: 15px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
 }
 
-.info-row:last-child {
+.loading-icon {
+  font-size: 48px;
+  color: #4a9eff;
+  margin-bottom: 16px;
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loading-state span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+.error-icon {
+  font-size: 64px;
+  color: #f56c6c;
+  margin-bottom: 20px;
+}
+
+.error-state h3 {
+  margin: 0 0 12px 0;
+  font-size: 20px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.error-state p {
+  margin: 0 0 24px 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+.info-container {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.info-section {
+  padding-bottom: 32px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.info-section:last-child {
   border-bottom: none;
+  padding-bottom: 0;
 }
 
-.info-label {
-  width: 200px;
-  color: #8a929c;
-  font-size: 14px;
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  margin-bottom: 20px;
 }
 
-.info-value {
-  flex: 1;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 14px;
+.section-title .el-icon {
+  font-size: 20px;
+  color: #4a9eff;
 }
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 20px;
 }
 
 .info-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 15px;
+  gap: 10px;
+  padding: 20px;
   background-color: rgba(255, 255, 255, 0.02);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s;
+}
+
+.info-item:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .item-label {
   color: #8a929c;
   font-size: 13px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .item-value {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 14px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 15px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.item-value :deep(.el-tag) {
   font-weight: 500;
 }
 
-.install-form {
-  max-width: 800px;
+.item-value :deep(.el-tag.el-tag--large) {
+  height: 32px;
+  padding: 0 16px;
+  font-size: 14px;
 }
 
-.install-form :deep(.el-form-item__label) {
-  color: rgba(255, 255, 255, 0.85);
+/* Dark mode tag styles */
+:deep(.el-tag--success) {
+  background-color: rgba(103, 194, 58, 0.15);
+  border-color: rgba(103, 194, 58, 0.3);
+  color: #67c23a;
 }
 
-.install-form :deep(.el-input__wrapper),
-.install-form :deep(.el-select__wrapper) {
-  background-color: #2a2d31;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: none;
+:deep(.el-tag--info) {
+  background-color: rgba(144, 147, 153, 0.15);
+  border-color: rgba(144, 147, 153, 0.3);
+  color: #909399;
 }
 
-.install-form :deep(.el-input__inner) {
-  color: #fff;
-}
-
-.install-form :deep(.el-radio__label) {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.install-form :deep(.el-radio__input.is-checked .el-radio__inner) {
-  background-color: #4a9eff;
-  border-color: #4a9eff;
-}
-
-.install-form :deep(.el-radio__input.is-disabled .el-radio__inner) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.install-form :deep(.el-radio__input.is-disabled + .el-radio__label) {
-  color: rgba(255, 255, 255, 0.3);
-}
-
-.install-form :deep(.el-alert) {
-  background-color: rgba(230, 162, 60, 0.1);
-  border: 1px solid rgba(230, 162, 60, 0.3);
-  margin-top: 10px;
-}
-
-.install-form :deep(.el-alert__title) {
+:deep(.el-tag--warning) {
+  background-color: rgba(230, 162, 60, 0.15);
+  border-color: rgba(230, 162, 60, 0.3);
   color: #e6a23c;
-  font-size: 13px;
 }
 </style>

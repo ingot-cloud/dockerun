@@ -54,4 +54,3 @@ func Init(dbPath string) error {
 func GetDB() *gorm.DB {
 	return DB
 }
-
