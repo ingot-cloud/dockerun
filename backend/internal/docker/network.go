@@ -9,14 +9,14 @@ import (
 
 // NetworkCreateRequest 创建网络的请求参数
 type NetworkCreateRequest struct {
-	Name       string                       `json:"name"`
-	Driver     string                       `json:"driver"`
-	Options    map[string]string            `json:"options"`
-	Internal   bool                         `json:"internal"`
-	Attachable bool                         `json:"attachable"`
-	EnableIPv6 bool                         `json:"enable_ipv6"`
-	IPAM       *network.IPAM                `json:"ipam"`
-	Labels     map[string]string            `json:"labels"`
+	Name       string            `json:"name"`
+	Driver     string            `json:"driver"`
+	Options    map[string]string `json:"options"`
+	Internal   bool              `json:"internal"`
+	Attachable bool              `json:"attachable"`
+	EnableIPv6 bool              `json:"enable_ipv6"`
+	IPAM       *network.IPAM     `json:"ipam"`
+	Labels     map[string]string `json:"labels"`
 }
 
 // ListNetworks 列出所有网络
@@ -60,7 +60,7 @@ func DisconnectNetwork(networkID, containerID string, force bool) error {
 // CreateNetworkWithConfig 使用完整配置创建网络
 func CreateNetworkWithConfig(req NetworkCreateRequest) (types.NetworkCreateResponse, error) {
 	ctx := context.Background()
-	
+
 	createOptions := types.NetworkCreate{
 		Driver:     req.Driver,
 		Options:    req.Options,
@@ -69,12 +69,11 @@ func CreateNetworkWithConfig(req NetworkCreateRequest) (types.NetworkCreateRespo
 		EnableIPv6: req.EnableIPv6,
 		Labels:     req.Labels,
 	}
-	
+
 	// 如果提供了 IPAM 配置
 	if req.IPAM != nil {
 		createOptions.IPAM = req.IPAM
 	}
-	
+
 	return Client.NetworkCreate(ctx, req.Name, createOptions)
 }
-

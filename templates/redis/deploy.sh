@@ -4,22 +4,23 @@ set -e
 echo "Deploying Redis..."
 
 # Create data directory
-mkdir -p ${WORK_DIR}/data
+mkdir -p ${WORK_DIR}/volumes/data
+mkdir -p ${WORK_DIR}/volumes/conf
+cp ${WORK_DIR}/files/redis.conf ${WORK_DIR}/volumes/conf/redis.conf
 
 # Stop and remove existing container if exists
-docker stop redis-cache 2>/dev/null || true
-docker rm redis-cache 2>/dev/null || true
+docker stop ${CONTEINER_NAME:-redis} 2>/dev/null || true
+docker rm ${CONTEINER_NAME:-redis} 2>/dev/null || true
 
 # Run Redis container
 CONTAINER_ID=$(docker run -d \
-  --name redis-cache \
+  --name ${CONTEINER_NAME:-redis} \
   -p ${REDIS_PORT:-6379}:6379 \
-  -v ${WORK_DIR}/data:/data \
-  --restart unless-stopped \
-  redis:${REDIS_VERSION:-latest} \
-  redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}")
+  -v ${WORK_DIR}/volumes/data:/data \
+  -v ${WORK_DIR}/volumes/conf/redis.conf:/etc/redis/redis.conf \
+  --restart always \
+  ${REDIS_IMAGE}:${REDIS_VERSION:-8.2.0} \
+  redis-server /etc/redis/redis.conf --appendonly yes)
 
 echo "Redis deployed successfully!"
 echo "Container ID: $CONTAINER_ID"
-echo "Password: ${REDIS_PASSWORD}"
-

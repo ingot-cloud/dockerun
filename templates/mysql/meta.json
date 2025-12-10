@@ -5,14 +5,13 @@
   "category": "Database",
   "icon": "🗄️",
   "main_script": "deploy.sh",
-  "work_dir": "/opt/mysql-deploy",
+  "work_dir": "/ingot-data/dockerun/mysql",
   "env_vars": {
+    "CONTEINER_NAME": "mysql-db",
+    "MYSQL_IMAGE": "docker-registry.ingotcloud.top/mysql",
     "MYSQL_PORT": "3306",
-    "MYSQL_VERSION": "8.0",
-    "MYSQL_ROOT_PASSWORD": "changeme",
-    "MYSQL_DATABASE": "mydb",
-    "MYSQL_USER": "user",
-    "MYSQL_PASSWORD": "password"
+    "MYSQL_VERSION": "8.0.44",
+    "MYSQL_ROOT_PASSWORD": "changeme"
   },
   "files": []
 }
