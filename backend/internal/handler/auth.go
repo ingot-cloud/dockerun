@@ -18,7 +18,10 @@ type LoginRequest struct {
 }
 
 type SetPasswordRequest struct {
-	NewPassword string `json:"new_password" binding:"required,min=6"`
+	NewPassword        string `json:"new_password" binding:"required,min=6"`
+	DeployWorkDir      string `json:"deploy_work_dir"`                      // 部署脚本工作目录
+	MaxScriptExecutors int    `json:"max_script_executors"`                 // 最大并发脚本执行数
+	ScriptTimeout      int    `json:"script_timeout"`                       // 脚本超时时间（秒）
 }
 
 type ChangePasswordRequest struct {
@@ -71,7 +74,7 @@ func Login(c *gin.Context) {
 	})
 }
 
-// SetInitialPassword 设置初始密码（首次运行）
+// SetInitialPassword 设置初始密码和系统配置（首次运行）
 func SetInitialPassword(c *gin.Context) {
 	var req SetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -103,7 +106,23 @@ func SetInitialPassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "密码设置成功"})
+	// 更新系统配置
+	var systemConfig models.SystemConfig
+	if err := database.GetDB().First(&systemConfig).Error; err == nil {
+		// 如果提供了配置参数，则更新
+		if req.DeployWorkDir != "" {
+			systemConfig.DeployWorkDir = req.DeployWorkDir
+		}
+		if req.MaxScriptExecutors > 0 {
+			systemConfig.MaxScriptExecutors = req.MaxScriptExecutors
+		}
+		if req.ScriptTimeout > 0 {
+			systemConfig.ScriptTimeout = req.ScriptTimeout
+		}
+		database.GetDB().Save(&systemConfig)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "初始化设置成功"})
 }
 
 // CheckInitialSetup 检查是否需要初始设置

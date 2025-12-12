@@ -7,6 +7,9 @@ export interface LoginParams {
 
 export interface SetPasswordParams {
   new_password: string
+  deploy_work_dir?: string
+  max_script_executors?: number
+  script_timeout?: number
 }
 
 export interface ChangePasswordParams {

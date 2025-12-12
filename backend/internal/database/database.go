@@ -30,6 +30,7 @@ func Init(dbPath string) error {
 		&models.DeployScript{},
 		&models.DeployScriptFile{},
 		&models.Registry{},
+		&models.SystemConfig{},
 	); err != nil {
 		return err
 	}
@@ -37,9 +38,9 @@ func Init(dbPath string) error {
 	DB = db
 
 	// 检查是否需要创建默认管理员
-	var count int64
-	DB.Model(&models.User{}).Count(&count)
-	if count == 0 {
+	var userCount int64
+	DB.Model(&models.User{}).Count(&userCount)
+	if userCount == 0 {
 		// 创建默认管理员账号（密码为空，标记需要首次设置）
 		admin := &models.User{
 			Username: "admin",
@@ -47,6 +48,20 @@ func Init(dbPath string) error {
 			Password: "", // 密码为空，标记需要首次设置
 		}
 		DB.Create(admin)
+	}
+
+	// 检查是否需要创建默认系统配置
+	var configCount int64
+	DB.Model(&models.SystemConfig{}).Count(&configCount)
+	if configCount == 0 {
+		// 创建默认系统配置
+		defaultConfig := &models.SystemConfig{
+			DeployWorkDir:      "/opt/dockerun",
+			MaxScriptExecutors: 5,
+			ScriptTimeout:      3600,
+			EnableScriptLog:    true,
+		}
+		DB.Create(defaultConfig)
 	}
 
 	return nil

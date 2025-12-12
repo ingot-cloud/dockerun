@@ -148,22 +148,32 @@ func ExecuteDeployScript(c *gin.Context) {
 		return
 	}
 
-	// 使用配置的工作目录或创建临时目录
+	// 使用配置的工作目录或系统默认工作目录
 	var workDir string
+	useTemp := false
 	if script.WorkDir != "" && script.WorkDir != "/ingot-data/dockerun" {
 		// 使用用户指定的工作目录
 		workDir = script.WorkDir
-		if err := os.MkdirAll(workDir, 0755); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "创建工作目录失败: " + err.Error()})
-			return
-		}
 	} else {
-		// 创建临时目录
-		workDir = filepath.Join(os.TempDir(), fmt.Sprintf("dockerun-deploy-%d", script.ID))
-		if err := os.MkdirAll(workDir, 0755); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "创建临时目录失败"})
-			return
+		// 使用系统配置的默认工作目录
+		var systemConfig models.SystemConfig
+		if err := database.GetDB().First(&systemConfig).Error; err == nil {
+			workDir = filepath.Join(systemConfig.DeployWorkDir, fmt.Sprintf("script-%d", script.ID))
+		} else {
+			// 如果系统配置不存在，使用临时目录
+			workDir = filepath.Join(os.TempDir(), fmt.Sprintf("dockerun-deploy-%d", script.ID))
+			useTemp = true
 		}
+	}
+
+	// 创建工作目录
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建工作目录失败: " + err.Error()})
+		return
+	}
+
+	// 如果使用临时目录，执行完后清理
+	if useTemp {
 		defer os.RemoveAll(workDir)
 	}
 
@@ -213,7 +223,7 @@ func ExecuteDeployScript(c *gin.Context) {
 	}
 	// 添加工作目录环境变量
 	env = append(env, fmt.Sprintf("WORK_DIR=%s", workDir))
-	
+
 	// 添加 Docker 网络名称（从配置中获取）
 	cfg := config.Load()
 	env = append(env, fmt.Sprintf("DOCKER_NETWORK=%s", cfg.NetworkName))

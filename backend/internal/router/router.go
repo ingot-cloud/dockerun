@@ -49,6 +49,8 @@ func Setup() *gin.Engine {
 		// 系统相关
 		protected.GET("/system/docker-status", handler.CheckDockerStatus)
 		protected.GET("/system/info", handler.GetSystemInfo)
+		protected.GET("/system/config", handler.GetSystemConfig)
+		protected.PUT("/system/config", handler.UpdateSystemConfig)
 
 		// 容器管理
 		protected.GET("/containers", handler.ListContainers)
