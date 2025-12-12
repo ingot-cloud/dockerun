@@ -56,7 +56,7 @@ func Init(dbPath string) error {
 	if configCount == 0 {
 		// 创建默认系统配置
 		defaultConfig := &models.SystemConfig{
-			DeployWorkDir:      "/opt/dockerun",
+			DeployWorkDir:      "/ingot-data/dockerun",
 			MaxScriptExecutors: 5,
 			ScriptTimeout:      3600,
 			EnableScriptLog:    true,

@@ -36,7 +36,7 @@
           <el-form-item label="Deploy Work Directory" prop="deployWorkDir">
             <el-input 
               v-model="form.deployWorkDir" 
-              placeholder="e.g., /opt/dockerun"
+              placeholder="e.g., /ingot-data/dockerun"
               size="large"
             >
               <template #prepend>
@@ -100,7 +100,7 @@ const loading = ref(false)
 const form = reactive({
   password: '',
   confirmPassword: '',
-  deployWorkDir: '/opt/dockerun',
+  deployWorkDir: '/ingot-data/dockeun',
   maxScriptExecutors: 5,
   scriptTimeout: 3600
 })
