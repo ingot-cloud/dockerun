@@ -855,6 +855,7 @@ onMounted(() => {
 .import-dialog-content,
 .export-dialog-content {
   min-height: 200px;
+  padding: 20px 0;
 }
 
 .selected-file {
