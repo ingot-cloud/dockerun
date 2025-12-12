@@ -7,4 +7,4 @@ mkdir -p ${WORK_DIR}/volumes/nginx-proxy/dhparam
 mkdir -p ${WORK_DIR}/volumes/nginx-proxy/certs
 mkdir -p ${WORK_DIR}/volumes/nginx-proxy/acme
 
-docker compose -f ${WORK_DIR}/docker-compose.yml up -d
+docker compose -f ./docker-compose.yml up -d
