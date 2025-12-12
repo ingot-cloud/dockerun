@@ -413,7 +413,6 @@ onMounted(() => {
 
 <style scoped>
 .registry-view {
-  padding: 20px;
   background-color: #1b1d21;
   min-height: 100vh;
 }

@@ -43,13 +43,13 @@
       >
         <el-table-column type="selection" width="45" />
         
-        <el-table-column label="Name" >
+        <el-table-column label="Name" min-width="180">
           <template #default="{ row }">
             <span class="network-name">{{ row.Name }}</span>
           </template>
         </el-table-column>
         
-        <el-table-column label="Stack" width="120">
+        <el-table-column label="Stack" width="100">
           <template #default="{ row }">
             <el-tag
               v-if="['bridge', 'host', 'none'].includes(row.Name)"
