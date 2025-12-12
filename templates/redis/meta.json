@@ -5,7 +5,7 @@
   "category": "Cache",
   "icon": "⚡",
   "main_script": "deploy.sh",
-  "work_dir": "/ingot-data/dockerun/redis-deploy",
+  "work_dir": "/ingot-data/dockerun/redis",
   "env_vars": {
     "CONTEINER_NAME": "redis",
     "DOCKER_NETWORK": "ingot-net",

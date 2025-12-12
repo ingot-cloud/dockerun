@@ -169,7 +169,7 @@
               size="small"
               @click="addFile"
             >
-              Add File
+              Add
             </el-button>
           </div>
           
@@ -232,7 +232,7 @@
               size="small"
               @click="addEnvVar"
             >
-              Add Variable
+              Add
             </el-button>
           </div>
           
@@ -926,6 +926,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  padding: 0 20px 0 0;
 }
 
 .section-header h3 {
