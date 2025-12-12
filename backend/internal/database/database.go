@@ -29,6 +29,7 @@ func Init(dbPath string) error {
 		&models.User{},
 		&models.DeployScript{},
 		&models.DeployScriptFile{},
+		&models.Registry{},
 	); err != nil {
 		return err
 	}

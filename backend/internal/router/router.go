@@ -96,6 +96,19 @@ func Setup() *gin.Engine {
 		// 脚本模版
 		protected.GET("/templates", handler.GetTemplates)
 		protected.GET("/templates/:id", handler.GetTemplate)
+
+		// Registry 管理
+		protected.GET("/registries", handler.ListRegistries)
+		protected.GET("/registries/:id", handler.GetRegistry)
+		protected.POST("/registries", handler.CreateRegistry)
+		protected.PUT("/registries/:id", handler.UpdateRegistry)
+		protected.DELETE("/registries/:id", handler.DeleteRegistry)
+		protected.POST("/registries/test", handler.TestRegistry)
+
+		// Registry 镜像管理
+		protected.GET("/registries/:id/images", handler.ListRegistryImages)
+		protected.GET("/registries/:id/images/*name", handler.GetRegistryImageTags)
+		protected.DELETE("/registries/:id/images/*name", handler.DeleteRegistryImage)
 	}
 
 	// 静态文件服务（前端）

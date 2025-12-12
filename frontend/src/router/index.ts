@@ -49,6 +49,16 @@ const router = createRouter({
           component: () => import('@/views/DeployScripts.vue')
         },
         {
+          path: 'registry',
+          name: 'Registry',
+          component: () => import('@/views/Registry.vue')
+        },
+        {
+          path: 'registry/:id/images',
+          name: 'RegistryImages',
+          component: () => import('@/views/RegistryImages.vue')
+        },
+        {
           path: 'system',
           name: 'System',
           component: () => import('@/views/System.vue')

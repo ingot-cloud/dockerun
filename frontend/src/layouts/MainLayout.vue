@@ -39,6 +39,11 @@
           <span>Deploy Scripts</span>
         </el-menu-item>
         
+        <el-menu-item index="/registry">
+          <el-icon><DataBoard /></el-icon>
+          <span>Registry</span>
+        </el-menu-item>
+        
         <el-menu-item index="/system">
           <el-icon><Setting /></el-icon>
           <span>System</span>
@@ -119,6 +124,7 @@ import {
   Connection,
   FolderOpened,
   Document,
+  DataBoard,
   Setting,
   ArrowDown
 } from '@element-plus/icons-vue'
