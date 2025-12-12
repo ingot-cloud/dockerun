@@ -161,7 +161,6 @@ onMounted(() => {
 <style scoped>
 .system-view {
   width: 100%;
-  max-width: 1200px;
 }
 
 .page-header {
