@@ -128,7 +128,7 @@ func SaveImage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "镜像导出成功"})
 }
 
-// ImportImage 通过文件上传导入镜像
+// ImportImage 通过文件上传导入镜像（SSE 流式返回日志）
 func ImportImage(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -144,13 +144,46 @@ func ImportImage(c *gin.Context) {
 	}
 	defer src.Close()
 
-	// 导入镜像
-	if err := docker.LoadImageFromReader(src); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	// 设置 SSE 响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+
+	// 发送开始事件
+	c.SSEvent("log", gin.H{"message": "Starting image import..."})
+	c.Writer.Flush()
+
+	// 导入镜像并获取响应
+	reader, err := docker.LoadImageWithProgress(src)
+	if err != nil {
+		c.SSEvent("error", gin.H{"message": err.Error()})
+		c.Writer.Flush()
 		return
 	}
+	defer reader.Close()
 
-	c.JSON(http.StatusOK, gin.H{"message": "镜像导入成功"})
+	// 流式读取并发送进度
+	buf := make([]byte, 4096)
+	for {
+		n, err := reader.Read(buf)
+		if n > 0 {
+			// Docker 返回的是 JSON Lines 格式
+			c.SSEvent("log", gin.H{"message": string(buf[:n])})
+			c.Writer.Flush()
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			c.SSEvent("error", gin.H{"message": err.Error()})
+			c.Writer.Flush()
+			return
+		}
+	}
+
+	// 发送完成事件
+	c.SSEvent("complete", gin.H{"message": "Image import completed successfully"})
+	c.Writer.Flush()
 }
 
 // ExportImage 导出镜像并下载

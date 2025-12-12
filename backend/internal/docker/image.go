@@ -102,6 +102,20 @@ func LoadImageFromReader(reader io.Reader) error {
 	return err
 }
 
+// LoadImageWithProgress 从 io.Reader 导入镜像并返回进度流
+func LoadImageWithProgress(reader io.Reader) (io.ReadCloser, error) {
+	ctx := context.Background()
+	
+	// 加载镜像
+	resp, err := Client.ImageLoad(ctx, reader, false)
+	if err != nil {
+		return nil, err
+	}
+	
+	// 返回响应体，调用者负责关闭
+	return resp.Body, nil
+}
+
 // SaveImageToReader 导出镜像到 io.ReadCloser
 func SaveImageToReader(imageID string) (io.ReadCloser, error) {
 	ctx := context.Background()
