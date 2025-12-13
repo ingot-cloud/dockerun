@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ListDeployScripts 列出所有部署脚本
@@ -94,19 +95,41 @@ func UpdateDeployScript(c *gin.Context) {
 		return
 	}
 
-	// 删除旧的文件记录
-	database.GetDB().Where("deploy_script_id = ?", script.ID).Delete(&models.DeployScriptFile{})
-
-	// 更新字段
+	// 更新基本字段
 	script.Name = req.Name
 	script.Description = req.Description
 	script.ScriptType = req.ScriptType
 	script.MainScript = req.MainScript
 	script.WorkDir = req.WorkDir
 	script.EnvVars = req.EnvVars
-	script.Files = req.Files
 
-	if err := database.GetDB().Save(&script).Error; err != nil {
+	// 使用事务来确保数据一致性
+	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
+		// 先保存基本字段
+		if err := tx.Omit("Files").Save(&script).Error; err != nil {
+			return err
+		}
+
+		// 删除旧的文件记录
+		if err := tx.Where("deploy_script_id = ?", script.ID).Delete(&models.DeployScriptFile{}).Error; err != nil {
+			return err
+		}
+
+		// 如果有新的文件，创建它们
+		if len(req.Files) > 0 {
+			for i := range req.Files {
+				req.Files[i].DeployScriptID = script.ID
+				req.Files[i].ID = 0 // 确保创建新记录
+			}
+			if err := tx.Create(&req.Files).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return
 	}
