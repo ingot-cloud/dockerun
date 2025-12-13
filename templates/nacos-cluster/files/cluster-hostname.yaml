@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   nacos1:
     hostname: ${NACOS1_HOSTNAME}
@@ -9,11 +8,12 @@ services:
     volumes:
       - ${WORK_DIR}/${NACOS1_CONTEINER_NAME}/volumes/logs:/home/nacos/logs
     ports:
-      - "${NACOS1_CLIENT_PORT}:8080"
+      - "${NACOS1_CONSOLE_PORT}:8080"
       - "${NACOS1_SERVER_PORT}:8848"
-      - "${NACOS1_METRICS_PORT}:9848"
     environment:
       - MODE=${MODE}
+      - PREFER_HOST_MODE=${PREFER_HOST_MODE}
+      - NACOS_SERVERS=${NACOS_SERVERS}
       - NACOS_SERVER_PORT=${NACOS1_SERVER_PORT}
       - SPRING_DATASOURCE_PLATFORM=${SPRING_DATASOURCE_PLATFORM}
       - MYSQL_SERVICE_HOST=${MYSQL_SERVICE_HOST}
@@ -39,11 +39,12 @@ services:
     volumes:
       - ${WORK_DIR}/${NACOS2_CONTEINER_NAME}/volumes/logs:/home/nacos/logs
     ports:
-      - "${NACOS2_CLIENT_PORT}:8080"
+      - "${NACOS2_CONSOLE_PORT}:8080"
       - "${NACOS2_SERVER_PORT}:8848"
-      - "${NACOS2_METRICS_PORT}:9848"
     environment:
       - MODE=${MODE}
+      - PREFER_HOST_MODE=${PREFER_HOST_MODE}
+      - NACOS_SERVERS=${NACOS_SERVERS}
       - NACOS_SERVER_PORT=${NACOS2_SERVER_PORT}
       - SPRING_DATASOURCE_PLATFORM=${SPRING_DATASOURCE_PLATFORM}
       - MYSQL_SERVICE_HOST=${MYSQL_SERVICE_HOST}
@@ -69,11 +70,12 @@ services:
     volumes:
       - ${WORK_DIR}/${NACOS3_CONTEINER_NAME}/volumes/logs:/home/nacos/logs
     ports:
-      - "${NACOS3_CLIENT_PORT}:8080"
+      - "${NACOS3_CONSOLE_PORT}:8080"
       - "${NACOS3_SERVER_PORT}:8848"
-      - "${NACOS3_METRICS_PORT}:9848"
     environment:
       - MODE=${MODE}
+      - PREFER_HOST_MODE=${PREFER_HOST_MODE}
+      - NACOS_SERVERS=${NACOS_SERVERS}
       - NACOS_SERVER_PORT=${NACOS3_SERVER_PORT}
       - SPRING_DATASOURCE_PLATFORM=${SPRING_DATASOURCE_PLATFORM}
       - MYSQL_SERVICE_HOST=${MYSQL_SERVICE_HOST}
