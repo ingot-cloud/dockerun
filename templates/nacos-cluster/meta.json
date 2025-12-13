@@ -4,18 +4,33 @@
     "name": "Nacos Cluster",
     "description": "Deploy Nacos Cluster server",
     "category": "Registry",
-    "icon": "🔑",
+    "icon": "🔒",
     "main_script": "deploy.sh",
     "work_dir": "/ingot-data/dockerun/nacos-cluster",
     "env_vars": {
-      "CONTEINER_NAME": "nacos-cluster",
       "DOCKER_NETWORK": "ingot-net",
       "NACOS_IMAGE": "docker-registry.ingotcloud.top/nacos/nacos-server",
       "NACOS_VERSION": "v3.0.0",
+
+      "NACOS1_CONTEINER_NAME": "nacos1",
+      "NACOS1_HOSTNAME": "nacos1",
+      "NACOS1_CLIENT_PORT": "8181",
+      "NACOS1_SERVER_PORT": "8848",
+      "NACOS1_METRICS_PORT": "9848",
+
+      "NACOS2_CONTEINER_NAME": "nacos2",
+      "NACOS2_HOSTNAME": "nacos2",
+      "NACOS2_CLIENT_PORT": "8182",
+      "NACOS2_SERVER_PORT": "8849",
+      "NACOS2_METRICS_PORT": "9849",
+
+      "NACOS3_CONTEINER_NAME": "nacos3",
+      "NACOS3_HOSTNAME": "nacos3",
+      "NACOS3_CLIENT_PORT": "8183",
+      "NACOS3_SERVER_PORT": "8850",
+      "NACOS3_METRICS_PORT": "9850",
+
       "MODE": "cluster",
-      "NACOS_CLIENT_PORT": "8181",
-      "NACOS_SERVER_PORT": "8848",
-      "NACOS_METRICS_PORT": "9848",
       "SPRING_DATASOURCE_PLATFORM": "mysql",
       "MYSQL_SERVICE_HOST": "172.88.0.10",
       "MYSQL_SERVICE_DB_NAME": "ingot_nacos_config",
@@ -30,7 +45,15 @@
       "NACOS_AUTH_IDENTITY_KEY": "ingot-auth",
       "NACOS_AUTH_IDENTITY_VALUE": "ingotauthvalue"
     },
-    "files": []
+    "files": [
+      {
+        "file_name": "cluster-hostname.yaml", 
+        "file_path": "cluster-hostname.yaml",
+        "source": "files/cluster-hostname.yaml", 
+        "file_type": "config",      
+        "description": "Cluster hostname configuration" 
+      }
+    ]
   }
   
   
