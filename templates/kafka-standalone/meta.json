@@ -12,7 +12,6 @@
     "BROKER1_HOST": "ingot.localhost",
     "BROKER1_PORT": "19092",
     "BROKER1_CONTROLLER_PORT": "19093",
-    "CLUSTER_CONTROLLER_SERVERS": "1@kafka-standalone:9093",
     "CLUSTER_ID": "xYcCyHmJlIaLzLoBzVwIcP",
     "BROKER_HEAP_OPTS": "-Xmx512m -Xms256m",
     "AKHQ_PORT": "18080"
