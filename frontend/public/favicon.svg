@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2496ED;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1873CC;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景圆 -->
+  <circle cx="64" cy="64" r="60" fill="url(#bgGrad)"/>
+  
+  <!-- Docker 容器图标 -->
+  <g filter="url(#shadow)">
+    <!-- 容器主体 - 3层叠加效果 -->
+    <!-- 第一层（后） -->
+    <rect x="35" y="38" width="58" height="14" rx="2" fill="#FFFFFF" opacity="0.7"/>
+    <rect x="38" y="41" width="6" height="8" rx="1" fill="#2496ED" opacity="0.3"/>
+    <rect x="46" y="41" width="6" height="8" rx="1" fill="#2496ED" opacity="0.3"/>
+    <rect x="54" y="41" width="6" height="8" rx="1" fill="#2496ED" opacity="0.3"/>
+    <rect x="62" y="41" width="6" height="8" rx="1" fill="#2496ED" opacity="0.3"/>
+    <rect x="70" y="41" width="6" height="8" rx="1" fill="#2496ED" opacity="0.3"/>
+    <rect x="78" y="41" width="6" height="8" rx="1" fill="#2496ED" opacity="0.3"/>
+    
+    <!-- 第二层（中） -->
+    <rect x="30" y="54" width="68" height="16" rx="2" fill="#FFFFFF" opacity="0.85"/>
+    <rect x="33" y="57" width="7" height="10" rx="1" fill="#2496ED" opacity="0.4"/>
+    <rect x="42" y="57" width="7" height="10" rx="1" fill="#2496ED" opacity="0.4"/>
+    <rect x="51" y="57" width="7" height="10" rx="1" fill="#2496ED" opacity="0.4"/>
+    <rect x="60" y="57" width="7" height="10" rx="1" fill="#2496ED" opacity="0.4"/>
+    <rect x="69" y="57" width="7" height="10" rx="1" fill="#2496ED" opacity="0.4"/>
+    <rect x="78" y="57" width="7" height="10" rx="1" fill="#2496ED" opacity="0.4"/>
+    <rect x="87" y="57" width="7" height="10" rx="1" fill="#2496ED" opacity="0.4"/>
+    
+    <!-- 第三层（前） - 主容器 -->
+    <rect x="25" y="72" width="78" height="20" rx="3" fill="#FFFFFF"/>
+    <!-- 容器内的小格子 -->
+    <rect x="28" y="76" width="8" height="12" rx="1" fill="#2496ED" opacity="0.5"/>
+    <rect x="38" y="76" width="8" height="12" rx="1" fill="#2496ED" opacity="0.5"/>
+    <rect x="48" y="76" width="8" height="12" rx="1" fill="#2496ED" opacity="0.5"/>
+    <rect x="58" y="76" width="8" height="12" rx="1" fill="#2496ED" opacity="0.5"/>
+    <rect x="68" y="76" width="8" height="12" rx="1" fill="#2496ED" opacity="0.5"/>
+    <rect x="78" y="76" width="8" height="12" rx="1" fill="#2496ED" opacity="0.5"/>
+    <rect x="88" y="76" width="8" height="12" rx="1" fill="#2496ED" opacity="0.5"/>
+    <rect x="93" y="76" width="8" height="12" rx="1" fill="#2496ED" opacity="0.5"/>
+  </g>
+</svg>
