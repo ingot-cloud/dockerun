@@ -5,6 +5,8 @@ import (
 	"dockerun/internal/database"
 	"dockerun/internal/middleware"
 	"dockerun/internal/models"
+	"dockerun/internal/utils"
+	"log"
 	"net/http"
 	"time"
 
@@ -52,7 +54,16 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	if !user.CheckPassword(req.Password) {
+	// 解密前端传来的加密密码
+	decryptedPassword, err := utils.DecryptPassword(req.Password)
+	if err != nil {
+		log.Printf("解密密码失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "密码格式错误"})
+		return
+	}
+
+	// 验证解密后的密码
+	if !user.CheckPassword(decryptedPassword) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
 		return
 	}
@@ -95,8 +106,16 @@ func SetInitialPassword(c *gin.Context) {
 		return
 	}
 
-	// 设置新密码
-	if err := admin.HashPassword(req.NewPassword); err != nil {
+	// 解密前端传来的加密密码
+	decryptedPassword, err := utils.DecryptPassword(req.NewPassword)
+	if err != nil {
+		log.Printf("解密密码失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "密码格式错误"})
+		return
+	}
+
+	// 设置新密码（使用解密后的密码）
+	if err := admin.HashPassword(decryptedPassword); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
 		return
 	}
@@ -152,12 +171,30 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if !user.CheckPassword(req.OldPassword) {
+	// 解密旧密码
+	decryptedOldPassword, err := utils.DecryptPassword(req.OldPassword)
+	if err != nil {
+		log.Printf("解密旧密码失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "密码格式错误"})
+		return
+	}
+
+	// 验证旧密码
+	if !user.CheckPassword(decryptedOldPassword) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "原密码错误"})
 		return
 	}
 
-	if err := user.HashPassword(req.NewPassword); err != nil {
+	// 解密新密码
+	decryptedNewPassword, err := utils.DecryptPassword(req.NewPassword)
+	if err != nil {
+		log.Printf("解密新密码失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "密码格式错误"})
+		return
+	}
+
+	// 设置新密码
+	if err := user.HashPassword(decryptedNewPassword); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
 		return
 	}

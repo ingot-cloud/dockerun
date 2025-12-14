@@ -92,6 +92,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Folder } from '@element-plus/icons-vue'
 import { authApi } from '@/api/auth'
+import { encryptPassword } from '@/utils/crypto'
 
 const router = useRouter()
 const formRef = ref()
@@ -146,8 +147,10 @@ const handleSetup = async () => {
   
   loading.value = true
   try {
+    // 加密密码
+    const encryptedPassword = encryptPassword(form.password)
     await authApi.setInitialPassword({ 
-      new_password: form.password,
+      new_password: encryptedPassword,
       deploy_work_dir: form.deployWorkDir,
       max_script_executors: form.maxScriptExecutors,
       script_timeout: form.scriptTimeout
