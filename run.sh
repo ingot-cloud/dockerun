@@ -18,7 +18,7 @@ NC='\033[0m'
 CONTAINER_NAME="dockerun"
 IMAGE_NAME="docker-registry.ingotcloud.top/ingot/dockerun:0.1.0"
 HOST_PORT="19000"
-TEMPLATES_VOLUME="/ingot-data/dockerun/templates"
+# TEMPLATES_VOLUME="/ingot-data/dockerun/templates"  # 模板现在内置在镜像中
 
 # 日志函数
 log_info() {
@@ -85,7 +85,6 @@ start_container() {
             --name "${CONTAINER_NAME}" \
             -p "${HOST_PORT}:8080" \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "${TEMPLATES_VOLUME}:/app/templates" \
             --restart unless-stopped \
             "${IMAGE_NAME}"
     fi
