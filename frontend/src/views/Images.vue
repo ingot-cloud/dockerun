@@ -290,7 +290,7 @@ const loadImages = async () => {
   loading.value = true
   try {
     const response = await dockerApi.images.list()
-    images.value = response || []
+    images.value = (response as any) || []
   } catch (error) {
     ElMessage.error('Failed to load images')
   } finally {

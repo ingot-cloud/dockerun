@@ -159,7 +159,7 @@
         </el-table-column>
         
         <el-table-column label="Ownership" width="150">
-          <template #default="{ row }">
+          <template #default>
             <div class="ownership-cell">
               <el-icon class="ownership-icon"><User /></el-icon>
               <span>administrators</span>
@@ -290,7 +290,7 @@ const handleLogs = async (container: any) => {
   }
 }
 
-const handleStats = (container: any) => {
+const handleStats = (_container: any) => {
   ElMessage.info('Stats feature coming soon')
 }
 

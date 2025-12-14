@@ -105,7 +105,7 @@ const form = reactive({
   scriptTimeout: 3600
 })
 
-const validatePassword = (rule: any, value: any, callback: any) => {
+const validatePassword = (_rule: any, value: any, callback: any) => {
   if (value.length < 6) {
     callback(new Error('Password must be at least 6 characters'))
   } else {
@@ -113,7 +113,7 @@ const validatePassword = (rule: any, value: any, callback: any) => {
   }
 }
 
-const validateConfirmPassword = (rule: any, value: any, callback: any) => {
+const validateConfirmPassword = (_rule: any, value: any, callback: any) => {
   if (value !== form.password) {
     callback(new Error('Passwords do not match'))
   } else {

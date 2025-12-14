@@ -77,7 +77,7 @@
         </el-table-column>
         
         <el-table-column label="Ownership" width="150">
-          <template #default="{ row }">
+          <template #default>
             <div class="ownership-cell">
               <el-icon class="ownership-icon"><User /></el-icon>
               <span>administrators</span>

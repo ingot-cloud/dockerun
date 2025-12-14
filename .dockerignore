@@ -1,46 +1,78 @@
 # Git
 .git
 .gitignore
+.gitattributes
 
-# IDEs
-.idea
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# 文档
+README.md
+*.md
+docs/
+
+# 前端源码（我们只需要构建产物）
+frontend/src
+frontend/public
+frontend/node_modules
+frontend/package.json
+frontend/pnpm-lock.yaml
+frontend/tsconfig.json
+frontend/vite.config.ts
+frontend/index.html
+frontend/.eslintrc.cjs
+frontend/.prettierrc
+
+# 后端源码（我们只需要二进制文件）
+backend/**/*.go
+backend/go.mod
+backend/go.sum
+backend/cmd
+backend/internal
+backend/pkg
+backend/Makefile
+
+# 只保留需要的文件
+!backend/main
+!backend/main-amd64
+!backend/main-arm64
+
+# 开发文件
 .vscode
+.idea
 *.swp
 *.swo
-
-# Node
-node_modules
-npm-debug.log
-
-# Go
-*.exe
-*.test
-*.out
-vendor
-
-# Build artifacts
-dist
-bin
-
-# Logs
-*.log
-logs
-
-# OS
+*~
 .DS_Store
-Thumbs.db
 
-# Data
-data
+# 日志
+*.log
+logs/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 测试文件
+*_test.go
+**/*_test.go
+test/
+tests/
+
+# 构建脚本（不需要放入镜像）
+build.sh
+Dockerfile.dev
+docker-compose.dev.yml
+
+# 数据文件（运行时生成）
 *.db
 *.sqlite
+*.sqlite3
+data/
 
-# Documentation
-*.md
-!README.md
-
-# Docker
-Dockerfile
-.dockerignore
-docker-compose.yml
-
+# 环境变量文件
+.env
+.env.*
+!.env.example

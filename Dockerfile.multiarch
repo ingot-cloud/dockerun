@@ -1,0 +1,60 @@
+# 多架构 Dockerfile
+# 使用 TARGETARCH 变量自动选择对应架构的二进制文件
+
+FROM debian:bullseye-slim
+
+# 接收构建时的架构参数
+ARG TARGETARCH
+
+# 安装运行时依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    tzdata \
+    sqlite3 \
+    bash \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+
+# 设置工作目录
+WORKDIR /app
+
+# 根据架构复制对应的二进制文件
+COPY backend/main-${TARGETARCH} ./main
+
+# 复制前端构建产物
+COPY frontend/dist ./static
+
+# 复制模板目录
+COPY templates ./templates
+
+# 创建数据目录
+RUN mkdir -p /app/data
+
+# 设置可执行权限
+RUN chmod +x /app/main
+
+# 暴露端口
+EXPOSE 8080
+
+# 设置环境变量
+ENV GIN_MODE=release
+ENV SERVER_ADDR=:8080
+ENV DATABASE_PATH=/app/data/dockerun.db
+ENV TEMPLATE_DIR=/app/templates
+
+# Docker Network 配置
+ENV DOCKER_NETWORK_NAME=ingot-net
+ENV DOCKER_NETWORK_DRIVER=bridge
+ENV DOCKER_NETWORK_SUBNET=172.88.0.0/16
+ENV DOCKER_NETWORK_GATEWAY=172.88.0.1
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# 运行应用
+CMD ["./main"]
+

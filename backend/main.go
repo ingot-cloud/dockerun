@@ -6,12 +6,10 @@ import (
 	"dockerun/internal/docker"
 	"dockerun/internal/router"
 	"log"
-
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// 初始化配置
+	// 加载配置
 	cfg := config.Load()
 
 	// 初始化数据库
@@ -19,29 +17,22 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// 初始化Docker客户端
+	// 初始化 Docker 客户端
 	if err := docker.Init(); err != nil {
-		log.Printf("Warning: Failed to initialize Docker client: %v", err)
-		log.Println("Docker functionality may not be available")
-	} else {
-		// 初始化 Docker 网络
-		if err := docker.InitializeNetwork(); err != nil {
-			log.Printf("Warning: Failed to initialize Docker network: %v", err)
-		}
+		log.Fatalf("Failed to initialize Docker client: %v", err)
 	}
 
-	// 设置Gin模式
-	if cfg.Mode == "release" {
-		gin.SetMode(gin.ReleaseMode)
+	// 初始化 Docker 网络
+	if err := docker.InitializeNetwork(); err != nil {
+		log.Printf("Warning: Failed to initialize Docker network: %v", err)
 	}
 
-	// 初始化路由
+	// 设置路由
 	r := router.Setup()
 
 	// 启动服务器
-	addr := cfg.ServerAddr
-	log.Printf("Server starting on %s", addr)
-	if err := r.Run(addr); err != nil {
+	log.Printf("Server starting on %s", cfg.ServerAddr)
+	if err := r.Run(cfg.ServerAddr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

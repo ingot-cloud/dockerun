@@ -53,6 +53,10 @@ logs/
 frontend/dist/
 backend/tmp/
 backend/static/
+backend/main
+backend/main-amd64
+backend/main-arm64
+backend/dockerun
 
 # Docker volumes data
 data/
