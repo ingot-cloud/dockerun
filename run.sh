@@ -81,10 +81,15 @@ start_container() {
     else
         # 容器不存在，创建并运行
         log_info "创建新容器..."
+        
+        # 创建数据目录（如果不存在）
+        mkdir -p /ingot-data/dockerun
+        
         docker run -d \
             --name "${CONTAINER_NAME}" \
             -p "${HOST_PORT}:8080" \
             -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /ingot-data/dockerun:/ingot-data/dockerun \
             --restart unless-stopped \
             "${IMAGE_NAME}"
     fi

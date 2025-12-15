@@ -42,8 +42,10 @@ COPY frontend/dist ./static
 # 复制模板目录
 COPY templates ./templates
 
-# 创建数据目录
-RUN mkdir -p /app/data
+# 创建数据目录和部署工作目录
+RUN mkdir -p /app/data \
+    && mkdir -p /ingot-data/dockerun \
+    && chmod 755 /ingot-data/dockerun
 
 # 设置可执行权限
 RUN chmod +x /app/main
