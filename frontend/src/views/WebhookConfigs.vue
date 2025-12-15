@@ -247,9 +247,9 @@
     <!-- Webhook URL 对话框 -->
     <el-dialog
       v-model="urlDialogVisible"
-      title="Webhook URL"
-      width="700px"
-      class="create-dialog"
+      title="Webhook Configuration"
+      width="850px"
+      class="create-dialog webhook-url-dialog"
       :close-on-click-modal="false"
     >
       <div class="webhook-url-container">
@@ -259,31 +259,107 @@
           </template>
         </el-alert>
 
-        <el-input
-          v-model="webhookUrl"
-          readonly
-          class="webhook-url-input"
-        >
-          <template #append>
-            <el-button @click="copyUrl" :icon="CopyDocument">复制</el-button>
-          </template>
-        </el-input>
+        <!-- Webhook URL -->
+        <div class="config-section">
+          <h4>📌 Webhook URL</h4>
+          <el-input
+            v-model="webhookUrl"
+            readonly
+            class="webhook-url-input"
+          >
+            <template #append>
+              <el-button @click="copyUrl" :icon="CopyDocument">Copy</el-button>
+            </template>
+          </el-input>
+        </div>
 
-        <div class="webhook-guide" style="margin-top: 20px">
-          <h4>📝 Configuration Guide</h4>
-          <ul>
-            <li><strong>Docker Hub:</strong> Settings → Webhooks → Add Webhook</li>
-            <li><strong>Harbor:</strong> Projects → Webhooks → New Webhook</li>
-            <li><strong>GitLab Registry:</strong> Settings → Webhooks</li>
-          </ul>
-          <p v-if="currentConfig?.secret" style="margin-top: 10px">
-            <el-icon><Lock /></el-icon>
-            Secret is configured. Please set the same secret in your Registry webhook settings.
+        <!-- Registry 配置文件示例 -->
+        <div class="config-section" style="margin-top: 24px">
+          <h4>⚙️ Docker Registry Configuration (config.yml)</h4>
+          <p class="config-description">
+            For self-hosted Docker Registry, add the following to your <code>config.yml</code>:
           </p>
+          <div class="config-code-wrapper">
+            <pre class="config-code">{{ registryConfigYaml }}</pre>
+            <el-button
+              class="copy-config-btn"
+              size="small"
+              :icon="CopyDocument"
+              @click="copyConfig"
+            >
+              Copy Config
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 配置指南 -->
+        <div class="webhook-guide" style="margin-top: 24px">
+          <h4>📝 Platform-Specific Guides</h4>
+          <el-collapse accordion>
+            <el-collapse-item title="🐳 Docker Hub" name="dockerhub">
+              <ol>
+                <li>Go to your repository page</li>
+                <li>Click <strong>Webhooks</strong> tab</li>
+                <li>Click <strong>Create webhook</strong></li>
+                <li>Paste the webhook URL</li>
+                <li>Click <strong>Create</strong></li>
+              </ol>
+            </el-collapse-item>
+
+            <el-collapse-item title="⚓ Harbor" name="harbor">
+              <ol>
+                <li>Go to your project</li>
+                <li>Click <strong>Webhooks</strong> tab</li>
+                <li>Click <strong>+ NEW WEBHOOK</strong></li>
+                <li>Name: <code>DockeRun Auto Deploy</code></li>
+                <li>Event Type: <strong>Push Artifact</strong></li>
+                <li>Endpoint URL: Paste the webhook URL</li>
+                <li v-if="currentConfig?.secret">
+                  Auth Header: <code>{{ currentConfig.secret }}</code>
+                </li>
+                <li>Click <strong>TEST ENDPOINT</strong> to verify</li>
+                <li>Click <strong>CONTINUE</strong></li>
+              </ol>
+            </el-collapse-item>
+
+            <el-collapse-item title="🦊 GitLab Container Registry" name="gitlab">
+              <ol>
+                <li>Go to your project</li>
+                <li>Click <strong>Settings</strong> → <strong>Webhooks</strong></li>
+                <li>URL: Paste the webhook URL</li>
+                <li v-if="currentConfig?.secret">
+                  Secret token: <code>{{ currentConfig.secret }}</code>
+                </li>
+                <li>Trigger: Check <strong>Push events</strong></li>
+                <li>Click <strong>Add webhook</strong></li>
+              </ol>
+            </el-collapse-item>
+
+            <el-collapse-item title="🏗️ Self-Hosted Registry" name="selfhosted">
+              <ol>
+                <li>Edit your Registry's <code>config.yml</code></li>
+                <li>Add the <code>notifications</code> section shown above</li>
+                <li>Restart your Registry service:
+                  <pre style="margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 12px;">docker restart registry</pre>
+                </li>
+                <li>Test by pushing an image to verify webhook triggers</li>
+              </ol>
+            </el-collapse-item>
+          </el-collapse>
+
+          <div v-if="currentConfig?.secret" class="secret-notice">
+            <el-icon><Lock /></el-icon>
+            <span>
+              <strong>Secret Key:</strong> <code class="secret-code">{{ currentConfig.secret }}</code>
+            </span>
+          </div>
         </div>
       </div>
       <template #footer>
         <el-button @click="urlDialogVisible = false">Close</el-button>
+        <el-button type="success" @click="copyConfig" :icon="CopyDocument">
+          Copy Config
+        </el-button>
         <el-button type="primary" @click="copyUrl" :icon="CopyDocument">
           Copy URL
         </el-button>
@@ -557,7 +633,33 @@ const showWebhookUrl = async (config: WebhookConfig) => {
 
 const copyUrl = () => {
   navigator.clipboard.writeText(webhookUrl.value)
-  ElMessage.success('Copied to clipboard')
+  ElMessage.success('Webhook URL copied to clipboard')
+}
+
+// 生成 Registry 配置文件内容
+const registryConfigYaml = computed(() => {
+  if (!webhookUrl.value) return ''
+  
+  const config = `notifications:
+  endpoints:
+    - name: dockerun
+      disabled: false
+      url: ${webhookUrl.value}
+      timeout: 5s
+      threshold: 5
+      backoff: 1s${currentConfig.value?.secret ? `
+      headers:
+        Authorization: [${currentConfig.value.secret}]` : ''}
+      events:
+        - push
+        - delete`
+  
+  return config
+})
+
+const copyConfig = () => {
+  navigator.clipboard.writeText(registryConfigYaml.value)
+  ElMessage.success('Registry configuration copied to clipboard')
 }
 
 const viewLogs = async (config: WebhookConfig) => {
@@ -773,6 +875,7 @@ onMounted(() => {
   font-size: 12px;
   color: #8a929c;
   margin-top: 4px;
+  margin-left: 4px;
   line-height: 1.4;
 }
 
@@ -789,27 +892,145 @@ onMounted(() => {
   font-family: 'Monaco', 'Courier New', monospace;
 }
 
+.config-section h4 {
+  margin: 0 0 12px 0;
+  color: #4a9eff;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.config-description {
+  margin: 0 0 12px 0;
+  color: #8a929c;
+  font-size: 13px;
+}
+
+.config-description code {
+  background: rgba(74, 158, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #4a9eff;
+  font-size: 12px;
+}
+
+.config-code-wrapper {
+  position: relative;
+  background: #151820;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.config-code {
+  margin: 0;
+  padding: 0;
+  color: #c0c4cc;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.config-code::-webkit-scrollbar {
+  height: 6px;
+}
+
+.config-code::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.config-code::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.copy-config-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
 .webhook-guide h4 {
   margin-top: 0;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   color: #4a9eff;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.webhook-guide :deep(.el-collapse) {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.webhook-guide :deep(.el-collapse-item__header) {
+  background: rgba(255, 255, 255, 0.03);
+  color: #c0c4cc;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 0 16px;
+  height: 44px;
+  line-height: 44px;
   font-size: 14px;
 }
 
-.webhook-guide ul {
+.webhook-guide :deep(.el-collapse-item__content) {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 16px 20px;
+  color: #c0c4cc;
+}
+
+.webhook-guide ol {
+  margin: 0;
   padding-left: 20px;
+}
+
+.webhook-guide ol li {
   margin: 10px 0;
+  color: #c0c4cc;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.webhook-guide li {
-  margin: 8px 0;
-  color: #c0c4cc;
+.webhook-guide ol li strong {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.webhook-guide ol li code {
+  background: rgba(74, 158, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #4a9eff;
+  font-size: 12px;
+}
+
+.secret-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(245, 108, 108, 0.1);
+  border: 1px solid rgba(245, 108, 108, 0.3);
+  border-radius: 6px;
+  color: #f56c6c;
   font-size: 13px;
 }
 
-.webhook-guide p {
-  color: #c0c4cc;
-  font-size: 13px;
+.secret-notice strong {
+  color: #ffffff;
+}
+
+.secret-code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 8px;
+  border-radius: 3px;
+  color: #f78989;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
 }
 
 .log-message {
