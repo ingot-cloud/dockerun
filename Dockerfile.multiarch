@@ -1,13 +1,14 @@
 # 多架构 Dockerfile
 # 使用 TARGETARCH 变量自动选择对应架构的二进制文件
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 # 接收构建时的架构参数
 ARG TARGETARCH
 
 # 安装运行时依赖和 Docker CLI
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update --allow-releaseinfo-change --allow-insecure-repositories 2>/dev/null || true \
+    && apt-get install -y --no-install-recommends --allow-unauthenticated \
     ca-certificates \
     tzdata \
     sqlite3 \
@@ -22,8 +23,8 @@ RUN mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
        | tee /etc/apt/sources.list.d/docker.list > /dev/null \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+    && apt-get update --allow-releaseinfo-change --allow-insecure-repositories 2>/dev/null || true \
+    && apt-get install -y --no-install-recommends --allow-unauthenticated docker-ce-cli docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置时区

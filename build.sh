@@ -115,71 +115,39 @@ build_frontend() {
 build_backend() {
     log_info "开始构建后端（多架构：amd64 + arm64）..."
     
-    # 检查操作系统
-    OS_TYPE=$(uname -s)
+    cd backend
     
-    if [ "$OS_TYPE" = "Darwin" ]; then
-        # macOS 系统，使用 Docker 构建多架构版本
-        log_info "检测到 macOS 系统，使用 Docker 容器构建后端..."
-        
-        # 构建 AMD64 版本
-        log_info "构建 AMD64 版本..."
-        docker run --rm --platform linux/amd64 \
-            -v "$(pwd)/backend:/app" \
-            -w /app \
-            golang:1.23-bullseye \
-            sh -c "apt-get update -qq && apt-get install -y -qq gcc > /dev/null 2>&1 && go mod download && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags='-s -w' -o main-amd64 ."
-        
-        if [ $? -ne 0 ]; then
-            log_error "AMD64 构建失败"
-            exit 1
-        fi
-        log_success "AMD64 版本构建完成 ✓"
-        
-        # 构建 ARM64 版本
-        log_info "构建 ARM64 版本..."
-        docker run --rm --platform linux/arm64 \
-            -v "$(pwd)/backend:/app" \
-            -w /app \
-            golang:1.23-bullseye \
-            sh -c "apt-get update -qq && apt-get install -y -qq gcc > /dev/null 2>&1 && go mod download && CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags='-s -w' -o main-arm64 ."
-        
-        if [ $? -ne 0 ]; then
-            log_error "ARM64 构建失败"
-            exit 1
-        fi
-        log_success "ARM64 版本构建完成 ✓"
-        
-    else
-        # Linux 系统，直接构建
-        log_info "检测到 Linux 系统，直接构建后端..."
-        
-        cd backend
-        
-        # 下载依赖
-        log_info "下载 Go 依赖..."
-        go mod download
-        
-        # 检测当前架构
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "x86_64" ]; then
-            OUTPUT="main-amd64"
-        elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-            OUTPUT="main-arm64"
-        else
-            OUTPUT="main"
-        fi
-        
-        # 构建
-        log_info "执行后端构建..."
-        CGO_ENABLED=1 go build -ldflags="-s -w" -o "$OUTPUT" .
-        
+    # 下载依赖
+    log_info "下载 Go 依赖..."
+    go mod download
+    
+    # 构建 AMD64 版本
+    log_info "构建 AMD64 版本..."
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags='-s -w' -o main-amd64 .
+    
+    if [ $? -ne 0 ]; then
+        log_error "AMD64 构建失败"
         cd ..
+        exit 1
     fi
+    log_success "AMD64 版本构建完成 ✓"
+    
+    # 构建 ARM64 版本
+    log_info "构建 ARM64 版本..."
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo -ldflags='-s -w' -o main-arm64 .
+    
+    if [ $? -ne 0 ]; then
+        log_error "ARM64 构建失败"
+        cd ..
+        exit 1
+    fi
+    log_success "ARM64 版本构建完成 ✓"
+    
+    cd ..
     
     # 检查构建产物
-    if [ ! -f "backend/main-amd64" ] && [ ! -f "backend/main-arm64" ] && [ ! -f "backend/main" ]; then
-        log_error "后端构建失败，未找到任何二进制文件"
+    if [ ! -f "backend/main-amd64" ] || [ ! -f "backend/main-arm64" ]; then
+        log_error "后端构建失败，未找到二进制文件"
         exit 1
     fi
     
