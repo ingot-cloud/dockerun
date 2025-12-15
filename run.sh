@@ -157,6 +157,13 @@ remove_container() {
 # 删除镜像
 remove_image() {
     log_info "删除 Dockerun 镜像..."
+
+    # 先删除容器
+    if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        docker stop "${CONTAINER_NAME}"
+        docker rm "${CONTAINER_NAME}"
+    fi
+
     docker rmi "${IMAGE_NAME}"
     log_success "镜像已删除"
 }
