@@ -624,7 +624,7 @@ onMounted(() => {
 }
 
 .content-card {
-  background: #1a1f2e;
+  background-color: #23252a;
   border-radius: 8px;
   overflow: hidden;
 }
