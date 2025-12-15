@@ -44,6 +44,11 @@
           <span>Registry</span>
         </el-menu-item>
         
+        <el-menu-item index="/webhooks">
+          <el-icon><Connection /></el-icon>
+          <span>Webhooks</span>
+        </el-menu-item>
+        
         <el-menu-item index="/system">
           <el-icon><Setting /></el-icon>
           <span>System</span>

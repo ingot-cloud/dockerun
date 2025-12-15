@@ -34,7 +34,25 @@
 - 一键执行部署脚本
 - 查看执行输出
 
-### 3. Docker环境检测与安装
+### 3. Webhook 自动部署 🆕
+- **Registry Webhook 集成**
+  - 支持 Docker Hub、Harbor、GitLab Registry 等
+  - 镜像推送时自动触发部署
+  - 智能匹配镜像名称和标签
+  
+- **自动化流程**
+  - 自动清理旧容器和旧镜像
+  - 自动拉取最新镜像
+  - 执行关联的部署脚本
+  - 异步任务队列，不阻塞 Registry
+  
+- **安全可靠**
+  - HMAC-SHA256 签名验证
+  - 完整的执行日志记录
+  - 支持通配符匹配
+  - 可配置开关和清理策略
+
+### 4. Docker环境检测与安装
 - 自动检测系统信息（OS、架构、发行版）
 - 检测Docker和Docker Compose是否已安装
 - 支持多种安装方式：
@@ -43,7 +61,7 @@
   - 离线DEB包安装
   - 离线二进制文件安装
 
-### 4. 安全认证
+### 5. 安全认证
 - JWT Token认证
 - 首次运行需设置管理员密码
 - 支持修改密码
@@ -318,6 +336,14 @@ apt-get download docker-ce docker-ce-cli containerd.io
 - 确保脚本有执行权限
 - 查看执行输出中的错误信息
 - 确保Docker命令可以在容器内执行
+
+## 📚 文档
+
+- **[Webhook 自动部署指南](./WEBHOOK_GUIDE.md)** - Webhook 功能详细配置和使用说明
+- **[配置说明](./CONFIGURATION.md)** - 环境变量和系统配置
+- **[网络功能指南](./NETWORK_GUIDE.md)** - Docker 网络自动创建和管理
+- **[Registry 管理指南](./REGISTRY_GUIDE.md)** - 私有镜像仓库管理
+- **[安全说明](./SECURITY.md)** - AES 加密和安全最佳实践
 
 ## 项目结构
 

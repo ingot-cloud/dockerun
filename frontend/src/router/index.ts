@@ -59,6 +59,11 @@ const router = createRouter({
           component: () => import('@/views/RegistryImages.vue')
         },
         {
+          path: 'webhooks',
+          name: 'WebhookConfigs',
+          component: () => import('@/views/WebhookConfigs.vue')
+        },
+        {
           path: 'system',
           name: 'System',
           component: () => import('@/views/System.vue')

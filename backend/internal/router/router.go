@@ -38,6 +38,9 @@ func Setup() *gin.Engine {
 		public.POST("/auth/setup", handler.SetInitialPassword)
 	}
 
+	// Webhook 公开接口（不需要认证，Registry 调用）
+	r.POST("/webhooks/:id", handler.ReceiveWebhook)
+
 	// 需要认证的接口
 	protected := r.Group("/api")
 	protected.Use(middleware.AuthMiddleware())
@@ -111,6 +114,15 @@ func Setup() *gin.Engine {
 		protected.GET("/registries/:id/images", handler.ListRegistryImages)
 		protected.GET("/registries/:id/images/*name", handler.GetRegistryImageTags)
 		protected.DELETE("/registries/:id/images/*name", handler.DeleteRegistryImage)
+
+		// Webhook 管理
+		protected.GET("/webhook-configs", handler.ListWebhookConfigs)
+		protected.GET("/webhook-configs/:id", handler.GetWebhookConfig)
+		protected.POST("/webhook-configs", handler.CreateWebhookConfig)
+		protected.PUT("/webhook-configs/:id", handler.UpdateWebhookConfig)
+		protected.DELETE("/webhook-configs/:id", handler.DeleteWebhookConfig)
+		protected.GET("/webhook-configs/:id/url", handler.GetWebhookURL)
+		protected.GET("/webhook-logs", handler.ListWebhookLogs)
 	}
 
 	// 静态文件服务（前端）

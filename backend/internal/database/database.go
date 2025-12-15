@@ -31,6 +31,8 @@ func Init(dbPath string) error {
 		&models.DeployScriptFile{},
 		&models.Registry{},
 		&models.SystemConfig{},
+		&models.WebhookConfig{},
+		&models.WebhookLog{},
 	); err != nil {
 		return err
 	}
