@@ -101,7 +101,7 @@ const loading = ref(false)
 const form = reactive({
   password: '',
   confirmPassword: '',
-  deployWorkDir: '/ingot-data/dockeun',
+  deployWorkDir: '/ingot-data/dockerun',
   maxScriptExecutors: 5,
   scriptTimeout: 3600
 })

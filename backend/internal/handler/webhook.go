@@ -54,6 +54,7 @@ type WebhookEventTarget struct {
 // @Router /webhooks/{id} [post]
 func ReceiveWebhook(c *gin.Context) {
 	configID := c.Param("id")
+	log.Printf("[Webhook] ReceiveWebhook: id=%s", configID)
 
 	// 读取请求体
 	body, err := io.ReadAll(c.Request.Body)
@@ -93,7 +94,7 @@ func processWebhook(configID string, body []byte, headers http.Header) {
 		if signature == "" {
 			signature = headers.Get("X-Registry-Signature") // Harbor 使用的签名头
 		}
-		
+
 		if !verifySignature(body, config.Secret, signature) {
 			log.Printf("[Webhook] Signature verification failed: id=%s", configID)
 			return
@@ -106,6 +107,8 @@ func processWebhook(configID string, body []byte, headers http.Header) {
 		log.Printf("[Webhook] Failed to parse payload: %v", err)
 		return
 	}
+
+	log.Printf("[Webhook] payload=%v", payload)
 
 	// 处理每个事件
 	for _, event := range payload.Events {
@@ -358,19 +361,18 @@ func ListWebhookLogs(c *gin.Context) {
 // GetWebhookURL 获取 Webhook URL
 func GetWebhookURL(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	// 获取当前请求的 Host
 	scheme := "http"
 	if c.Request.TLS != nil {
 		scheme = "https"
 	}
 	host := c.Request.Host
-	
+
 	webhookURL := fmt.Sprintf("%s://%s/webhooks/%s", scheme, host, id)
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"url": webhookURL,
+		"url":  webhookURL,
 		"note": "Configure this URL in your Docker Registry webhook settings",
 	})
 }
-
