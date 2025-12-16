@@ -258,6 +258,22 @@ func (q *TaskQueue) pullImage(imageName string, config *models.WebhookConfig) er
 	// 拉取镜像
 	reader, err := cli.ImagePull(ctx, imageName, pullOptions)
 	if err != nil {
+		// 检查是否是 insecure registry 错误
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "server gave HTTP response to HTTPS client") {
+			// 提供详细的错误提示
+			registryHost := extractRegistryHost(imageName)
+			if config.RegistryID > 0 && config.Registry != nil && config.Registry.Insecure {
+				return fmt.Errorf("failed to pull image: Registry is configured as insecure, but Docker daemon requires HTTPS. "+
+					"Please add '%s' to Docker daemon's insecure-registries configuration. "+
+					"See INSECURE_REGISTRY.md for instructions. Original error: %w", registryHost, err)
+			}
+			return fmt.Errorf("failed to pull image: Docker requires HTTPS but got HTTP response. "+
+				"If this is an insecure registry, please: "+
+				"1) Mark the registry as 'Insecure' in Dockerun settings, "+
+				"2) Add '%s' to Docker daemon's insecure-registries configuration. "+
+				"See INSECURE_REGISTRY.md for details. Original error: %w", registryHost, err)
+		}
 		return fmt.Errorf("failed to pull image: %w", err)
 	}
 	defer reader.Close()
@@ -269,6 +285,25 @@ func (q *TaskQueue) pullImage(imageName string, config *models.WebhookConfig) er
 	}
 
 	return nil
+}
+
+// extractRegistryHost 从镜像名中提取 registry 地址
+func extractRegistryHost(imageName string) string {
+	// 去掉标签
+	parts := strings.Split(imageName, ":")
+	imageWithoutTag := parts[0]
+
+	// 提取 registry 地址
+	slashIndex := strings.Index(imageWithoutTag, "/")
+	if slashIndex > 0 {
+		host := imageWithoutTag[:slashIndex]
+		// 检查是否包含端口号或域名
+		if strings.Contains(host, ".") || strings.Contains(host, ":") || host == "localhost" {
+			return host
+		}
+	}
+
+	return "registry-host"
 }
 
 // encodeAuthConfig 编码认证配置

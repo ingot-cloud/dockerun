@@ -38,16 +38,16 @@ type DeployScript struct {
 	CreatedAt     time.Time          `json:"created_at"`
 	UpdatedAt     time.Time          `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt     `gorm:"index" json:"-"`
-	Name          string             `gorm:"not null" json:"name"`
-	Description   string             `json:"description"`
-	ScriptType    string             `gorm:"not null;default:'shell'" json:"script_type"`    // shell, docker-compose
-	MainScript    string             `gorm:"type:text" json:"main_script"`                   // 主执行脚本
-	WorkDir       string             `gorm:"default:'/ingot-data/dockerun'" json:"work_dir"` // 工作目录
-	EnvVars       StringMap          `gorm:"type:json" json:"env_vars"`                      // 环境变量
-	Files         []DeployScriptFile `gorm:"foreignKey:DeployScriptID" json:"files"`         // 关联文件
-	ContainerID   string             `json:"container_id"`                                   // 关联的容器ID
-	ContainerName string             `gorm:"-" json:"container_name"`                        // 容器名称（不存储在数据库）
-	Status        string             `gorm:"default:'idle'" json:"status"`                   // idle, running, stopped, failed
+	Name          string             `gorm:"size:200;not null" json:"name"`
+	Description   string             `gorm:"size:1000" json:"description"`
+	ScriptType    string             `gorm:"size:50;not null;default:'shell'" json:"script_type"` // shell, docker-compose
+	MainScript    string             `gorm:"type:text" json:"main_script"`                        // 主执行脚本
+	WorkDir       string             `gorm:"size:500;default:'/ingot-data/dockerun'" json:"work_dir"` // 工作目录
+	EnvVars       StringMap          `gorm:"type:json" json:"env_vars"`                           // 环境变量
+	Files         []DeployScriptFile `gorm:"foreignKey:DeployScriptID" json:"files"`              // 关联文件
+	ContainerID   string             `gorm:"size:100" json:"container_id"`                        // 关联的容器ID
+	ContainerName string             `gorm:"-" json:"container_name"`                             // 容器名称（不存储在数据库）
+	Status        string             `gorm:"size:50;default:'idle'" json:"status"`                // idle, running, stopped, failed
 	UserID        uint               `json:"user_id"`
 }
 
@@ -57,9 +57,9 @@ type DeployScriptFile struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
 	DeployScriptID uint           `gorm:"not null;index" json:"deploy_script_id"`
-	FileName       string         `gorm:"not null" json:"file_name"`         // 文件名
-	FilePath       string         `gorm:"not null" json:"file_path"`         // 相对路径（相对于工作目录）
-	FileType       string         `gorm:"not null" json:"file_type"`         // compose, config, script, other
-	Content        string         `gorm:"type:text;not null" json:"content"` // 文件内容
-	Description    string         `json:"description"`                       // 文件说明
+	FileName       string         `gorm:"size:255;not null" json:"file_name"`     // 文件名
+	FilePath       string         `gorm:"size:500;not null" json:"file_path"`     // 相对路径（相对于工作目录）
+	FileType       string         `gorm:"size:50;not null" json:"file_type"`      // compose, config, script, other
+	Content        string         `gorm:"type:text;not null" json:"content"`      // 文件内容
+	Description    string         `gorm:"size:1000" json:"description"`           // 文件说明
 }

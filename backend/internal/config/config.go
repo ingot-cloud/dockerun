@@ -11,6 +11,10 @@ type Config struct {
 	Mode         string
 	TemplateDir  string
 
+	// 数据库配置
+	DatabaseType string // sqlite 或 mysql
+	MySQLDSN     string // MySQL 连接字符串
+
 	// Docker Network 配置
 	NetworkName    string
 	NetworkDriver  string
@@ -25,6 +29,10 @@ func Load() *Config {
 		JWTSecret:    getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 		Mode:         getEnv("GIN_MODE", "debug"),
 		TemplateDir:  getEnv("TEMPLATE_DIR", "./templates"),
+
+		// 数据库配置
+		DatabaseType: getEnv("DATABASE_TYPE", "sqlite"), // sqlite 或 mysql
+		MySQLDSN:     getEnv("MYSQL_DSN", ""),           // MySQL 连接字符串，如：user:password@tcp(host:port)/dbname?charset=utf8mb4&parseTime=True&loc=Local
 
 		// Network 配置
 		NetworkName:    getEnv("DOCKER_NETWORK_NAME", "ingot-net"),

@@ -19,6 +19,9 @@ CONTAINER_NAME="dockerun"
 IMAGE_NAME="docker-registry.ingotcloud.top/ingot/dockerun:0.1.0"
 HOST_PORT="19000"
 # TEMPLATES_VOLUME="/ingot-data/dockerun/templates"  # 模板现在内置在镜像中
+DATABASE_TYPE="mysql"
+MYSQL_DSN="dockerun:dockerun123@tcp(mysql:3306)/dockerun?charset=utf8mb4&parseTime=True&loc=Local"
+
 
 # 日志函数
 log_info() {
@@ -87,7 +90,10 @@ start_container() {
         
         docker run -d \
             --name "${CONTAINER_NAME}" \
+            --network ingot-net \
             -p "${HOST_PORT}:8080" \
+            -e DATABASE_TYPE="${DATABASE_TYPE}" \
+            -e MYSQL_DSN="${MYSQL_DSN}" \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v /ingot-data/dockerun:/ingot-data/dockerun \
             --restart unless-stopped \

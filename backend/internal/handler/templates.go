@@ -55,36 +55,55 @@ func getTemplateDir() string {
 func loadTemplatesFromFS() ([]ScriptTemplate, error) {
 	var templates []ScriptTemplate
 
+	// 1. 从配置的模板目录加载
 	templateDir := getTemplateDir()
 	log.Printf("Loading templates from: %s\n", templateDir)
 
 	// 检查模板目录是否存在
-	if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-		log.Printf("Template directory not found: %s, error: %v\n", templateDir, err)
-		return templates, nil
-	}
-
-	// 读取模板目录
-	entries, err := os.ReadDir(templateDir)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Println("entries: ", entries)
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		templatePath := filepath.Join(templateDir, entry.Name())
-		template, err := loadTemplate(templatePath)
+	if _, err := os.Stat(templateDir); !os.IsNotExist(err) {
+		// 读取模板目录
+		entries, err := os.ReadDir(templateDir)
 		if err != nil {
-			// 跳过无效的模板，记录错误
-			fmt.Printf("Failed to load template %s: %v\n", entry.Name(), err)
-			continue
+			return nil, err
 		}
 
-		templates = append(templates, template)
+		log.Println("entries: ", entries)
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+
+			templatePath := filepath.Join(templateDir, entry.Name())
+			template, err := loadTemplate(templatePath)
+			if err != nil {
+				// 跳过无效的模板，记录错误
+				fmt.Printf("Failed to load template %s: %v\n", entry.Name(), err)
+				continue
+			}
+
+			templates = append(templates, template)
+		}
+	} else {
+		log.Printf("Template directory not found: %s, error: %v\n", templateDir, err)
+	}
+
+	// 2. 检查当前工作目录是否包含 meta.json
+	currentDir, err := os.Getwd()
+	if err == nil {
+		metaPath := filepath.Join(currentDir, "meta.json")
+		if _, err := os.Stat(metaPath); err == nil {
+			log.Printf("Found meta.json in current directory: %s\n", currentDir)
+			template, err := loadTemplate(currentDir)
+			if err != nil {
+				log.Printf("Failed to load template from current directory: %v\n", err)
+			} else {
+				// 标记为来自当前目录
+				template.ID = "current-" + template.ID
+				template.Category = "Current Directory"
+				templates = append(templates, template)
+				log.Printf("Loaded template from current directory: %s\n", template.Name)
+			}
+		}
 	}
 
 	return templates, nil

@@ -433,6 +433,7 @@ import {
   Search,
   Connection
 } from '@element-plus/icons-vue'
+import { useClipboard } from '@vueuse/core'
 import { webhookApi, type WebhookConfig, type WebhookLog, type WebhookURL } from '../api/webhook'
 import { registryApi, type Registry } from '../api/registry'
 import { deployApi, type DeployScript } from '../api/deploy'
@@ -631,9 +632,15 @@ const showWebhookUrl = async (config: WebhookConfig) => {
   }
 }
 
-const copyUrl = () => {
-  navigator.clipboard.writeText(webhookUrl.value)
-  ElMessage.success('Webhook URL copied to clipboard')
+const { copy: copyToClipboard } = useClipboard()
+
+const copyUrl = async () => {
+  try {
+    await copyToClipboard(webhookUrl.value)
+    ElMessage.success('Webhook URL copied to clipboard')
+  } catch (error) {
+    ElMessage.error('Failed to copy URL')
+  }
 }
 
 // 生成 Registry 配置文件内容
@@ -657,9 +664,13 @@ const registryConfigYaml = computed(() => {
   return config
 })
 
-const copyConfig = () => {
-  navigator.clipboard.writeText(registryConfigYaml.value)
-  ElMessage.success('Registry configuration copied to clipboard')
+const copyConfig = async () => {
+  try {
+    await copyToClipboard(registryConfigYaml.value)
+    ElMessage.success('Registry configuration copied to clipboard')
+  } catch (error) {
+    ElMessage.error('Failed to copy configuration')
+  }
 }
 
 const viewLogs = async (config: WebhookConfig) => {
