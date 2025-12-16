@@ -191,14 +191,32 @@ func verifySignature(body []byte, secret, signature string) bool {
 	return hmac.Equal([]byte(expectedHash), []byte(calculatedHash))
 }
 
-// matchImageName 匹配镜像名称（支持通配符）
+// matchImageName 匹配镜像名称（支持通配符和 registry 地址）
 func matchImageName(pattern, name string) bool {
-	// 简单的字符串匹配（后续可以支持通配符 * 和 ?）
+	// 1. 直接匹配
 	if pattern == name {
 		return true
 	}
 
-	// 支持 * 通配符
+	// 2. 如果 pattern 包含 registry 地址（如 192.168.0.170:5000/indohit/gateway）
+	// 而 name 不包含（如 indohit/gateway），则提取 pattern 的镜像名部分进行匹配
+	if strings.Contains(pattern, "/") {
+		// 尝试提取镜像名（去掉 registry 地址部分）
+		// registry 地址通常是 host:port/ 或 host/ 的形式
+		parts := strings.SplitN(pattern, "/", 2)
+		if len(parts) == 2 {
+			// 检查第一部分是否像是 registry 地址（包含 . 或 : 或 localhost）
+			firstPart := parts[0]
+			if strings.Contains(firstPart, ".") || strings.Contains(firstPart, ":") || firstPart == "localhost" {
+				// 使用镜像名部分匹配
+				if parts[1] == name {
+					return true
+				}
+			}
+		}
+	}
+
+	// 3. 支持 * 通配符
 	if strings.Contains(pattern, "*") {
 		// 简单的前缀/后缀匹配
 		if strings.HasPrefix(pattern, "*") && strings.HasSuffix(pattern, "*") {

@@ -5,15 +5,19 @@ import (
 	"dockerun/internal/database"
 	"dockerun/internal/docker"
 	"dockerun/internal/models"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/registry"
 )
 
 // DeployTask 部署任务
@@ -102,15 +106,27 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 
 	// 获取配置信息
 	var config models.WebhookConfig
-	if err := db.Preload("DeployScript.Files").First(&config, task.ConfigID).Error; err != nil {
+	if err := db.Preload("Registry").Preload("DeployScript.Files").First(&config, task.ConfigID).Error; err != nil {
 		q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load config: %v", err), startTime)
 		return
 	}
 
 	// 构建完整的镜像名
+	// 如果配置了 Registry，需要添加 registry 地址前缀
 	fullImageName := task.ImageName
+	if config.RegistryID > 0 && config.Registry != nil {
+		// 从 Registry URL 中提取地址（去掉 http:// 或 https://）
+		registryAddr := config.Registry.URL
+		registryAddr = strings.TrimPrefix(registryAddr, "http://")
+		registryAddr = strings.TrimPrefix(registryAddr, "https://")
+		registryAddr = strings.TrimSuffix(registryAddr, "/")
+
+		// 构建完整镜像名：registry/image
+		fullImageName = fmt.Sprintf("%s/%s", registryAddr, task.ImageName)
+	}
+
 	if task.ImageTag != "" {
-		fullImageName = fmt.Sprintf("%s:%s", task.ImageName, task.ImageTag)
+		fullImageName = fmt.Sprintf("%s:%s", fullImageName, task.ImageTag)
 	}
 
 	// 步骤1: 清理旧容器（如果配置了）
@@ -131,7 +147,7 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 
 	// 步骤3: 拉取新镜像
 	log.Printf("[Webhook] Pulling new image: %s", fullImageName)
-	if err := q.pullImage(fullImageName, config.RegistryID); err != nil {
+	if err := q.pullImage(fullImageName, &config); err != nil {
 		q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to pull image: %v", err), startTime)
 		return
 	}
@@ -182,7 +198,7 @@ func (q *TaskQueue) removeOldContainers(imageName string) error {
 	// 删除每个容器
 	for _, cont := range containers {
 		log.Printf("[Webhook] Stopping and removing container: %s (%s)", cont.Names, cont.ID[:12])
-		
+
 		// 停止容器
 		timeout := 10
 		if err := cli.ContainerStop(ctx, cont.ID, container.StopOptions{Timeout: &timeout}); err != nil {
@@ -212,9 +228,35 @@ func (q *TaskQueue) removeOldImage(imageName string) error {
 }
 
 // pullImage 拉取镜像
-func (q *TaskQueue) pullImage(imageName string, registryID uint) error {
+func (q *TaskQueue) pullImage(imageName string, config *models.WebhookConfig) error {
+	ctx := context.Background()
+	cli := docker.GetClient()
+
+	// 构建拉取选项
+	pullOptions := dockerTypes.ImagePullOptions{}
+
+	// 如果配置了 Registry 且有认证信息，添加认证
+	if config.RegistryID > 0 && config.Registry != nil {
+		reg := config.Registry
+		if reg.Username != "" && reg.Password != "" {
+			authConfig := registry.AuthConfig{
+				Username:      reg.Username,
+				Password:      reg.Password,
+				ServerAddress: reg.URL,
+			}
+
+			// 编码认证信息
+			encodedAuth, err := encodeAuthConfig(authConfig)
+			if err != nil {
+				log.Printf("[Webhook] Warning: Failed to encode auth config: %v", err)
+			} else {
+				pullOptions.RegistryAuth = encodedAuth
+			}
+		}
+	}
+
 	// 拉取镜像
-	reader, err := docker.PullImage(imageName)
+	reader, err := cli.ImagePull(ctx, imageName, pullOptions)
 	if err != nil {
 		return fmt.Errorf("failed to pull image: %w", err)
 	}
@@ -229,16 +271,25 @@ func (q *TaskQueue) pullImage(imageName string, registryID uint) error {
 	return nil
 }
 
+// encodeAuthConfig 编码认证配置
+func encodeAuthConfig(authConfig registry.AuthConfig) (string, error) {
+	authJSON, err := json.Marshal(authConfig)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(authJSON), nil
+}
+
 // executeDeployScript 执行部署脚本
 func (q *TaskQueue) executeDeployScript(config *models.WebhookConfig) error {
 	// 这里重用 deploy_script 的执行逻辑
 	// 可以调用 handler.ExecuteDeployScript 的核心逻辑
 	// 为了简化，这里直接返回成功
 	// 实际应该调用执行脚本的函数
-	
+
 	// TODO: 调用实际的脚本执行逻辑
 	log.Printf("[Webhook] Deploy script execution: %s (id=%d)", config.DeployScript.Name, config.DeployScriptID)
-	
+
 	return nil
 }
 
@@ -265,4 +316,3 @@ func Shutdown() {
 		close(globalQueue.tasks)
 	}
 }
-
