@@ -385,25 +385,589 @@ const form = reactive<DeployScript>({
   files: []
 })
 
+// docker-manager.sh 脚本内容
+const dockerManagerScript = `#!/usr/bin/env bash
+
+###############################################################################
+# Docker 容器管理脚本 V2
+# 配置文件驱动的简洁架构
+# 
+# 用法:
+#   ./docker-manager.sh <配置文件.env> <命令> [选项]
+#   ./docker-manager.sh app.env start
+#   ./docker-manager.sh app.env stop
+#   ./docker-manager.sh app.env logs -f
+###############################################################################
+
+set -e
+
+# 颜色输出
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+YELLOW='\\033[1;33m'
+BLUE='\\033[0;34m'
+CYAN='\\033[0;36m'
+NC='\\033[0m'
+
+# 工具函数
+log_info() { echo -e "\${BLUE}[INFO]\${NC} $1"; }
+log_success() { echo -e "\${GREEN}[✓]\${NC} $1"; }
+log_warning() { echo -e "\${YELLOW}[⚠]\${NC} $1"; }
+log_error() { echo -e "\${RED}[✗]\${NC} $1"; }
+log_step() { echo -e "\${CYAN}[→]\${NC} $1"; }
+print_separator() { echo -e "\${BLUE}════════════════════════════════════════════════════════════════\${NC}"; }
+
+# 检查 Docker
+check_docker() {
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker 未安装"
+        exit 1
+    fi
+    if ! docker info &> /dev/null; then
+        log_error "Docker 守护进程未运行"
+        exit 1
+    fi
+}
+
+# 启动容器
+start_container() {
+    local run_script="$1"
+    if [ -n "$CONTAINER_NAME" ]; then
+        if docker ps -a --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+            if docker ps --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+                log_warning "容器 [$CONTAINER_NAME] 已在运行中"
+                show_status
+                return 0
+            else
+                log_info "启动已存在的容器 [$CONTAINER_NAME]..."
+                docker start "$CONTAINER_NAME"
+                log_success "容器启动成功"
+                show_status
+                return 0
+            fi
+        fi
+    fi
+    log_step "执行启动脚本: $run_script"
+    bash "$run_script"
+    if [ $? -eq 0 ]; then
+        log_success "容器启动成功"
+        echo ""
+        show_status
+    else
+        log_error "容器启动失败"
+        exit 1
+    fi
+}
+
+# 停止容器
+stop_container() {
+    [ -z "$CONTAINER_NAME" ] && { log_error "未定义 CONTAINER_NAME"; exit 1; }
+    log_step "停止容器: $CONTAINER_NAME"
+    if ! docker ps --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        log_warning "容器未运行"
+        return 0
+    fi
+    docker stop "$CONTAINER_NAME"
+    log_success "容器已停止"
+}
+
+# 重启容器
+restart_container() {
+    [ -z "$CONTAINER_NAME" ] && { log_error "未定义 CONTAINER_NAME"; exit 1; }
+    log_step "重启容器: $CONTAINER_NAME"
+    if docker ps -a --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        docker restart "$CONTAINER_NAME"
+        log_success "容器已重启"
+        show_status
+    else
+        log_error "容器不存在"
+        return 1
+    fi
+}
+
+# 删除容器
+remove_container() {
+    [ -z "$CONTAINER_NAME" ] && { log_error "未定义 CONTAINER_NAME"; exit 1; }
+    log_step "删除容器: $CONTAINER_NAME"
+    if ! docker ps -a --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        log_warning "容器不存在"
+        return 0
+    fi
+    if docker ps --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        log_info "停止容器..."
+        docker stop "$CONTAINER_NAME"
+    fi
+    docker rm "$CONTAINER_NAME"
+    log_success "容器已删除"
+}
+
+# 查看状态
+show_status() {
+    [ -z "$CONTAINER_NAME" ] && { log_error "未定义 CONTAINER_NAME"; exit 1; }
+    print_separator
+    echo -e "\${CYAN}容器状态: $CONTAINER_NAME\${NC}"
+    print_separator
+    if docker ps -a --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        docker ps -a --filter "name=^\${CONTAINER_NAME}$" --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
+    else
+        log_warning "容器不存在"
+    fi
+    print_separator
+}
+
+# 查看日志
+show_logs() {
+    [ -z "$CONTAINER_NAME" ] && { log_error "未定义 CONTAINER_NAME"; exit 1; }
+    local follow="\${1:-false}"
+    local lines="\${2:-100}"
+    if ! docker ps -a --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        log_error "容器不存在"
+        return 1
+    fi
+    if [ "$follow" = "true" ] || [ "$follow" = "-f" ]; then
+        log_info "实时查看日志（Ctrl+C 退出）..."
+        docker logs -f --tail "$lines" "$CONTAINER_NAME"
+    else
+        docker logs --tail "$lines" "$CONTAINER_NAME"
+    fi
+}
+
+# 进入容器
+exec_shell() {
+    [ -z "$CONTAINER_NAME" ] && { log_error "未定义 CONTAINER_NAME"; exit 1; }
+    local shell="\${1:-bash}"
+    if ! docker ps --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        log_error "容器未运行"
+        return 1
+    fi
+    log_info "进入容器 (shell: $shell)..."
+    docker exec -it "$CONTAINER_NAME" "$shell" || docker exec -it "$CONTAINER_NAME" sh
+}
+
+# 查看容器信息
+inspect_container() {
+    [ -z "$CONTAINER_NAME" ] && { log_error "未定义 CONTAINER_NAME"; exit 1; }
+    if ! docker ps -a --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        log_error "容器不存在"
+        return 1
+    fi
+    docker inspect "$CONTAINER_NAME"
+}
+
+# 查看容器资源使用
+show_stats() {
+    [ -z "$CONTAINER_NAME" ] && { log_error "未定义 CONTAINER_NAME"; exit 1; }
+    if ! docker ps --format '{{.Names}}' | grep -q "^\${CONTAINER_NAME}$"; then
+        log_error "容器未运行"
+        return 1
+    fi
+    docker stats "$CONTAINER_NAME"
+}
+
+# 显示帮助
+show_help() {
+    cat << EOF
+Docker 容器管理脚本 V2
+
+用法:
+  \$(basename "$0") <配置文件.env> <命令> [选项]
+
+命令:
+  start                启动容器
+  stop                 停止容器
+  restart              重启容器
+  remove, rm           删除容器
+  status, ps           查看容器状态
+  logs [lines]         查看日志（默认最后 100 行）
+  logs -f [lines]      实时查看日志
+  exec [shell]         进入容器（默认 bash）
+  inspect              查看容器详细信息
+  stats                查看容器资源使用情况
+  help                 显示帮助信息
+
+示例:
+  ./docker-manager.sh app.env start
+  ./docker-manager.sh app.env logs -f
+  ./docker-manager.sh app.env exec
+EOF
+}
+
+# 主程序
+main() {
+    [ $# -lt 1 ] && { show_help; exit 1; }
+    check_docker
+    
+    local first_arg="$1"
+    local command="\${2:-help}"
+    shift 2 || shift || true
+    
+    [ "$first_arg" = "help" ] && { show_help; exit 0; }
+    
+    local script_dir="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+    local run_script=""
+    local config_file=""
+    
+    if [[ "$first_arg" == *.env ]]; then
+        config_file="$first_arg"
+        run_script="$script_dir/docker-run.sh"
+        [ ! -f "$run_script" ] && { log_error "通用执行脚本不存在: $run_script"; exit 1; }
+        [ ! -f "$config_file" ] && { log_error "配置文件不存在: $config_file"; exit 1; }
+        log_info "使用配置文件: $config_file"
+        log_info "使用通用执行脚本: docker-run.sh"
+        source "$config_file"
+        export CONFIG_FILE="$config_file"
+    else
+        run_script="$first_arg"
+        [ ! -f "$run_script" ] && { log_error "执行脚本不存在: $run_script"; exit 1; }
+        log_info "使用自定义执行脚本: $run_script"
+        config_file=\$(grep -E "^CONFIG_FILE=" "$run_script" | head -1 | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        if [ -n "$config_file" ] && [ -f "$config_file" ]; then
+            log_info "加载配置文件: $config_file"
+            source "$config_file"
+        fi
+        source "$run_script"
+    fi
+    
+    case "$command" in
+        start) start_container "$run_script" ;;
+        stop) stop_container ;;
+        restart) restart_container ;;
+        remove|rm) remove_container ;;
+        status|ps) show_status ;;
+        logs) show_logs "$@" ;;
+        exec) exec_shell "$@" ;;
+        inspect) inspect_container ;;
+        stats) show_stats ;;
+        help|--help|-h) show_help ;;
+        *) log_error "未知命令: $command"; echo ""; show_help; exit 1 ;;
+    esac
+}
+
+main "$@"
+`
+
+// docker-run.sh 脚本内容
+const dockerRunScript = `#!/usr/bin/env bash
+
+###############################################################################
+# Docker 容器通用运行脚本
+# 通过环境变量 CONFIG_FILE 指定配置文件
+###############################################################################
+
+[ -z "$CONFIG_FILE" ] && { echo "错误: 未设置 CONFIG_FILE 环境变量"; exit 1; }
+
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+elif [ -f "$SCRIPT_DIR/$CONFIG_FILE" ]; then
+    source "$SCRIPT_DIR/$CONFIG_FILE"
+else
+    echo "错误: 配置文件不存在: $CONFIG_FILE"
+    exit 1
+fi
+
+# 检查必需的变量
+[ -z "$CONTAINER_NAME" ] && { echo "错误: 未定义 CONTAINER_NAME"; exit 1; }
+[ -z "$IMAGE_NAME" ] && { echo "错误: 未定义 IMAGE_NAME"; exit 1; }
+
+# 创建必要的目录
+if [ -n "$VOLUMES" ]; then
+    while IFS= read -r volume; do
+        [ -z "$volume" ] && continue
+        local host_path=\$(echo "$volume" | cut -d':' -f1)
+        if [[ "$host_path" == /* ]] && [ ! -e "$host_path" ]; then
+            echo "创建目录: $host_path"
+            mkdir -p "$host_path"
+        fi
+    done <<< "$VOLUMES"
+fi
+
+# 检查镜像
+echo "检查镜像: $IMAGE_NAME"
+if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
+    echo "镜像不存在,尝试拉取..."
+    docker pull "$IMAGE_NAME" || { echo "错误: 镜像拉取失败"; exit 1; }
+    echo "镜像拉取成功"
+else
+    echo "镜像已存在"
+fi
+
+echo "开始启动容器: $CONTAINER_NAME"
+
+# 构建 docker run 命令
+CMD="docker run -d"
+CMD="$CMD --name $CONTAINER_NAME"
+
+[ -n "$CONTAINER_HOSTNAME" ] && CMD="$CMD --hostname $CONTAINER_HOSTNAME"
+CMD="$CMD --restart \${RESTART_POLICY:-unless-stopped}"
+
+# 网络配置
+if [ -n "$NETWORK_NAME" ]; then
+    CMD="$CMD --network $NETWORK_NAME"
+    [ -n "$CONTAINER_IP" ] && CMD="$CMD --ip $CONTAINER_IP"
+elif [ -n "$NETWORK_MODE" ]; then
+    CMD="$CMD --network $NETWORK_MODE"
+fi
+
+# 端口映射
+if [ -n "$PORTS" ]; then
+    for port in $PORTS; do
+        CMD="$CMD -p $port"
+    done
+fi
+
+# 环境变量
+if [ -n "$ENV_VARS" ]; then
+    while IFS= read -r env_var; do
+        [ -z "$env_var" ] && continue
+        CMD="$CMD -e \\"$env_var\\""
+    done <<< "$ENV_VARS"
+fi
+
+# 卷挂载
+if [ -n "$VOLUMES" ]; then
+    while IFS= read -r volume; do
+        [ -z "$volume" ] && continue
+        CMD="$CMD -v $volume"
+    done <<< "$VOLUMES"
+fi
+
+if [ -n "$NAMED_VOLUMES" ]; then
+    while IFS= read -r volume; do
+        [ -z "$volume" ] && continue
+        CMD="$CMD -v $volume"
+    done <<< "$NAMED_VOLUMES"
+fi
+
+[ "$MOUNT_DOCKER_SOCKET" = "true" ] && CMD="$CMD -v /var/run/docker.sock:/var/run/docker.sock"
+if [ "$MOUNT_TIMEZONE" = "true" ]; then
+    CMD="$CMD -v /etc/localtime:/etc/localtime:ro"
+    CMD="$CMD -v /etc/timezone:/etc/timezone:ro"
+fi
+
+# 资源限制
+[ -n "$CPU_LIMIT" ] && CMD="$CMD --cpus $CPU_LIMIT"
+[ -n "$CPU_SHARES" ] && CMD="$CMD --cpu-shares $CPU_SHARES"
+[ -n "$MEMORY_LIMIT" ] && CMD="$CMD --memory $MEMORY_LIMIT"
+[ -n "$MEMORY_RESERVATION" ] && CMD="$CMD --memory-reservation $MEMORY_RESERVATION"
+
+# 健康检查
+if [ "$HEALTH_CHECK_ENABLED" = "true" ] && [ -n "$HEALTH_CHECK_CMD" ]; then
+    CMD="$CMD --health-cmd=\\"$HEALTH_CHECK_CMD\\""
+    CMD="$CMD --health-interval=\${HEALTH_CHECK_INTERVAL:-30s}"
+    CMD="$CMD --health-timeout=\${HEALTH_CHECK_TIMEOUT:-10s}"
+    CMD="$CMD --health-retries=\${HEALTH_CHECK_RETRIES:-3}"
+    [ -n "$HEALTH_CHECK_START_PERIOD" ] && CMD="$CMD --health-start-period=$HEALTH_CHECK_START_PERIOD"
+fi
+
+# 用户配置
+[ -n "$RUN_AS_USER" ] && CMD="$CMD --user $RUN_AS_USER"
+[ -n "$WORKDIR" ] && CMD="$CMD --workdir $WORKDIR"
+
+# 日志配置
+CMD="$CMD --log-driver \${LOG_DRIVER:-json-file}"
+if [ "\${LOG_DRIVER:-json-file}" = "json-file" ]; then
+    CMD="$CMD --log-opt max-size=\${LOG_MAX_SIZE:-10m}"
+    CMD="$CMD --log-opt max-file=\${LOG_MAX_FILE:-3}"
+fi
+
+# 主机名映射
+if [ -n "$EXTRA_HOSTS" ]; then
+    while IFS= read -r host; do
+        [ -z "$host" ] && continue
+        CMD="$CMD --add-host $host"
+    done <<< "$EXTRA_HOSTS"
+fi
+
+# DNS 配置
+if [ -n "$DNS_SERVERS" ]; then
+    for dns in $DNS_SERVERS; do
+        CMD="$CMD --dns $dns"
+    done
+fi
+
+# 安全配置
+[ "$PRIVILEGED" = "true" ] && CMD="$CMD --privileged"
+[ "$READ_ONLY" = "true" ] && CMD="$CMD --read-only"
+
+# 容器标签
+if [ -n "$LABELS" ]; then
+    while IFS= read -r label; do
+        [ -z "$label" ] && continue
+        CMD="$CMD --label $label"
+    done <<< "$LABELS"
+fi
+
+# 额外参数
+[ -n "$EXTRA_DOCKER_ARGS" ] && CMD="$CMD $EXTRA_DOCKER_ARGS"
+
+# 镜像名称
+CMD="$CMD $IMAGE_NAME"
+
+# 容器命令
+[ -n "$CONTAINER_CMD" ] && CMD="$CMD $CONTAINER_CMD"
+
+echo ""
+echo "执行命令:"
+echo "$CMD"
+echo ""
+
+eval "$CMD"
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "✓ 容器创建成功!"
+    exit 0
+else
+    echo ""
+    echo "✗ 容器创建失败!"
+    exit 1
+fi
+`
+
+// app.env 配置文件模板
+const appEnvTemplate = `# ==============================================================================
+# Docker 容器配置文件
+# 这个文件定义了容器运行所需的所有环境变量和配置项
+# ==============================================================================
+
+# ==================== 基本配置 ====================
+# 容器名称（必需）
+CONTAINER_NAME="myapp"
+
+# 镜像名称（必需）
+IMAGE_NAME="nginx:latest"
+
+# 容器主机名（可选）
+CONTAINER_HOSTNAME=""
+
+# 重启策略: no, always, unless-stopped, on-failure
+RESTART_POLICY="always"
+
+# ==================== 网络配置 ====================
+# 网络模式: bridge, host, none
+NETWORK_MODE="bridge"
+
+# 自定义网络名称（可选，如果设置则忽略 NETWORK_MODE）
+NETWORK_NAME=""
+
+# 静态 IP 地址（可选，需要使用自定义网络）
+CONTAINER_IP=""
+
+# ==================== 端口映射 ====================
+# 格式: host_port:container_port
+# 多个端口用空格分隔
+PORTS="8080:80"
+
+# ==================== 环境变量 ====================
+# 应用环境变量（每行一个）
+ENV_VARS="
+TZ=Asia/Shanghai
+"
+
+# ==================== 卷挂载 ====================
+# 主机路径挂载
+# 格式: host_path:container_path[:options]
+VOLUMES="
+/data/myapp:/app/data
+"
+
+# 命名卷
+NAMED_VOLUMES=""
+
+# ==================== 特殊挂载 ====================
+# Docker Socket（用于容器管理其他容器）
+MOUNT_DOCKER_SOCKET="false"
+
+# 时区文件
+MOUNT_TIMEZONE="true"
+
+# ==================== 资源限制 ====================
+# CPU 限制（核心数）
+CPU_LIMIT=""
+
+# 内存限制
+MEMORY_LIMIT=""
+
+# ==================== 健康检查 ====================
+# 启用健康检查
+HEALTH_CHECK_ENABLED="false"
+
+# 健康检查命令
+HEALTH_CHECK_CMD=""
+
+# 检查间隔
+HEALTH_CHECK_INTERVAL="30s"
+
+# 超时时间
+HEALTH_CHECK_TIMEOUT="10s"
+
+# 重试次数
+HEALTH_CHECK_RETRIES="3"
+
+# 启动等待时间
+HEALTH_CHECK_START_PERIOD="60s"
+
+# ==================== 日志配置 ====================
+# 日志驱动: json-file, syslog, journald
+LOG_DRIVER="json-file"
+
+# 日志选项
+LOG_MAX_SIZE="10m"
+LOG_MAX_FILE="3"
+
+# ==================== 安全配置 ====================
+# 特权模式（慎用）
+PRIVILEGED="false"
+
+# 只读根文件系统
+READ_ONLY="false"
+
+# ==================== 其他配置 ====================
+# 容器标签（每行一个）
+LABELS=""
+
+# 容器启动命令（可选，会覆盖 Dockerfile 中的 CMD）
+CONTAINER_CMD=""
+
+# 其他 Docker run 参数
+EXTRA_DOCKER_ARGS=""
+`
+
+// 主部署脚本
 const exampleScript = `#!/usr/bin/env bash
 
 set -e
 
-# 设置工作目录
-WORK_DIR="\${WORK_DIR:-/opt/myapp}"
-cd "$WORK_DIR"
+echo "========================================"
+echo "  Docker 容器部署脚本"
+echo "========================================"
 
-# 创建必要的目录
-mkdir -p data logs config
+# 切换到工作目录
+cd "\${WORK_DIR:-.}"
 
-# 复制配置文件
-# (配置文件应该已经在工作目录中)
+echo ""
+echo "工作目录: \$(pwd)"
+echo ""
 
-# 启动服务
-echo "Starting services..."
-docker-compose up -d
+# 使用 docker-manager.sh 启动容器
+# 用法: bash docker-manager.sh <配置文件.env> <命令>
+bash docker-manager.sh app.env start
 
-echo "Deployment completed!"
+echo ""
+echo "========================================"
+echo "  部署完成！"
+echo "========================================"
+echo ""
+echo "常用命令:"
+echo "  查看状态: bash docker-manager.sh app.env status"
+echo "  查看日志: bash docker-manager.sh app.env logs -f"
+echo "  停止容器: bash docker-manager.sh app.env stop"
+echo "  重启容器: bash docker-manager.sh app.env restart"
+echo "  进入容器: bash docker-manager.sh app.env exec"
+echo "  删除容器: bash docker-manager.sh app.env remove"
+echo ""
 `
 
 const filteredScripts = computed(() => {
@@ -470,7 +1034,32 @@ const handleCreate = () => {
   form.main_script = exampleScript
   form.work_dir = '/ingot-data/dockerun'
   form.env_vars = {}
-  form.files = []
+  
+  // 默认包含通用的 Docker 部署管理脚本
+  form.files = [
+    {
+      file_name: 'docker-manager.sh',
+      file_path: './docker-manager.sh',
+      file_type: 'script',
+      content: dockerManagerScript,
+      description: 'Docker 容器管理脚本 - 提供启动、停止、重启等管理功能'
+    },
+    {
+      file_name: 'docker-run.sh',
+      file_path: './docker-run.sh',
+      file_type: 'script',
+      content: dockerRunScript,
+      description: 'Docker 容器通用运行脚本 - 根据配置文件启动容器'
+    },
+    {
+      file_name: 'app.env',
+      file_path: './app.env',
+      file_type: 'config',
+      content: appEnvTemplate,
+      description: '容器配置文件 - 定义容器名称、镜像、端口、环境变量等'
+    }
+  ]
+  
   dialogVisible.value = true
 }
 
