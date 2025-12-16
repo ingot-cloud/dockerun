@@ -1,7 +1,9 @@
 package webhook
 
 import (
+	"bytes"
 	"context"
+	"dockerun/internal/config"
 	"dockerun/internal/database"
 	"dockerun/internal/docker"
 	"dockerun/internal/models"
@@ -10,6 +12,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -316,15 +321,136 @@ func encodeAuthConfig(authConfig registry.AuthConfig) (string, error) {
 }
 
 // executeDeployScript 执行部署脚本
-func (q *TaskQueue) executeDeployScript(config *models.WebhookConfig) error {
-	// 这里重用 deploy_script 的执行逻辑
-	// 可以调用 handler.ExecuteDeployScript 的核心逻辑
-	// 为了简化，这里直接返回成功
-	// 实际应该调用执行脚本的函数
+func (q *TaskQueue) executeDeployScript(webhookConfig *models.WebhookConfig) error {
+	script := webhookConfig.DeployScript
+	if script == nil {
+		return fmt.Errorf("deploy script not loaded")
+	}
 
-	// TODO: 调用实际的脚本执行逻辑
-	log.Printf("[Webhook] Deploy script execution: %s (id=%d)", config.DeployScript.Name, config.DeployScriptID)
+	log.Printf("[Webhook] Executing deploy script: %s (id=%d)", script.Name, script.ID)
 
+	// 1. 确定工作目录
+	var workDir string
+	useTemp := false
+
+	if script.WorkDir != "" && script.WorkDir != "/ingot-data/dockerun" {
+		// 使用用户指定的工作目录
+		workDir = script.WorkDir
+	} else {
+		// 使用系统配置的默认工作目录
+		db := database.GetDB()
+		var systemConfig models.SystemConfig
+		if err := db.First(&systemConfig).Error; err == nil {
+			workDir = filepath.Join(systemConfig.DeployWorkDir, fmt.Sprintf("script-%d", script.ID))
+		} else {
+			// 如果系统配置不存在，使用临时目录
+			workDir = filepath.Join(os.TempDir(), fmt.Sprintf("dockerun-webhook-%d-%d", webhookConfig.ID, time.Now().Unix()))
+			useTemp = true
+		}
+	}
+
+	// 2. 创建工作目录
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return fmt.Errorf("failed to create work directory: %w", err)
+	}
+
+	// 如果使用临时目录，执行完后清理
+	if useTemp {
+		defer func() {
+			if err := os.RemoveAll(workDir); err != nil {
+				log.Printf("[Webhook] Warning: Failed to clean up temp directory %s: %v", workDir, err)
+			}
+		}()
+	}
+
+	log.Printf("[Webhook] Using work directory: %s", workDir)
+
+	// 3. 写入所有关联文件
+	for _, file := range script.Files {
+		// 创建文件所在的目录
+		fileFullPath := filepath.Join(workDir, file.FilePath)
+		fileDir := filepath.Dir(fileFullPath)
+		if err := os.MkdirAll(fileDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", fileDir, err)
+		}
+
+		// 写入文件内容
+		perm := os.FileMode(0644)
+		if file.FileType == "script" {
+			perm = 0755
+		}
+
+		log.Printf("[Webhook] Writing file: %s", fileFullPath)
+		if err := os.WriteFile(fileFullPath, []byte(file.Content), perm); err != nil {
+			return fmt.Errorf("failed to write file %s: %w", file.FileName, err)
+		}
+	}
+
+	// 4. 写入主脚本文件
+	mainScriptPath := filepath.Join(workDir, "deploy.sh")
+	if err := os.WriteFile(mainScriptPath, []byte(script.MainScript), 0755); err != nil {
+		return fmt.Errorf("failed to write main script: %w", err)
+	}
+
+	// 5. 准备环境变量
+	env := os.Environ()
+
+	// 添加脚本自定义环境变量
+	if script.EnvVars != nil {
+		for key, value := range script.EnvVars {
+			env = append(env, fmt.Sprintf("%s=%s", key, value))
+		}
+	}
+
+	// 添加工作目录环境变量
+	env = append(env, fmt.Sprintf("WORK_DIR=%s", workDir))
+
+	// 添加 Docker 网络名称
+	appConfig := config.Load()
+	env = append(env, fmt.Sprintf("DOCKER_NETWORK=%s", appConfig.NetworkName))
+
+	// 添加触发信息环境变量（方便脚本使用）
+	env = append(env, fmt.Sprintf("WEBHOOK_IMAGE_NAME=%s", webhookConfig.ImageName))
+	env = append(env, fmt.Sprintf("WEBHOOK_IMAGE_TAG=%s", webhookConfig.ImageTag))
+	if webhookConfig.Registry != nil {
+		env = append(env, fmt.Sprintf("WEBHOOK_REGISTRY_URL=%s", webhookConfig.Registry.URL))
+	}
+
+	// 6. 执行脚本
+	log.Printf("[Webhook] Executing script: %s", mainScriptPath)
+
+	cmd := exec.Command("/bin/bash", mainScriptPath)
+	cmd.Dir = workDir
+	cmd.Env = env
+
+	// 捕获输出
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// 启动并等待完成
+	startTime := time.Now()
+	err := cmd.Run()
+	duration := time.Since(startTime)
+
+	// 记录输出
+	if stdout.Len() > 0 {
+		log.Printf("[Webhook] Script stdout:\n%s", stdout.String())
+	}
+	if stderr.Len() > 0 {
+		log.Printf("[Webhook] Script stderr:\n%s", stderr.String())
+	}
+
+	if err != nil {
+		// 构建详细的错误信息
+		errorMsg := fmt.Sprintf("script execution failed after %v: %v", duration, err)
+		if stderr.Len() > 0 {
+			errorMsg += fmt.Sprintf("\nStderr: %s", stderr.String())
+		}
+		return fmt.Errorf("%s", errorMsg)
+	}
+
+	log.Printf("[Webhook] Script execution completed successfully in %v", duration)
 	return nil
 }
 
