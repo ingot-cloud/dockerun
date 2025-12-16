@@ -657,9 +657,7 @@ const registryConfigYaml = computed(() => {
       backoff: 1s${currentConfig.value?.secret ? `
       headers:
         Authorization: [${currentConfig.value.secret}]` : ''}
-      events:
-        - push
-        - delete`
+      `
   
   return config
 })
