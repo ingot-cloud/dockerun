@@ -21,7 +21,8 @@ HOST_PORT="19000"
 # TEMPLATES_VOLUME="/ingot-data/dockerun/templates"  # 模板现在内置在镜像中
 DATABASE_TYPE="mysql"
 MYSQL_DSN="dockerun:dockerun123@tcp(mysql:3306)/dockerun?charset=utf8mb4&parseTime=True&loc=Local"
-
+VIRTUAL_PORT="8080"
+VIRTUAL_HOST="dockerun.ingotcloud.top"
 
 # 日志函数
 log_info() {
@@ -94,6 +95,9 @@ start_container() {
             -p "${HOST_PORT}:8080" \
             -e DATABASE_TYPE="${DATABASE_TYPE}" \
             -e MYSQL_DSN="${MYSQL_DSN}" \
+            -e VIRTUAL_HOST=${VIRTUAL_HOST} \
+            -e VIRTUAL_PORT=${VIRTUAL_PORT} \
+            -e LETSENCRYPT_HOST=${VIRTUAL_HOST} \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v /ingot-data/dockerun:/ingot-data/dockerun \
             --restart unless-stopped \
