@@ -156,7 +156,7 @@ func DeleteRegistry(c *gin.Context) {
 		return
 	}
 
-	if err := database.GetDB().Delete(&registry).Error; err != nil {
+	if err := database.GetDB().Delete(&models.Registry{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除 Registry 失败"})
 		return
 	}
@@ -182,4 +182,3 @@ func TestRegistry(c *gin.Context) {
 	// TODO: 实现实际的连接测试
 	c.JSON(http.StatusOK, gin.H{"message": "连接成功"})
 }
-
