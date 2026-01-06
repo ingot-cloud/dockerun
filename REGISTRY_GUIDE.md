@@ -315,7 +315,7 @@ URL: https://nexus.example.com:8082
 ```
 ✅ 推荐:
 - v1.0.0, v1.0.1 (语义化版本)
-- 2024-12-10 (日期标签)
+- 2025-12-10 (日期标签)
 - latest, stable (环境标签)
 
 ❌ 避免:
@@ -518,7 +518,7 @@ Authorization: Bearer <token>
     "username": "admin",
     "is_default": true,
     "insecure": false,
-    "created_at": "2024-12-10T10:00:00Z"
+    "created_at": "2025-12-10T10:00:00Z"
   }
 ]
 ```

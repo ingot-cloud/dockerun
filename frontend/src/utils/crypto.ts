@@ -2,7 +2,7 @@ import CryptoJS from 'crypto-js'
 
 // AES 加密密钥（与后端保持一致）
 // 注意：生产环境应该从环境变量读取
-const AES_KEY = import.meta.env.VITE_AES_KEY || 'dockerun-aes-key-2024-secret-key'
+const AES_KEY = import.meta.env.VITE_AES_KEY || 'dockerun-aes-key-2025-secret-key'
 const AES_IV = import.meta.env.VITE_AES_IV || 'dockerun-aes-iv16'
 
 /**

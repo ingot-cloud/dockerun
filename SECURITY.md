@@ -140,7 +140,7 @@ docker run -d \
 **⚠️ 安全警告**: 默认密钥仅用于开发测试，生产环境必须修改！
 
 ```
-AES_KEY: "dockerun-aes-key-2024-secret-key"  (32 bytes)
+AES_KEY: "dockerun-aes-key-2025-secret-key"  (32 bytes)
 AES_IV:  "dockerun-aes-iv16"                  (16 bytes)
 ```
 
@@ -281,6 +281,6 @@ curl -X POST http://localhost:8080/api/auth/login \
 
 ---
 
-**最后更新**: 2024-12-14
+**最后更新**: 2025-12-14
 **维护者**: Dockerun Team
 

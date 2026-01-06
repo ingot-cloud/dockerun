@@ -13,7 +13,7 @@ import (
 func GetAESKey() string {
 	key := os.Getenv("AES_KEY")
 	if key == "" {
-		key = "dockerun-aes-key-2024-secret-key"
+		key = "dockerun-aes-key-2025-secret-key"
 	}
 	// 确保密钥长度为32字节（AES-256）
 	return padKey(key, 32)
@@ -126,4 +126,3 @@ func pkcs7Unpad(data []byte) ([]byte, error) {
 func DecryptPassword(encryptedPassword string) (string, error) {
 	return AESDecrypt(encryptedPassword)
 }
-

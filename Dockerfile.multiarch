@@ -66,7 +66,7 @@ ENV DOCKER_NETWORK_SUBNET=172.88.0.0/16
 ENV DOCKER_NETWORK_GATEWAY=172.88.0.1
 
 # AES 加密配置（生产环境建议使用 docker run -e 覆盖）
-ENV AES_KEY=dockerun-aes-key-2024-secret-key
+ENV AES_KEY=dockerun-aes-key-2025-secret-key
 ENV AES_IV=dockerun-aes-iv16
 
 # 健康检查
