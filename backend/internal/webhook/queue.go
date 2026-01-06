@@ -111,9 +111,34 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 
 	// 获取配置信息
 	var config models.WebhookConfig
-	if err := db.Preload("Registry").Preload("DeployScript.Files").First(&config, task.ConfigID).Error; err != nil {
+	if err := db.First(&config, task.ConfigID).Error; err != nil {
 		q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load config: %v", err), startTime)
 		return
+	}
+
+	// 手动加载Registry
+	if config.RegistryID > 0 {
+		var registry models.Registry
+		if err := db.First(&registry, config.RegistryID).Error; err == nil {
+			config.Registry = &registry
+		}
+	}
+
+	// 手动加载DeployScript
+	if config.DeployScriptID > 0 {
+		var script models.DeployScript
+		if err := db.First(&script, config.DeployScriptID).Error; err != nil {
+			q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load deploy script: %v", err), startTime)
+			return
+		}
+
+		// 手动加载DeployScript的Files
+		var files []models.DeployScriptFile
+		if err := db.Where("deploy_script_id = ?", script.ID).Find(&files).Error; err == nil {
+			script.Files = files
+		}
+
+		config.DeployScript = &script
 	}
 
 	// 构建完整的镜像名

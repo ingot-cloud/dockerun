@@ -20,17 +20,31 @@ import (
 	"gorm.io/gorm"
 )
 
+// loadDeployScriptFiles 加载DeployScript的关联文件
+func loadDeployScriptFiles(db *gorm.DB, script *models.DeployScript) error {
+	var files []models.DeployScriptFile
+	if err := db.Where("deploy_script_id = ?", script.ID).Find(&files).Error; err != nil {
+		return err
+	}
+	script.Files = files
+	return nil
+}
+
 // ListDeployScripts 列出所有部署脚本
 func ListDeployScripts(c *gin.Context) {
+	db := database.GetDB()
+
 	var scripts []models.DeployScript
-	// Preload Files 关联
-	if err := database.GetDB().Preload("Files").Find(&scripts).Error; err != nil {
+	if err := db.Find(&scripts).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
 	}
 
-	// 填充容器名称
+	// 手动加载每个脚本的关联文件
 	for i := range scripts {
+		loadDeployScriptFiles(db, &scripts[i])
+
+		// 填充容器名称
 		if scripts[i].ContainerID != "" {
 			scripts[i].ContainerName = docker.GetContainerName(scripts[i].ContainerID)
 		}
@@ -41,14 +55,17 @@ func ListDeployScripts(c *gin.Context) {
 
 // GetDeployScript 获取部署脚本详情
 func GetDeployScript(c *gin.Context) {
+	db := database.GetDB()
 	id := c.Param("id")
 
 	var script models.DeployScript
-	// Preload Files 关联
-	if err := database.GetDB().Preload("Files").First(&script, id).Error; err != nil {
+	if err := db.First(&script, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "脚本不存在"})
 		return
 	}
+
+	// 手动加载关联文件
+	loadDeployScriptFiles(db, &script)
 
 	c.JSON(http.StatusOK, script)
 }
@@ -81,10 +98,11 @@ func CreateDeployScript(c *gin.Context) {
 
 // UpdateDeployScript 更新部署脚本
 func UpdateDeployScript(c *gin.Context) {
+	db := database.GetDB()
 	id := c.Param("id")
 
 	var script models.DeployScript
-	if err := database.GetDB().Preload("Files").First(&script, id).Error; err != nil {
+	if err := db.First(&script, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "脚本不存在"})
 		return
 	}
@@ -104,7 +122,7 @@ func UpdateDeployScript(c *gin.Context) {
 	script.EnvVars = req.EnvVars
 
 	// 使用事务来确保数据一致性
-	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		// 先保存基本字段
 		if err := tx.Omit("Files").Save(&script).Error; err != nil {
 			return err
@@ -135,25 +153,57 @@ func UpdateDeployScript(c *gin.Context) {
 	}
 
 	// 重新加载以获取关联数据
-	database.GetDB().Preload("Files").First(&script, script.ID)
+	db.First(&script, script.ID)
+	loadDeployScriptFiles(db, &script)
 
 	c.JSON(http.StatusOK, script)
 }
 
-// DeleteDeployScript 删除部署脚本
+// DeleteDeployScript 删除部署脚本（级联删除关联文件和Webhook配置）
 func DeleteDeployScript(c *gin.Context) {
+	db := database.GetDB()
 	id := c.Param("id")
 
 	var script models.DeployScript
-	if err := database.GetDB().First(&script, id).Error; err != nil {
+	if err := db.First(&script, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "脚本不存在"})
 		return
 	}
 
-	// 删除关联的文件记录（由于设置了外键，会自动级联删除）
-	database.GetDB().Where("deploy_script_id = ?", script.ID).Delete(&models.DeployScriptFile{})
+	// 使用事务处理级联删除
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 1. 删除关联的文件记录
+		if err := tx.Where("deploy_script_id = ?", script.ID).Delete(&models.DeployScriptFile{}).Error; err != nil {
+			return err
+		}
 
-	if err := database.GetDB().Delete(&script).Error; err != nil {
+		// 2. 查找使用此脚本的 Webhook 配置
+		var webhookConfigs []models.WebhookConfig
+		if err := tx.Where("deploy_script_id = ?", script.ID).Find(&webhookConfigs).Error; err != nil {
+			return err
+		}
+
+		// 3. 删除这些 Webhook 配置的日志
+		for _, config := range webhookConfigs {
+			if err := tx.Where("webhook_config_id = ?", config.ID).Delete(&models.WebhookLog{}).Error; err != nil {
+				return err
+			}
+		}
+
+		// 4. 删除这些 Webhook 配置
+		if err := tx.Where("deploy_script_id = ?", script.ID).Delete(&models.WebhookConfig{}).Error; err != nil {
+			return err
+		}
+
+		// 5. 最后删除脚本本身
+		if err := tx.Delete(&script).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return
 	}
@@ -163,13 +213,17 @@ func DeleteDeployScript(c *gin.Context) {
 
 // ExecuteDeployScript 执行部署脚本
 func ExecuteDeployScript(c *gin.Context) {
+	db := database.GetDB()
 	id := c.Param("id")
 
 	var script models.DeployScript
-	if err := database.GetDB().Preload("Files").First(&script, id).Error; err != nil {
+	if err := db.First(&script, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "脚本不存在"})
 		return
 	}
+
+	// 手动加载关联文件
+	loadDeployScriptFiles(db, &script)
 
 	// 使用配置的工作目录或系统默认工作目录
 	var workDir string

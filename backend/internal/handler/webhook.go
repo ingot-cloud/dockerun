@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // WebhookPayload Docker Registry Webhook 的通用 Payload 结构
@@ -71,16 +72,40 @@ func ReceiveWebhook(c *gin.Context) {
 	go processWebhook(configID, body, c.Request.Header)
 }
 
+// loadWebhookConfigRelations 加载WebhookConfig的关联数据
+func loadWebhookConfigRelations(db *gorm.DB, config *models.WebhookConfig) error {
+	// 加载Registry
+	if config.RegistryID > 0 {
+		var registry models.Registry
+		if err := db.First(&registry, config.RegistryID).Error; err == nil {
+			config.Registry = &registry
+		}
+	}
+
+	// 加载DeployScript
+	if config.DeployScriptID > 0 {
+		var script models.DeployScript
+		if err := db.First(&script, config.DeployScriptID).Error; err == nil {
+			config.DeployScript = &script
+		}
+	}
+
+	return nil
+}
+
 // processWebhook 异步处理 Webhook
 func processWebhook(configID string, body []byte, headers http.Header) {
 	db := database.GetDB()
 
 	// 加载配置
 	var config models.WebhookConfig
-	if err := db.Preload("Registry").Preload("DeployScript").First(&config, configID).Error; err != nil {
+	if err := db.First(&config, configID).Error; err != nil {
 		log.Printf("[Webhook] Config not found: id=%s, error=%v", configID, err)
 		return
 	}
+
+	// 手动加载关联数据
+	loadWebhookConfigRelations(db, &config)
 
 	// 检查是否启用
 	if !config.Enabled {
@@ -236,9 +261,14 @@ func ListWebhookConfigs(c *gin.Context) {
 	db := database.GetDB()
 
 	var configs []models.WebhookConfig
-	if err := db.Preload("Registry").Preload("DeployScript").Order("created_at DESC").Find(&configs).Error; err != nil {
+	if err := db.Order("created_at DESC").Find(&configs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// 手动加载每个配置的关联数据
+	for i := range configs {
+		loadWebhookConfigRelations(db, &configs[i])
 	}
 
 	c.JSON(http.StatusOK, configs)
@@ -250,10 +280,13 @@ func GetWebhookConfig(c *gin.Context) {
 	id := c.Param("id")
 
 	var config models.WebhookConfig
-	if err := db.Preload("Registry").Preload("DeployScript").First(&config, id).Error; err != nil {
+	if err := db.First(&config, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Webhook config not found"})
 		return
 	}
+
+	// 手动加载关联数据
+	loadWebhookConfigRelations(db, &config)
 
 	c.JSON(http.StatusOK, config)
 }
@@ -290,8 +323,8 @@ func CreateWebhookConfig(c *gin.Context) {
 		return
 	}
 
-	// 重新加载完整数据
-	db.Preload("Registry").Preload("DeployScript").First(&req, req.ID)
+	// 手动加载关联数据
+	loadWebhookConfigRelations(db, &req)
 
 	c.JSON(http.StatusOK, req)
 }
@@ -339,17 +372,33 @@ func UpdateWebhookConfig(c *gin.Context) {
 	}
 
 	// 重新加载完整数据
-	db.Preload("Registry").Preload("DeployScript").First(&config, id)
+	db.First(&config, id)
+	loadWebhookConfigRelations(db, &config)
 
 	c.JSON(http.StatusOK, config)
 }
 
-// DeleteWebhookConfig 删除 Webhook 配置
+// DeleteWebhookConfig 删除 Webhook 配置（级联删除相关日志）
 func DeleteWebhookConfig(c *gin.Context) {
 	db := database.GetDB()
 	id := c.Param("id")
 
-	if err := db.Delete(&models.WebhookConfig{}, id).Error; err != nil {
+	// 使用事务处理级联删除
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 1. 删除关联的 WebhookLog
+		if err := tx.Where("webhook_config_id = ?", id).Delete(&models.WebhookLog{}).Error; err != nil {
+			return err
+		}
+
+		// 2. 删除 WebhookConfig
+		if err := tx.Delete(&models.WebhookConfig{}, id).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -362,7 +411,7 @@ func ListWebhookLogs(c *gin.Context) {
 	db := database.GetDB()
 	configID := c.Query("config_id")
 
-	query := db.Preload("WebhookConfig").Order("created_at DESC")
+	query := db.Order("created_at DESC")
 	if configID != "" {
 		query = query.Where("webhook_config_id = ?", configID)
 	}
@@ -371,6 +420,16 @@ func ListWebhookLogs(c *gin.Context) {
 	if err := query.Limit(100).Find(&logs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// 手动加载每个日志的关联配置
+	for i := range logs {
+		if logs[i].WebhookConfigID > 0 {
+			var config models.WebhookConfig
+			if err := db.First(&config, logs[i].WebhookConfigID).Error; err == nil {
+				logs[i].WebhookConfig = &config
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, logs)
