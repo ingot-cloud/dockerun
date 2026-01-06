@@ -97,7 +97,7 @@ func Setup() *gin.Engine {
 		protected.PUT("/deploy-scripts/:id", handler.UpdateDeployScript)
 		protected.DELETE("/deploy-scripts/:id", handler.DeleteDeployScript)
 		protected.POST("/deploy-scripts/:id/execute", handler.ExecuteDeployScript)
-		
+
 		// 脚本模版
 		protected.GET("/templates", handler.GetTemplates)
 		protected.GET("/templates/:id", handler.GetTemplate)
@@ -135,9 +135,9 @@ func Setup() *gin.Engine {
 func setupStaticFiles(r *gin.Engine) {
 	// 尝试多个可能的静态文件路径
 	staticPaths := []string{
-		"./static",           // Docker 环境
-		"../frontend/dist",   // 开发环境
-		"./frontend/dist",    // 根目录运行
+		"./static",         // Docker 环境
+		"../frontend/dist", // 开发环境
+		"./frontend/dist",  // 根目录运行
 	}
 
 	var staticPath string
@@ -162,7 +162,7 @@ func setupStaticFiles(r *gin.Engine) {
 
 	// 服务静态文件
 	r.Static("/assets", filepath.Join(staticPath, "assets"))
-	r.StaticFile("/favicon.ico", filepath.Join(staticPath, "favicon.ico"))
+	r.StaticFile("/favicon.svg", filepath.Join(staticPath, "favicon.svg"))
 
 	// SPA 路由处理 - 所有非 API 和非静态资源请求都返回 index.html
 	r.NoRoute(func(c *gin.Context) {
@@ -189,4 +189,3 @@ func setupStaticFiles(r *gin.Engine) {
 		}
 	})
 }
-
