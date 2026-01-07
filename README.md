@@ -337,13 +337,46 @@ apt-get download docker-ce docker-ce-cli containerd.io
 - 查看执行输出中的错误信息
 - 确保Docker命令可以在容器内执行
 
+## 🎯 未来愿景
+
+Dockerun 正在向分布式容器管理平台演进！
+
+**即将推出的特性** (v1.0+):
+- 🌐 **Agent 分布式架构**: 类似 GitLab + Runner 的架构，支持多机器部署
+- 🎯 **智能任务调度**: 基于标签的灵活任务调度策略
+- 📊 **统一管理界面**: 集中管理所有节点和任务
+- 🔐 **企业级安全**: 完善的认证和权限控制
+- 📈 **监控和日志**: 完整的可观测性支持
+
+查看 **[开发路线图](./ROADMAP.md)** 了解详细计划！
+
+---
+
 ## 📚 文档
 
-- **[Webhook 自动部署指南](./WEBHOOK_GUIDE.md)** - Webhook 功能详细配置和使用说明
+### 快速开始
+- **[快速开始指南](./QUICKSTART.md)** - 快速上手指南
+- **[部署指南](./DEPLOYMENT.md)** - 详细部署说明
 - **[配置说明](./CONFIGURATION.md)** - 环境变量和系统配置
-- **[网络功能指南](./NETWORK_GUIDE.md)** - Docker 网络自动创建和管理
+
+### 功能指南
+- **[部署脚本指南](./DEPLOY_SCRIPT_GUIDE.md)** - 部署脚本使用说明
+- **[部署脚本 Docker 管理指南](./DEPLOY_SCRIPT_DOCKER_MANAGER_GUIDE.md)** - Docker 容器管理
+- **[Webhook 自动部署指南](./WEBHOOK_GUIDE.md)** - Webhook 功能详细配置
 - **[Registry 管理指南](./REGISTRY_GUIDE.md)** - 私有镜像仓库管理
-- **[安全说明](./SECURITY.md)** - AES 加密和安全最佳实践
+- **[网络管理指南](./NETWORK_GUIDE.md)** - Docker 网络自动创建和管理
+- **[模板使用指南](./TEMPLATE_GUIDE.md)** - 部署模板使用
+
+### 高级特性
+- **[🚀 Agent 分布式架构设计](./AGENT_ARCHITECTURE_DESIGN.md)** - **即将推出**
+- **[📅 开发路线图](./ROADMAP.md)** - **查看未来规划**
+
+### 运维和安全
+- **[安全指南](./SECURITY.md)** - AES 加密和安全最佳实践
+- **[故障排查](./TROUBLESHOOTING.md)** - 常见问题解决
+- **[MySQL 数据库配置](./MYSQL_SETUP.md)** - 使用 MySQL 数据库
+- **[不安全的 Registry 配置](./INSECURE_REGISTRY.md)** - HTTP Registry 配置
+- **[自签名证书配置](./SELF_SIGNED_CERTIFICATE.md)** - HTTPS 自签名证书
 
 ## 项目结构
 
