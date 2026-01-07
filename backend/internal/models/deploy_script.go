@@ -41,7 +41,7 @@ type DeployScript struct {
 	Name          string             `gorm:"size:200;not null" json:"name"`
 	Description   string             `gorm:"size:1000" json:"description"`
 	ScriptType    string             `gorm:"size:50;not null;default:'shell'" json:"script_type"`     // shell, docker-compose
-	MainScript    string             `gorm:"type:text" json:"main_script"`                            // 主执行脚本
+	MainScript    string             `gorm:"type:mediumtext" json:"main_script"`                      // 主执行脚本
 	WorkDir       string             `gorm:"size:500;default:'/ingot-data/dockerun'" json:"work_dir"` // 工作目录
 	EnvVars       StringMap          `gorm:"type:json" json:"env_vars"`                               // 环境变量
 	Files         []DeployScriptFile `gorm:"-" json:"files"`                                          // 关联文件，应用层处理
@@ -56,10 +56,10 @@ type DeployScriptFile struct {
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
-	DeployScriptID uint           `gorm:"not null;index" json:"deploy_script_id"` // 应用层处理关联，不使用外键
-	FileName       string         `gorm:"size:255;not null" json:"file_name"`     // 文件名
-	FilePath       string         `gorm:"size:500;not null" json:"file_path"`     // 相对路径（相对于工作目录）
-	FileType       string         `gorm:"size:50;not null" json:"file_type"`      // compose, config, script, other
-	Content        string         `gorm:"type:text;not null" json:"content"`      // 文件内容
-	Description    string         `gorm:"size:1000" json:"description"`           // 文件说明
+	DeployScriptID uint           `gorm:"not null;index" json:"deploy_script_id"`  // 应用层处理关联，不使用外键
+	FileName       string         `gorm:"size:255;not null" json:"file_name"`      // 文件名
+	FilePath       string         `gorm:"size:500;not null" json:"file_path"`      // 相对路径（相对于工作目录）
+	FileType       string         `gorm:"size:50;not null" json:"file_type"`       // compose, config, script, other
+	Content        string         `gorm:"type:mediumtext;not null" json:"content"` // 文件内容
+	Description    string         `gorm:"size:1000" json:"description"`            // 文件说明
 }
