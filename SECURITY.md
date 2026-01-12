@@ -261,6 +261,173 @@ curl -X POST http://localhost:8080/api/auth/login \
 
 ---
 
+## 🔐 Registry 密码加密存储
+
+### 概述
+Registry（镜像仓库）的密码在数据库中采用 AES-256-CBC 加密存储，而非明文，确保即使数据库泄露也无法直接获取密码。
+
+### 加密流程
+
+```
+┌─────────────────────────────────────────┐
+│  创建/更新 Registry                       │
+│  ┌───────────────────────────────────┐  │
+│  │  用户输入: password123            │  │
+│  └────────────┬──────────────────────┘  │
+│               │                          │
+│  ┌────────────▼──────────────────────┐  │
+│  │  AES-256-CBC 加密                 │  │
+│  │  Key: 32字节                      │  │
+│  │  IV:  16字节                      │  │
+│  └────────────┬──────────────────────┘  │
+│               │                          │
+│  ┌────────────▼──────────────────────┐  │
+│  │  存储到数据库                      │  │
+│  │  password: "U2FsdGVkX1..."       │  │
+│  └───────────────────────────────────┘  │
+└──────────────────────────────────────────┘
+        │
+        │ 使用 Registry (连接私有仓库)
+        ▼
+┌──────────────────────────────────────────┐
+│  从数据库读取                              │
+│  ┌───────────────────────────────────┐   │
+│  │  password: "U2FsdGVkX1..."       │   │
+│  └────────────┬──────────────────────┘   │
+│               │                           │
+│  ┌────────────▼──────────────────────┐   │
+│  │  AES-256-CBC 解密                 │   │
+│  │  使用相同的 Key 和 IV             │   │
+│  └────────────┬──────────────────────┘   │
+│               │                           │
+│  ┌────────────▼──────────────────────┐   │
+│  │  plaintext: "password123"         │   │
+│  │  用于 HTTP Basic Auth             │   │
+│  └───────────────────────────────────┘   │
+└──────────────────────────────────────────┘
+```
+
+### 技术实现
+
+#### 保存时加密
+
+**文件**: `backend/internal/handler/registry.go`
+
+```go
+// 创建 Registry
+func CreateRegistry(c *gin.Context) {
+    // 加密密码
+    encryptedPassword := ""
+    if req.Password != "" {
+        encrypted, err := utils.AESEncrypt(req.Password)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
+            return
+        }
+        encryptedPassword = encrypted
+    }
+    
+    registry := models.Registry{
+        Username:  req.Username,
+        Password:  encryptedPassword, // 存储加密后的密码
+        // ...
+    }
+    database.GetDB().Create(&registry)
+}
+```
+
+#### 使用时解密
+
+**文件**: `backend/internal/handler/registry.go`
+
+```go
+// 获取解密后的密码
+func GetDecryptedPassword(registry *models.Registry) string {
+    if registry.Password == "" {
+        return ""
+    }
+    
+    // 尝试解密密码
+    decrypted, err := utils.AESDecrypt(registry.Password)
+    if err != nil {
+        // 如果解密失败，可能是旧数据（明文），直接返回
+        return registry.Password
+    }
+    
+    return decrypted
+}
+```
+
+**文件**: `backend/internal/handler/registry_image.go`
+
+```go
+// 使用 Registry 连接私有仓库
+func fetchRegistryImages(registry models.Registry) ([]RegistryImage, error) {
+    // 解密密码
+    password := GetDecryptedPassword(&registry)
+    
+    // 使用解密后的密码进行 HTTP Basic Auth
+    req.SetBasicAuth(registry.Username, password)
+    
+    // ...
+}
+```
+
+### 应用场景
+
+1. **创建 Registry** - 密码加密后存储
+2. **更新 Registry** - 新密码加密后更新
+3. **浏览镜像** - 解密密码用于 API 认证
+4. **获取标签** - 解密密码用于 API 认证
+5. **删除镜像** - 解密密码用于 API 认证
+6. **Webhook 拉取** - 解密密码用于 Docker pull (待实现)
+
+### 兼容性处理
+
+为了兼容旧版本数据（可能存在明文密码），解密函数会处理解密失败的情况：
+
+```go
+decrypted, err := utils.AESDecrypt(registry.Password)
+if err != nil {
+    // 如果解密失败，认为是旧数据（明文）
+    return registry.Password
+}
+return decrypted
+```
+
+**迁移建议**: 升级后，建议重新编辑所有 Registry 配置，确保密码重新加密存储。
+
+### 数据库示例
+
+```sql
+-- 加密前（旧版本，不安全）
+INSERT INTO registries (username, password) 
+VALUES ('admin', 'mypassword123');
+
+-- 加密后（新版本，安全）
+INSERT INTO registries (username, password) 
+VALUES ('admin', 'U2FsdGVkX18wqN7...');
+```
+
+### 安全性分析
+
+| 方面 | 说明 | 状态 |
+|------|------|------|
+| **存储加密** | AES-256-CBC | ✅ |
+| **传输加密** | HTTPS (推荐) | 📋 |
+| **密钥管理** | 环境变量配置 | ✅ |
+| **密码验证** | 无验证（Registry API） | ⚠️ |
+| **旧数据兼容** | 自动识别明文 | ✅ |
+
+### 注意事项
+
+1. **密钥一致性**: 必须使用相同的 `AES_KEY` 和 `AES_IV`，否则无法解密
+2. **密钥更换**: 如果更换密钥，需要重新编辑所有 Registry 配置
+3. **数据库备份**: 备份数据库时，密码是加密的，恢复后可以正常使用
+4. **密码修改**: 前端不显示加密后的密码，只有重新输入时才会更新
+
+---
+
 ## 🔒 其他安全特性
 
 ### JWT 认证

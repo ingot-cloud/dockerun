@@ -142,9 +142,10 @@ func fetchRegistryImages(registry models.Registry, search string) ([]RegistryIma
 		return nil, err
 	}
 
-	// 添加认证
+	// 添加认证（解密密码）
 	if registry.Username != "" {
-		req.SetBasicAuth(registry.Username, registry.Password)
+		password := GetDecryptedPassword(&registry)
+		req.SetBasicAuth(registry.Username, password)
 	}
 
 	resp, err := client.Do(req)
@@ -200,9 +201,10 @@ func fetchImageTags(registry models.Registry, imageName string) ([]string, error
 		return nil, err
 	}
 
-	// 添加认证
+	// 添加认证（解密密码）
 	if registry.Username != "" {
-		req.SetBasicAuth(registry.Username, registry.Password)
+		password := GetDecryptedPassword(&registry)
+		req.SetBasicAuth(registry.Username, password)
 	}
 
 	resp, err := client.Do(req)
@@ -231,6 +233,9 @@ func fetchImageTags(registry models.Registry, imageName string) ([]string, error
 func deleteRegistryImage(registry models.Registry, imageName, tag string) error {
 	client := createHTTPClient(registry.Insecure)
 
+	// 解密密码（统一获取）
+	password := GetDecryptedPassword(&registry)
+
 	// 1. 获取 manifest digest
 	manifestURL := fmt.Sprintf("%s/v2/%s/manifests/%s", strings.TrimSuffix(registry.URL, "/"), imageName, tag)
 	req, err := http.NewRequest("GET", manifestURL, nil)
@@ -240,7 +245,7 @@ func deleteRegistryImage(registry models.Registry, imageName, tag string) error 
 
 	// 添加认证
 	if registry.Username != "" {
-		req.SetBasicAuth(registry.Username, registry.Password)
+		req.SetBasicAuth(registry.Username, password)
 	}
 
 	// 必须指定 Accept header
@@ -271,7 +276,7 @@ func deleteRegistryImage(registry models.Registry, imageName, tag string) error 
 
 	// 添加认证
 	if registry.Username != "" {
-		delReq.SetBasicAuth(registry.Username, registry.Password)
+		delReq.SetBasicAuth(registry.Username, password)
 	}
 
 	delResp, err := client.Do(delReq)

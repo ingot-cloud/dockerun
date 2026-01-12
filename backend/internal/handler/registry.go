@@ -3,6 +3,7 @@ package handler
 import (
 	"dockerun/internal/database"
 	"dockerun/internal/models"
+	"dockerun/internal/utils"
 	"net/http"
 	"strconv"
 
@@ -63,11 +64,22 @@ func CreateRegistry(c *gin.Context) {
 		database.GetDB().Model(&models.Registry{}).Where("is_default = ?", true).Update("is_default", false)
 	}
 
+	// 加密密码
+	encryptedPassword := ""
+	if req.Password != "" {
+		encrypted, err := utils.AESEncrypt(req.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
+			return
+		}
+		encryptedPassword = encrypted
+	}
+
 	registry := models.Registry{
 		Name:      req.Name,
 		URL:       req.URL,
 		Username:  req.Username,
-		Password:  req.Password,
+		Password:  encryptedPassword,
 		IsDefault: req.IsDefault,
 		Insecure:  req.Insecure,
 		Email:     req.Email,
@@ -126,7 +138,13 @@ func UpdateRegistry(c *gin.Context) {
 		updates["username"] = req.Username
 	}
 	if req.Password != "" {
-		updates["password"] = req.Password
+		// 加密密码
+		encrypted, err := utils.AESEncrypt(req.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
+			return
+		}
+		updates["password"] = encrypted
 	}
 	updates["is_default"] = req.IsDefault
 	updates["insecure"] = req.Insecure
@@ -181,4 +199,20 @@ func TestRegistry(c *gin.Context) {
 	// 测试连接（这里简化处理，实际应该调用 Docker Registry API）
 	// TODO: 实现实际的连接测试
 	c.JSON(http.StatusOK, gin.H{"message": "连接成功"})
+}
+
+// GetDecryptedPassword 获取解密后的密码
+func GetDecryptedPassword(registry *models.Registry) string {
+	if registry.Password == "" {
+		return ""
+	}
+
+	// 尝试解密密码
+	decrypted, err := utils.AESDecrypt(registry.Password)
+	if err != nil {
+		// 如果解密失败，可能是旧数据（明文），直接返回
+		return registry.Password
+	}
+
+	return decrypted
 }
