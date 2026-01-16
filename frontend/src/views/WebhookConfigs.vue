@@ -113,12 +113,14 @@
     </ContentCard>
 
     <!-- 创建/编辑对话框 -->
-    <el-dialog
+    <FormDialog
       v-model="dialogVisible"
-      :title="isEditing ? 'Edit webhook' : 'Create webhook'"
-      width="700px"
-      class="create-dialog"
-      :close-on-click-modal="false"
+      :title="isEditing ? 'Edit Webhook' : 'Create Webhook'"
+      :icon="Connection"
+      :loading="saving"
+      @confirm="handleSave"
+      @cancel="dialogVisible = false"
+      wide
     >
       <el-form :model="form" label-width="140px" :rules="rules" ref="formRef" class="webhook-form">
         <!-- 基本信息 -->
@@ -174,32 +176,8 @@
             </div>
           </el-form-item>
         </div>
-        
-        <!-- 新模式说明 -->
-        <el-alert 
-          type="info" 
-          :closable="false" 
-          show-icon
-          class="webhook-info-alert"
-        >
-          <template #title>
-            ℹ️ How Auto Deploy Works
-          </template>
-          <div style="line-height: 1.8">
-            <strong>1. Configure Deploy Scripts:</strong> Enable "Webhook Auto Deploy" in your deploy scripts and specify the image name/tag<br/>
-            <strong>2. Configure Webhook URL:</strong> After creating this webhook, copy the URL and configure it in your Registry<br/>
-            <strong>3. Automatic Triggering:</strong> When an image is pushed, all matching deploy scripts will execute automatically
-          </div>
-        </el-alert>
       </el-form>
-
-      <template #footer>
-        <el-button @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">
-          {{ isEditing ? 'Update' : 'Create' }}
-        </el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
 
     <!-- Webhook URL 对话框 -->
     <el-dialog
@@ -397,6 +375,7 @@ import { deployApi, type DeployScript } from '../api/deploy'
 import PageContainer from '@/components/PageContainer.vue'
 import ContentCard from '@/components/ContentCard.vue'
 import DataTable from '@/components/DataTable.vue'
+import FormDialog from '@/components/FormDialog.vue'
 
 const configs = ref<WebhookConfig[]>([])
 const registries = ref<Registry[]>([])
@@ -711,9 +690,9 @@ onMounted(() => {
 }
 
 .webhook-form {
-  max-height: 60vh;
+  /* max-height: 60vh;
   overflow-y: auto;
-  padding-right: 10px;
+  padding-right: 10px; */
 }
 
 .form-section {

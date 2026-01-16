@@ -327,11 +327,12 @@
     </el-dialog>
     
     <!-- 模版选择对话框 -->
-    <el-dialog 
-      v-model="templatesVisible" 
-      title="Choose a Template" 
-      width="80%"
-      class="templates-dialog"
+    <FormDialog
+      v-model="templatesVisible"
+      title="Choose a Template"
+      :icon="DocumentCopy"
+      :show-footer="false"
+      extra-wide
     >
       <div v-loading="templatesLoading" class="templates-container">
         <div 
@@ -351,7 +352,7 @@
           No templates available
         </div>
       </div>
-    </el-dialog>
+    </FormDialog>
   </PageContainer>
 </template>
 
@@ -1510,11 +1511,6 @@ onMounted(() => {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.script-form {
-  /* max-height: 70vh;
-  overflow-y: auto; */
-}
-
 .form-section {
   margin-bottom: 24px;
   padding-bottom: 24px;
@@ -1743,8 +1739,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
-  padding: 20px;
-  min-height: 300px;
+  padding-bottom: var(--spacing-xl);
 }
 
 .template-card {

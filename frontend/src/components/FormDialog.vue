@@ -123,7 +123,7 @@ defineEmits<{
 /* ========== 对话框内容 ========== */
 .dialog-body {
   padding: var(--spacing-xl);
-  max-height: 70vh;
+  height: 70vh;
   overflow-y: auto;
 }
 
@@ -166,7 +166,7 @@ defineEmits<{
 
 .form-section:last-child {
   margin-bottom: 0;
-  padding-bottom: 0;
+  padding-bottom: var(--spacing-xl);
   border-bottom: none;
 }
 

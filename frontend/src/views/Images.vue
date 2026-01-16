@@ -17,6 +17,12 @@
         >
           Remove
         </el-button>
+        <el-button :icon="Download" @click="showImportDialog">
+          Import
+        </el-button>
+        <el-button :icon="Upload" @click="showExportDialog">
+          Export
+        </el-button>
         <el-button type="primary" :icon="Download" @click="handlePullImage">
           Pull Image
         </el-button>
@@ -135,6 +141,7 @@ import {
   Search,
   Delete,
   Download,
+  Upload,
 } from "@element-plus/icons-vue";
 import { dockerApi } from "@/api/docker";
 import PageContainer from "@/components/PageContainer.vue";
@@ -149,6 +156,8 @@ const selectedImages = ref<any[]>([]);
 const pullDialogVisible = ref(false);
 const pullImageName = ref("");
 const pulling = ref(false);
+const importDialogVisible = ref(false);
+const exportDialogVisible = ref(false);
 
 const filteredImages = computed(() => {
   if (!searchText.value) return images.value;
@@ -277,6 +286,20 @@ const formatDate = (timestamp: number) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+const showImportDialog = () => {
+  importDialogVisible.value = true;
+  ElMessage.info("Import feature: Please select a .tar file to import");
+};
+
+const showExportDialog = () => {
+  if (selectedImages.value.length === 0) {
+    ElMessage.warning("Please select images to export");
+    return;
+  }
+  exportDialogVisible.value = true;
+  ElMessage.info("Export feature: Selected images will be exported as .tar");
 };
 
 onMounted(() => {
