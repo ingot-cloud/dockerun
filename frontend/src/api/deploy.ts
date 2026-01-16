@@ -26,6 +26,11 @@ export interface DeployScript {
   status?: string
   created_at?: string
   updated_at?: string
+  
+  // Webhook 自动部署配置
+  auto_deploy?: boolean
+  image_name?: string
+  image_tag?: string
 }
 
 export interface TemplateFile {

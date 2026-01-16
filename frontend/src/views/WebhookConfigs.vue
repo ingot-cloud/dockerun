@@ -1,42 +1,31 @@
 <template>
-  <div class="webhook-configs-view">
-    <div class="page-header">
-      <h1>Webhook Auto Deploy</h1>
-    </div>
+  <PageContainer title="Webhook Auto Deploy">
+    <ContentCard title="Webhooks" :icon="Connection" :no-padding="true">
+      <template #actions>
+        <el-input
+          v-model="searchText"
+          placeholder="Search..."
+          :prefix-icon="Search"
+          style="width: 240px"
+          clearable
+        />
+        <el-button
+          type="danger"
+          :icon="Delete"
+          @click="handleBatchDelete"
+          :disabled="selectedItems.length === 0"
+        >
+          Remove
+        </el-button>
+        <el-button type="primary" :icon="Plus" @click="showCreateDialog">
+          Add Webhook
+        </el-button>
+      </template>
 
-    <div class="content-card">
-      <div class="card-header">
-        <div class="header-left">
-          <el-icon class="header-icon"><Connection /></el-icon>
-          <span>Webhooks</span>
-        </div>
-        <div class="header-right">
-          <el-input
-            v-model="searchText"
-            placeholder="Search..."
-            :prefix-icon="Search"
-            class="search-input"
-            clearable
-          />
-          <el-button
-            type="danger"
-            :icon="Delete"
-            @click="handleBatchDelete"
-            :disabled="selectedItems.length === 0"
-          >
-            Remove
-          </el-button>
-          <el-button type="primary" :icon="Plus" @click="showCreateDialog">
-            Add webhook
-          </el-button>
-        </div>
-      </div>
-
-      <!-- 配置列表 -->
-      <el-table
+      <DataTable
         :data="filteredConfigs"
         v-loading="loading"
-        class="data-table"
+        :total="filteredConfigs.length"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="45" fixed="left" />
@@ -50,35 +39,21 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="name" label="Name" min-width="160">
+        <el-table-column prop="name" label="Name" min-width="200">
           <template #default="{ row }">
             <span class="webhook-name">{{ row.name }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="Image" min-width="220">
-          <template #default="{ row }">
-            <div class="image-info">
-              <code class="image-code">{{ row.image_name }}</code>
-              <el-tag v-if="row.image_tag" size="small" type="info" class="image-tag">
-                {{ row.image_tag }}
-              </el-tag>
-              <el-tag v-else size="small" type="warning" class="image-tag">
-                Any Tag
-              </el-tag>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Deploy Script" min-width="140">
-          <template #default="{ row }">
-            <span class="text-normal">{{ row.deploy_script?.name || '-' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Registry" width="140">
+        <el-table-column label="Registry" min-width="180">
           <template #default="{ row }">
             <span class="text-normal">{{ row.registry?.name || '-' }}</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="Description" min-width="200">
+          <template #default="{ row }">
+            <span class="text-muted">{{ row.description || '-' }}</span>
           </template>
         </el-table-column>
 
@@ -134,12 +109,8 @@
             </div>
           </template>
         </el-table-column>
-      </el-table>
-
-      <div class="table-footer">
-        <span class="total-items">{{ filteredConfigs.length }} items</span>
-      </div>
-    </div>
+      </DataTable>
+    </ContentCard>
 
     <!-- 创建/编辑对话框 -->
     <el-dialog
@@ -154,7 +125,7 @@
         <div class="form-section">
           <h3>Basic Information</h3>
           <el-form-item label="Name" prop="name">
-            <el-input v-model="form.name" placeholder="e.g. Auto Deploy MyApp" />
+            <el-input v-model="form.name" placeholder="e.g. MyApp Webhook" />
           </el-form-item>
 
           <el-form-item label="Description">
@@ -171,11 +142,11 @@
           </el-form-item>
         </div>
 
-        <!-- 镜像配置 -->
+        <!-- Registry 配置 -->
         <div class="form-section">
-          <h3>Image Configuration</h3>
-          <el-form-item label="Registry">
-            <el-select v-model="form.registry_id" placeholder="Select registry" clearable>
+          <h3>Registry Configuration</h3>
+          <el-form-item label="Registry" prop="registry_id">
+            <el-select v-model="form.registry_id" placeholder="Select registry" style="width: 100%">
               <el-option
                 v-for="registry in registries"
                 :key="registry.id"
@@ -183,42 +154,9 @@
                 :value="registry.id"
               />
             </el-select>
-            <div class="form-tip">Select registry if image is in a private registry</div>
-          </el-form-item>
-
-          <el-form-item label="Image Name" prop="image_name">
-            <el-input v-model="form.image_name" placeholder="e.g. namespace/repo or com.example/app" />
-            <div class="form-tip">Supports wildcards *, e.g. namespace/* or */app</div>
-          </el-form-item>
-
-          <el-form-item label="Image Tag">
-            <el-input v-model="form.image_tag" placeholder="e.g. latest, v1.0.0 (leave empty for any tag)" />
-            <div class="form-tip">Leave empty to match any tag</div>
-          </el-form-item>
-        </div>
-
-        <!-- 部署配置 -->
-        <div class="form-section">
-          <h3>Deploy Configuration</h3>
-          <el-form-item label="Deploy Script" prop="deploy_script_id">
-            <el-select v-model="form.deploy_script_id" placeholder="Select deploy script">
-              <el-option
-                v-for="script in deployScripts"
-                :key="script.id"
-                :label="script.name"
-                :value="script.id"
-              />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="Remove Old Container">
-            <el-switch v-model="form.remove_old_container" />
-            <div class="form-tip">Automatically stop and remove old containers using this image before deployment</div>
-          </el-form-item>
-
-          <el-form-item label="Remove Old Image">
-            <el-switch v-model="form.remove_old_image" />
-            <div class="form-tip">Automatically remove old image before deployment</div>
+            <div class="form-tip">
+              Select the registry that will send webhook notifications
+            </div>
           </el-form-item>
         </div>
 
@@ -231,9 +169,28 @@
               placeholder="Optional, for webhook signature verification"
               show-password
             />
-            <div class="form-tip">When configured, only accept webhook requests with valid signature</div>
+            <div class="form-tip">
+              When configured, only accept webhook requests with valid signature
+            </div>
           </el-form-item>
         </div>
+        
+        <!-- 新模式说明 -->
+        <el-alert 
+          type="info" 
+          :closable="false" 
+          show-icon
+          class="webhook-info-alert"
+        >
+          <template #title>
+            ℹ️ How Auto Deploy Works
+          </template>
+          <div style="line-height: 1.8">
+            <strong>1. Configure Deploy Scripts:</strong> Enable "Webhook Auto Deploy" in your deploy scripts and specify the image name/tag<br/>
+            <strong>2. Configure Webhook URL:</strong> After creating this webhook, copy the URL and configure it in your Registry<br/>
+            <strong>3. Automatic Triggering:</strong> When an image is pushed, all matching deploy scripts will execute automatically
+          </div>
+        </el-alert>
       </el-form>
 
       <template #footer>
@@ -415,7 +372,7 @@
         </el-button>
       </template>
     </el-dialog>
-  </div>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -437,6 +394,9 @@ import { useClipboard } from '@vueuse/core'
 import { webhookApi, type WebhookConfig, type WebhookLog, type WebhookURL } from '../api/webhook'
 import { registryApi, type Registry } from '../api/registry'
 import { deployApi, type DeployScript } from '../api/deploy'
+import PageContainer from '@/components/PageContainer.vue'
+import ContentCard from '@/components/ContentCard.vue'
+import DataTable from '@/components/DataTable.vue'
 
 const configs = ref<WebhookConfig[]>([])
 const registries = ref<Registry[]>([])
@@ -471,18 +431,12 @@ const form = ref<Partial<WebhookConfig>>({
   description: '',
   enabled: true,
   registry_id: undefined,
-  image_name: '',
-  image_tag: '',
-  deploy_script_id: undefined,
-  remove_old_image: true,
-  remove_old_container: true,
   secret: ''
 })
 
 const rules = {
   name: [{ required: true, message: 'Please enter webhook name', trigger: 'blur' }],
-  image_name: [{ required: true, message: 'Please enter image name', trigger: 'blur' }],
-  deploy_script_id: [{ required: true, message: 'Please select deploy script', trigger: 'change' }]
+  registry_id: [{ required: true, message: 'Please select registry', trigger: 'change' }]
 }
 
 const fetchConfigs = async () => {
@@ -623,13 +577,12 @@ const handleDelete = async (config: WebhookConfig) => {
 
 const showWebhookUrl = async (config: WebhookConfig) => {
   currentConfig.value = config
-  try {
-    const data = await webhookApi.getUrl(config.id!) as unknown as WebhookURL
-    webhookUrl.value = data.url
-    urlDialogVisible.value = true
-  } catch (error: any) {
-    ElMessage.error('Failed to get URL: ' + error.message)
-  }
+  
+  // 使用新模式的 URL：基于 Registry ID
+  const baseURL = window.location.origin
+  webhookUrl.value = `${baseURL}/webhooks/registry/${config.registry_id}`
+  
+  urlDialogVisible.value = true
 }
 
 const { copy: copyToClipboard } = useClipboard()
@@ -719,104 +672,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.webhook-configs-view {
-  min-height: 100vh;
-}
-
-.page-header {
-  margin-bottom: 20px;
-}
-
-.page-header h1 {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 300;
-  color: #ffffff;
-}
-
-.content-card {
-  background-color: #23252a;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #ffffff;
-}
-
-.header-icon {
-  font-size: 20px;
-  color: #4a9eff;
-}
-
-.header-right {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.search-input {
-  width: 250px;
-}
-
-.data-table {
-  background: transparent;
-}
-
 .webhook-name {
-  color: #4a9eff;
-  font-weight: 500;
-}
-
-.image-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.image-code {
-  background: rgba(36, 150, 237, 0.1);
-  padding: 2px 8px;
-  border-radius: 4px;
-  color: #2496ED;
-  font-family: 'Monaco', 'Courier New', monospace;
-  font-size: 12px;
-}
-
-.image-tag {
-  margin: 0;
-}
-
-.text-normal {
-  color: #c0c4cc;
-}
-
-.quick-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-
-.action-btn {
-  color: #4a9eff;
-  padding: 4px;
-}
-
-.action-btn:hover {
-  color: #6bb3ff;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 .danger-btn {

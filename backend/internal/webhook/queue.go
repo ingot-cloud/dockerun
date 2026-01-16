@@ -27,10 +27,14 @@ import (
 
 // DeployTask 部署任务
 type DeployTask struct {
-	WebhookLogID uint
-	ConfigID     uint
-	ImageName    string
-	ImageTag     string
+	WebhookLogID       uint
+	ConfigID           uint   // 旧模式：使用 WebhookConfig ID
+	DeployScriptID     uint   // 新模式：直接指定 DeployScript ID
+	RegistryID         string // 新模式：Registry ID（用于获取认证信息）
+	ImageName          string
+	ImageTag           string
+	RemoveOldImage     bool // 是否删除旧镜像
+	RemoveOldContainer bool // 是否删除旧容器
 }
 
 // TaskQueue 任务队列
@@ -109,36 +113,70 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 		"started_at": &now,
 	})
 
-	// 获取配置信息
+	// 判断使用新模式还是旧模式
 	var config models.WebhookConfig
-	if err := db.First(&config, task.ConfigID).Error; err != nil {
-		q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load config: %v", err), startTime)
-		return
-	}
+	var script *models.DeployScript
+	var registry *models.Registry
 
-	// 手动加载Registry
-	if config.RegistryID > 0 {
-		var registry models.Registry
-		if err := db.First(&registry, config.RegistryID).Error; err == nil {
-			config.Registry = &registry
-		}
-	}
-
-	// 手动加载DeployScript
-	if config.DeployScriptID > 0 {
-		var script models.DeployScript
-		if err := db.First(&script, config.DeployScriptID).Error; err != nil {
+	if task.DeployScriptID > 0 {
+		// 新模式：直接加载 DeployScript
+		var s models.DeployScript
+		if err := db.First(&s, task.DeployScriptID).Error; err != nil {
 			q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load deploy script: %v", err), startTime)
 			return
 		}
 
 		// 手动加载DeployScript的Files
 		var files []models.DeployScriptFile
-		if err := db.Where("deploy_script_id = ?", script.ID).Find(&files).Error; err == nil {
-			script.Files = files
+		if err := db.Where("deploy_script_id = ?", s.ID).Find(&files).Error; err == nil {
+			s.Files = files
+		}
+		script = &s
+
+		// 加载 Registry（如果有）
+		if task.RegistryID != "" {
+			var reg models.Registry
+			if err := db.First(&reg, task.RegistryID).Error; err == nil {
+				registry = &reg
+			}
 		}
 
-		config.DeployScript = &script
+		// 构造临时 config 对象（用于兼容旧代码）
+		config.RemoveOldImage = task.RemoveOldImage
+		config.RemoveOldContainer = task.RemoveOldContainer
+		config.DeployScript = script
+		config.Registry = registry
+	} else {
+		// 旧模式：加载 WebhookConfig
+		if err := db.First(&config, task.ConfigID).Error; err != nil {
+			q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load config: %v", err), startTime)
+			return
+		}
+
+		// 手动加载Registry
+		if config.RegistryID > 0 {
+			var reg models.Registry
+			if err := db.First(&reg, config.RegistryID).Error; err == nil {
+				config.Registry = &reg
+			}
+		}
+
+		// 手动加载DeployScript
+		if config.DeployScriptID > 0 {
+			var s models.DeployScript
+			if err := db.First(&s, config.DeployScriptID).Error; err != nil {
+				q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load deploy script: %v", err), startTime)
+				return
+			}
+
+			// 手动加载DeployScript的Files
+			var files []models.DeployScriptFile
+			if err := db.Where("deploy_script_id = ?", s.ID).Find(&files).Error; err == nil {
+				s.Files = files
+			}
+
+			config.DeployScript = &s
+		}
 	}
 
 	// 构建完整的镜像名

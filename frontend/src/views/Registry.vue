@@ -1,56 +1,46 @@
 <template>
-  <div class="registry-view">
-    <div class="page-header">
-      <h1>Registry list</h1>
-    </div>
+  <PageContainer title="Registry Management">
+    <ContentCard title="Registries" :icon="DataBoard" :no-padding="true">
+      <template #actions>
+        <el-input
+          v-model="searchText"
+          placeholder="Search..."
+          :prefix-icon="Search"
+          style="width: 240px"
+          clearable
+        />
+        <el-button
+          type="danger"
+          :icon="Delete"
+          @click="handleBatchRemove"
+          :disabled="selectedItems.length === 0"
+        >
+          Remove
+        </el-button>
+        <el-button type="primary" :icon="Plus" @click="showAddDialog">
+          Add Registry
+        </el-button>
+      </template>
 
-    <div class="content-card">
-      <div class="card-header">
-        <div class="header-left">
-          <el-icon class="header-icon"><DataBoard /></el-icon>
-          <span>Registries</span>
-        </div>
-        <div class="header-right">
-          <el-input
-            v-model="searchText"
-            placeholder="Search..."
-            :prefix-icon="Search"
-            class="search-input"
-            clearable
-          />
-          <el-button
-            type="danger"
-            :icon="Delete"
-            @click="handleBatchRemove"
-            :disabled="selectedItems.length === 0"
-          >
-            Remove
-          </el-button>
-          <el-button type="primary" :icon="Plus" @click="showAddDialog">
-            Add registry
-          </el-button>
-        </div>
-      </div>
-
-      <el-table
+      <DataTable
         :data="filteredRegistries"
         v-loading="loading"
-        class="data-table"
+        :total="filteredRegistries.length"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="45" fixed="left" />
 
         <el-table-column label="Name" min-width="180">
           <template #default="{ row }">
-            <span class="registry-name" @click="viewImages(row)">{{
-              row.name
-            }}</span>
+            <span class="registry-name" @click="viewImages(row)">
+              {{ row.name }}
+            </span>
           </template>
         </el-table-column>
 
         <el-table-column label="URL" min-width="300">
           <template #default="{ row }">
-            <span class="text-normal">{{ row.url }}</span>
+            <code class="code-text">{{ row.url }}</code>
           </template>
         </el-table-column>
 
@@ -62,29 +52,19 @@
 
         <el-table-column label="Default" width="100" align="center">
           <template #default="{ row }">
-            <el-tag
-              v-if="row.is_default"
-              type="success"
-              size="small"
-              class="default-tag"
-            >
+            <el-tag v-if="row.is_default" type="success" size="small">
               Yes
             </el-tag>
-            <span v-else class="text-normal">-</span>
+            <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
 
         <el-table-column label="Insecure" width="100" align="center">
           <template #default="{ row }">
-            <el-tag
-              v-if="row.insecure"
-              type="warning"
-              size="small"
-              class="insecure-tag"
-            >
+            <el-tag v-if="row.insecure" type="warning" size="small">
               Yes
             </el-tag>
-            <span v-else class="text-normal">-</span>
+            <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
 
@@ -129,27 +109,24 @@
             </div>
           </template>
         </el-table-column>
-      </el-table>
-
-      <div class="table-footer">
-        <span class="total-items">{{ filteredRegistries.length }} items</span>
-      </div>
-    </div>
+      </DataTable>
+    </ContentCard>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog
+    <FormDialog
       v-model="dialogVisible"
-      :title="dialogMode === 'add' ? 'Create registry' : 'Edit registry'"
-      width="700px"
-      class="create-dialog"
-      :close-on-click-modal="false"
+      :title="dialogMode === 'add' ? 'Create Registry' : 'Edit Registry'"
+      :icon="DataBoard"
+      :loading="submitting"
+      @confirm="submitForm"
+      @cancel="dialogVisible = false"
+      wide
     >
       <el-form
         :model="form"
         :rules="rules"
         ref="formRef"
         label-width="140px"
-        class="registry-form"
       >
         <div class="form-section">
           <h3>Basic Information</h3>
@@ -161,6 +138,9 @@
               v-model="form.url"
               placeholder="https://registry.example.com"
             />
+            <div class="form-tip">
+              Full URL of the Docker registry (e.g., https://registry.hub.docker.com for Docker Hub)
+            </div>
           </el-form-item>
         </div>
 
@@ -176,6 +156,9 @@
               placeholder="Optional"
               show-password
             />
+            <div class="form-tip">
+              Password will be encrypted before transmission
+            </div>
           </el-form-item>
           <el-form-item label="Email">
             <el-input v-model="form.email" placeholder="Optional" />
@@ -186,24 +169,20 @@
           <h3>Options</h3>
           <el-form-item label="Default Registry">
             <el-switch v-model="form.is_default" />
-            <span class="form-tip"
-              >Set as default registry for image operations</span
-            >
+            <div class="form-tip">
+              Set as default registry for image operations
+            </div>
           </el-form-item>
           <el-form-item label="Insecure">
             <el-switch v-model="form.insecure" />
-            <span class="form-tip">Allow insecure HTTPS connections</span>
+            <div class="form-tip">
+              Allow insecure HTTPS connections (not recommended for production)
+            </div>
           </el-form-item>
         </div>
       </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">
-          {{ dialogMode === "add" ? "Create" : "Update" }}
-        </el-button>
-      </template>
-    </el-dialog>
-  </div>
+    </FormDialog>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -219,6 +198,10 @@ import {
   Search,
 } from "@element-plus/icons-vue";
 import { registryApi, type Registry } from "@/api/registry";
+import PageContainer from "@/components/PageContainer.vue";
+import ContentCard from "@/components/ContentCard.vue";
+import DataTable from "@/components/DataTable.vue";
+import FormDialog from "@/components/FormDialog.vue";
 
 const router = useRouter();
 const loading = ref(false);
@@ -287,7 +270,7 @@ const handleBatchRemove = async () => {
   try {
     await ElMessageBox.confirm(
       `Are you sure you want to remove ${selectedItems.value.length} registry(ies)?`,
-      "Confirm removal",
+      "Confirm Removal",
       {
         type: "warning",
         confirmButtonText: "Remove",
@@ -300,6 +283,7 @@ const handleBatchRemove = async () => {
     }
 
     ElMessage.success("Registries removed successfully");
+    selectedItems.value = [];
     fetchRegistries();
   } catch (error: any) {
     if (error !== "cancel") {
@@ -359,7 +343,7 @@ const submitForm = async () => {
       ElMessage.success("Registry updated successfully");
     }
     dialogVisible.value = false;
-    await fetchRegistries(); // 重新获取列表
+    await fetchRegistries();
   } catch (error: any) {
     console.error("Failed to submit form:", error);
     ElMessage.error(error.response?.data?.error || "Operation failed");
@@ -372,7 +356,7 @@ const deleteRegistry = async (row: Registry) => {
   try {
     await ElMessageBox.confirm(
       `Are you sure you want to remove registry "${row.name}"?`,
-      "Confirm removal",
+      "Confirm Removal",
       {
         type: "warning",
         confirmButtonText: "Remove",
@@ -412,260 +396,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.registry-view {
-  min-height: 100vh;
-}
-
-.page-header {
-  margin-bottom: 20px;
-}
-
-.page-header h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 400;
-  color: #fff;
-}
-
-.content-card {
-  background-color: #23252a;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background-color: #23252a;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #fff;
-}
-
-.header-icon {
-  font-size: 20px;
-  color: #4a9eff;
-}
-
-.header-right {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.search-input {
-  width: 280px;
-}
-
-.search-input :deep(.el-input__wrapper) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: none;
-}
-
-.search-input :deep(.el-input__inner) {
-  color: #fff;
-}
-
-.search-input :deep(.el-input__inner::placeholder) {
-  color: #8a929c;
-}
-
-.data-table {
-  width: 100%;
-}
-
-.data-table :deep(.el-table__header-wrapper) {
-  background-color: #2a2d31;
-}
-
-.data-table :deep(.el-table__header th) {
-  background-color: #2a2d31 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.85);
-  font-weight: 500;
-  padding: 12px 0;
-}
-
-.data-table :deep(.el-table__body-wrapper) {
-  background-color: #23252a;
-}
-
-.data-table :deep(.el-table__body) {
-  background-color: #23252a;
-  color: #fff;
-}
-
-.data-table :deep(.el-table__row) {
-  background-color: #23252a !important;
-}
-
-.data-table :deep(.el-table__row:hover > td) {
-  background-color: rgba(74, 158, 255, 0.08) !important;
-}
-
-.data-table :deep(.el-table td) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background-color: transparent !important;
-}
-
-.data-table :deep(.el-checkbox__inner) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.data-table :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-  background-color: #4a9eff;
-  border-color: #4a9eff;
-}
-
 .registry-name {
-  color: #4a9eff;
+  color: var(--color-primary);
   cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-fast);
 }
 
 .registry-name:hover {
-  text-decoration: underline;
-}
-
-.text-normal {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
-}
-
-.default-tag {
-  background-color: #67c23a;
-  border: none;
-  color: #fff;
-}
-
-.insecure-tag {
-  background-color: #e6a23c;
-  border: none;
-  color: #fff;
-}
-
-.quick-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-.action-btn {
-  color: #4a9eff;
-  font-size: 16px;
-  padding: 4px;
-}
-
-.action-btn:hover {
   color: #79bbff;
-}
-
-.danger-btn {
-  color: #f56c6c;
-}
-
-.danger-btn:hover {
-  color: #f89898;
-}
-
-.table-footer {
-  padding: 12px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: #23252a;
-}
-
-.total-items {
-  font-size: 13px;
-  color: #8a929c;
-}
-
-/* Dialog Styles */
-.create-dialog :deep(.el-dialog) {
-  background-color: #2a2d31;
-}
-
-.create-dialog :deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: #2a2d31;
-}
-
-.create-dialog :deep(.el-dialog__title) {
-  color: #fff;
-}
-
-.create-dialog :deep(.el-dialog__body) {
-  background-color: #2a2d31;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.create-dialog :deep(.el-dialog__footer) {
-  background-color: #2a2d31;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.create-dialog :deep(.el-form-item__label) {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.create-dialog :deep(.el-input__wrapper),
-.create-dialog :deep(.el-select__wrapper) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: none;
-}
-
-.create-dialog :deep(.el-input__inner) {
-  color: #fff;
-}
-
-.create-dialog :deep(.el-input__inner::placeholder) {
-  color: #8a929c;
-}
-
-.registry-form {
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-.form-section {
-  margin-bottom: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.form-section:first-child {
-  margin-top: 24px;
-}
-
-.form-section:last-child {
-  border-bottom: none;
-}
-
-.form-section h3 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: #fff;
-}
-
-.form-tip {
-  display: block;
-  margin-left: 10px;
-  font-size: 12px;
-  color: #8a929c;
-}
-
-.registry-form :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: #4a9eff;
+  text-decoration: underline;
 }
 </style>

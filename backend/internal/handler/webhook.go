@@ -453,3 +453,133 @@ func GetWebhookURL(c *gin.Context) {
 		"note": "Configure this URL in your Docker Registry webhook settings",
 	})
 }
+
+// HandleWebhookByRegistry 处理基于 Registry 的 Webhook（新模式）
+// 根据推送的镜像信息，自动匹配所有启用自动部署的脚本
+// @Summary 接收 Registry Webhook（新模式）
+// @Description 接收来自 Docker Registry 的 Webhook 推送事件，自动匹配部署脚本
+// @Tags Webhook
+// @Accept json
+// @Produce json
+// @Param registryId path int true "Registry ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /webhooks/registry/{registryId} [post]
+func HandleWebhookByRegistry(c *gin.Context) {
+	registryID := c.Param("registryId")
+	log.Printf("[Webhook] HandleWebhookByRegistry: registryId=%s", registryID)
+
+	// 读取请求体
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Printf("[Webhook] Failed to read request body: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// 快速响应（避免 Registry 超时）
+	c.JSON(http.StatusOK, gin.H{"status": "received"})
+
+	// 异步处理 Webhook
+	go processRegistryWebhook(registryID, body, c.Request.Header)
+}
+
+// processRegistryWebhook 异步处理基于 Registry 的 Webhook
+func processRegistryWebhook(registryID string, body []byte, headers http.Header) {
+	db := database.GetDB()
+
+	// 验证 Registry 是否存在
+	var registry models.Registry
+	if err := db.First(&registry, registryID).Error; err != nil {
+		log.Printf("[Webhook] Registry not found: id=%s, error=%v", registryID, err)
+		return
+	}
+
+	log.Printf("[Webhook] Processing webhook for registry: %s (id=%s)", registry.Name, registryID)
+
+	// 解析 Payload
+	var payload WebhookPayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		log.Printf("[Webhook] Failed to parse payload: %v", err)
+		return
+	}
+
+	log.Printf("[Webhook] Received %d events", len(payload.Events))
+
+	// 处理每个事件
+	for _, event := range payload.Events {
+		// 只处理 push 事件
+		if event.Action != "push" {
+			log.Printf("[Webhook] Skipping non-push event: action=%s", event.Action)
+			continue
+		}
+
+		imageName := event.Target.Repository
+		imageTag := event.Target.Tag
+
+		log.Printf("[Webhook] Processing push event: image=%s, tag=%s", imageName, imageTag)
+
+		// 查找所有匹配的部署脚本
+		matchedScripts := findMatchingDeployScripts(db, imageName, imageTag)
+
+		if len(matchedScripts) == 0 {
+			log.Printf("[Webhook] No matching deploy scripts found for %s:%s", imageName, imageTag)
+			continue
+		}
+
+		log.Printf("[Webhook] Found %d matching scripts for %s:%s", len(matchedScripts), imageName, imageTag)
+
+		// 为每个匹配的脚本创建部署任务
+		for _, script := range matchedScripts {
+			log.Printf("[Webhook] Creating task for script: %s (id=%d)", script.Name, script.ID)
+
+			// 创建 Webhook 日志（使用兼容方式）
+			webhookLog := &models.WebhookLog{
+				WebhookConfigID: 0, // 新模式下没有特定的 config ID
+				ImageName:       imageName,
+				ImageTag:        imageTag,
+				Status:          "pending",
+				Message:         fmt.Sprintf("Auto-deploy triggered for script: %s", script.Name),
+			}
+			db.Create(webhookLog)
+
+			// 创建部署任务
+			task := &webhook.DeployTask{
+				WebhookLogID:       webhookLog.ID,
+				DeployScriptID:     script.ID,
+				RegistryID:         registryID,
+				ImageName:          imageName,
+				ImageTag:           imageTag,
+				RemoveOldImage:     true, // 默认删除旧镜像
+				RemoveOldContainer: true, // 默认删除旧容器
+			}
+
+			if err := webhook.Enqueue(task); err != nil {
+				log.Printf("[Webhook] Failed to enqueue task: %v", err)
+			} else {
+				log.Printf("[Webhook] Task added to queue for script: %s", script.Name)
+			}
+		}
+	}
+}
+
+// findMatchingDeployScripts 查找匹配的部署脚本
+func findMatchingDeployScripts(db *gorm.DB, imageName, imageTag string) []models.DeployScript {
+	var scripts []models.DeployScript
+
+	// 构建查询条件
+	query := db.Where("auto_deploy = ?", true).Where("image_name = ?", imageName)
+
+	// 标签匹配逻辑：
+	// 1. 精确匹配：image_tag = imageTag
+	// 2. 通配标签：image_tag 为空或 "*"，表示匹配任意标签
+	query = query.Where(db.Where("image_tag = ?", imageTag).
+		Or("image_tag = ?", "").
+		Or("image_tag = ?", "*"))
+
+	if err := query.Find(&scripts).Error; err != nil {
+		log.Printf("[Webhook] Failed to query deploy scripts: %v", err)
+		return nil
+	}
+
+	return scripts
+}

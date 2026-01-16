@@ -49,6 +49,11 @@ type DeployScript struct {
 	ContainerName string             `gorm:"-" json:"container_name"`                                 // 容器名称（不存储在数据库）
 	Status        string             `gorm:"size:50;default:'idle'" json:"status"`                    // idle, running, stopped, failed
 	UserID        uint               `json:"user_id"`
+
+	// Webhook 自动部署配置
+	AutoDeploy bool   `gorm:"default:false;index" json:"auto_deploy"` // 是否启用自动部署
+	ImageName  string `gorm:"size:500;index" json:"image_name"`       // 镜像名称（如：namespace/repo）
+	ImageTag   string `gorm:"size:100" json:"image_tag"`              // 镜像标签（如：latest，留空表示任意标签）
 }
 
 type DeployScriptFile struct {

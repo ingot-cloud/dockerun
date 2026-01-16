@@ -1,51 +1,42 @@
 <template>
-  <div class="deploy-scripts-view">
-    <div class="page-header">
-      <h1>Deploy Scripts</h1>
-    </div>
-
-    <div class="content-card">
-      <div class="card-header">
-        <div class="header-left">
-          <el-icon class="header-icon"><Document /></el-icon>
-          <span>Scripts</span>
-        </div>
-        <div class="header-right">
-          <el-input
-            v-model="searchText"
-            placeholder="Search..."
-            :prefix-icon="Search"
-            class="search-input"
-            clearable
-          />
-          <el-button
-            type="danger"
-            :icon="Delete"
-            @click="handleBatchDelete"
-          >
-            Remove
-          </el-button>
-          <el-button
-            type="success"
-            :icon="DocumentCopy"
-            @click="showTemplates"
-          >
-            From Template
-          </el-button>
-          <el-button
-            type="primary"
-            :icon="Plus"
-            @click="handleCreate"
-          >
-            Add script
-          </el-button>
-        </div>
-      </div>
+  <PageContainer title="Deploy Scripts">
+    <ContentCard title="Scripts" :icon="Document" :no-padding="true">
+      <template #actions>
+        <el-input
+          v-model="searchText"
+          placeholder="Search..."
+          :prefix-icon="Search"
+          style="width: 240px"
+          clearable
+        />
+        <el-button
+          type="danger"
+          :icon="Delete"
+          @click="handleBatchDelete"
+          :disabled="selectedScripts.length === 0"
+        >
+          Remove
+        </el-button>
+        <el-button
+          type="success"
+          :icon="DocumentCopy"
+          @click="showTemplates"
+        >
+          From Template
+        </el-button>
+        <el-button
+          type="primary"
+          :icon="Plus"
+          @click="handleCreate"
+        >
+          Add Script
+        </el-button>
+      </template>
       
-      <el-table
+      <DataTable
         :data="filteredScripts"
         v-loading="loading"
-        class="data-table"
+        :total="filteredScripts.length"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="45" fixed="left"/>
@@ -112,21 +103,17 @@
             </div>
           </template>
         </el-table-column>
-      </el-table>
-      
-      <div class="table-footer">
-        <span class="total-items">{{ filteredScripts.length }} items</span>
-      </div>
-    </div>
+      </DataTable>
+    </ContentCard>
     
     <!-- 编辑脚本对话框 -->
-    <el-dialog 
-      v-model="dialogVisible" 
-      :title="isEdit ? 'Edit script' : 'Add script'" 
-      width="90%"
-      :close-on-click-modal="false"
-      class="script-dialog"
-      top="5vh"
+    <FormDialog
+      v-model="dialogVisible"
+      :title="isEdit ? 'Edit Script' : 'Add Script'"
+      :icon="Document"
+      @confirm="handleSave"
+      @cancel="dialogVisible = false"
+      extra-wide
     >
       <el-form :model="form" label-width="120px" class="script-form">
         <!-- 基本信息 -->
@@ -144,6 +131,39 @@
             <el-input v-model="form.work_dir" placeholder="/ingot-data/dockerun/my-app" />
             <div class="form-tip">Directory where files will be saved and script will be executed. If not exists, it will be created automatically.</div>
           </el-form-item>
+        </div>
+        
+        <!-- Webhook 自动部署 -->
+        <div class="form-section">
+          <h3>Webhook Auto Deploy</h3>
+          <el-form-item label="Enable">
+            <el-switch v-model="form.auto_deploy" />
+            <div class="form-tip">
+              When enabled, this script will be triggered automatically when the configured image is pushed
+            </div>
+          </el-form-item>
+          
+          <template v-if="form.auto_deploy">
+            <el-form-item label="Image Name">
+              <el-input 
+                v-model="form.image_name" 
+                placeholder="e.g. myapp or */myapp (supports wildcard)"
+              />
+              <div class="form-tip">
+                Supports wildcard *, e.g. namespace/* or */app
+              </div>
+            </el-form-item>
+            
+            <el-form-item label="Image Tag">
+              <el-input 
+                v-model="form.image_tag" 
+                placeholder="e.g. latest or v1.* (leave empty for any tag)"
+              />
+              <div class="form-tip">
+                Leave empty to match any tag, or use wildcard for pattern matching
+              </div>
+            </el-form-item>
+          </template>
         </div>
         
         <!-- 主脚本 -->
@@ -268,12 +288,7 @@
           </div>
         </div>
       </el-form>
-      
-      <template #footer>
-        <el-button @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="handleSave">Save</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
     
     <!-- 编辑文件内容对话框 -->
     <el-dialog 
@@ -337,7 +352,7 @@
         </div>
       </div>
     </el-dialog>
-  </div>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -353,6 +368,10 @@ import {
   DocumentCopy
 } from '@element-plus/icons-vue'
 import { deployApi, type DeployScript, type DeployScriptFile, type ScriptTemplate } from '@/api/deploy'
+import PageContainer from '@/components/PageContainer.vue'
+import ContentCard from '@/components/ContentCard.vue'
+import DataTable from '@/components/DataTable.vue'
+import FormDialog from '@/components/FormDialog.vue'
 
 const scripts = ref<DeployScript[]>([])
 const loading = ref(false)
@@ -382,7 +401,10 @@ const form = reactive<DeployScript>({
   main_script: '',
   work_dir: '/ingot-data/dockerun',
   env_vars: {},
-  files: []
+  files: [],
+  auto_deploy: false,
+  image_name: '',
+  image_tag: ''
 })
 
 // docker-manager.sh 脚本内容
@@ -1489,8 +1511,8 @@ onMounted(() => {
 }
 
 .script-form {
-  max-height: 70vh;
-  overflow-y: auto;
+  /* max-height: 70vh;
+  overflow-y: auto; */
 }
 
 .form-section {
