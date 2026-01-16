@@ -180,12 +180,12 @@
     </FormDialog>
 
     <!-- Webhook URL 对话框 -->
-    <el-dialog
+    <FormDialog
       v-model="urlDialogVisible"
       title="Webhook Configuration"
-      width="850px"
-      class="create-dialog webhook-url-dialog"
-      :close-on-click-modal="false"
+      :icon="Link"
+      :show-footer="false"
+      extra-wide
     >
       <div class="webhook-url-container">
         <el-alert type="info" :closable="false" style="margin-bottom: 20px">
@@ -290,24 +290,27 @@
           </div>
         </div>
       </div>
+
       <template #footer>
-        <el-button @click="urlDialogVisible = false">Close</el-button>
-        <el-button type="success" @click="copyConfig" :icon="CopyDocument">
-          Copy Config
-        </el-button>
-        <el-button type="primary" @click="copyUrl" :icon="CopyDocument">
-          Copy URL
-        </el-button>
+        <div style="display: flex; gap: 12px; width: 100%; justify-content: flex-end">
+          <el-button @click="urlDialogVisible = false">Close</el-button>
+          <el-button type="success" @click="copyConfig" :icon="CopyDocument">
+            Copy Config
+          </el-button>
+          <el-button type="primary" @click="copyUrl" :icon="CopyDocument">
+            Copy URL
+          </el-button>
+        </div>
       </template>
-    </el-dialog>
+    </FormDialog>
 
     <!-- 日志对话框 -->
-    <el-dialog
+    <FormDialog
       v-model="logsDialogVisible"
       title="Webhook Execution Logs"
-      width="900px"
-      class="create-dialog"
-      :close-on-click-modal="false"
+      :icon="Document"
+      :show-footer="false"
+      extra-wide
     >
       <el-table :data="logs" style="width: 100%" max-height="500" class="data-table">
         <el-table-column label="Status" width="100">
@@ -344,12 +347,14 @@
       </el-table>
 
       <template #footer>
-        <el-button @click="logsDialogVisible = false">Close</el-button>
-        <el-button type="primary" @click="refreshLogs" :icon="Refresh">
-          Refresh
-        </el-button>
+        <div style="display: flex; gap: 12px; width: 100%; justify-content: flex-end">
+          <el-button @click="logsDialogVisible = false">Close</el-button>
+          <el-button type="primary" @click="refreshLogs" :icon="Refresh">
+            Refresh
+          </el-button>
+        </div>
       </template>
-    </el-dialog>
+    </FormDialog>
   </PageContainer>
 </template>
 
@@ -369,7 +374,7 @@ import {
   Connection
 } from '@element-plus/icons-vue'
 import { useClipboard } from '@vueuse/core'
-import { webhookApi, type WebhookConfig, type WebhookLog, type WebhookURL } from '../api/webhook'
+import { webhookApi, type WebhookConfig, type WebhookLog } from '../api/webhook'
 import { registryApi, type Registry } from '../api/registry'
 import { deployApi, type DeployScript } from '../api/deploy'
 import PageContainer from '@/components/PageContainer.vue'
@@ -689,12 +694,6 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.webhook-form {
-  /* max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 10px; */
-}
-
 .form-section {
   margin-bottom: 24px;
   padding-bottom: 20px;
@@ -726,7 +725,7 @@ onMounted(() => {
 }
 
 .webhook-url-container {
-  padding: 10px 0;
+  padding-bottom: var(--spacing-2xl);
 }
 
 .webhook-url-input {
