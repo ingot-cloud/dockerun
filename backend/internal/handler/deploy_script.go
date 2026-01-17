@@ -87,9 +87,31 @@ func CreateDeployScript(c *gin.Context) {
 		req.WorkDir = "/ingot-data/dockerun"
 	}
 
-	// 创建脚本（包括关联的文件）
-	if err := database.GetDB().Create(&req).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败"})
+	db := database.GetDB()
+
+	// 使用事务处理脚本和文件的创建
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 1. 创建脚本记录（Files 字段有 gorm:"-"，不会自动保存）
+		if err := tx.Omit("Files").Create(&req).Error; err != nil {
+			return err
+		}
+
+		// 2. 手动保存关联文件到 DeployScriptFile 表
+		if len(req.Files) > 0 {
+			for i := range req.Files {
+				req.Files[i].DeployScriptID = req.ID
+				req.Files[i].ID = 0 // 确保是新记录
+			}
+			if err := tx.Create(&req.Files).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败: " + err.Error()})
 		return
 	}
 
@@ -120,6 +142,9 @@ func UpdateDeployScript(c *gin.Context) {
 	script.MainScript = req.MainScript
 	script.WorkDir = req.WorkDir
 	script.EnvVars = req.EnvVars
+	script.ImageName = req.ImageName
+	script.ImageTag = req.ImageTag
+	script.AutoDeploy = req.AutoDeploy
 
 	// 使用事务来确保数据一致性
 	err := db.Transaction(func(tx *gorm.DB) error {
@@ -142,6 +167,7 @@ func UpdateDeployScript(c *gin.Context) {
 			if err := tx.Create(&req.Files).Error; err != nil {
 				return err
 			}
+			script.Files = req.Files
 		}
 
 		return nil

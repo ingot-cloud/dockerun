@@ -23,11 +23,11 @@ type RegistryImage struct {
 func ListRegistryImages(c *gin.Context) {
 	registryID, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 	search := c.Query("search") // 搜索关键词
-	
+
 	// 分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	
+
 	if page < 1 {
 		page = 1
 	}
@@ -64,10 +64,11 @@ func ListRegistryImages(c *gin.Context) {
 	paginatedImages := images[start:end]
 
 	c.JSON(http.StatusOK, gin.H{
-		"items":     paginatedImages,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
+		"items":         paginatedImages,
+		"total":         total,
+		"page":          page,
+		"page_size":     pageSize,
+		"registry_name": registry.Name,
 	})
 }
 
@@ -75,7 +76,7 @@ func ListRegistryImages(c *gin.Context) {
 func GetRegistryImageTags(c *gin.Context) {
 	registryID, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 	imageName := c.Param("name")
-	
+
 	// 通配符参数会包含前导的 /，需要去掉
 	imageName = strings.TrimPrefix(imageName, "/")
 	// 处理 URL 编码后的路径分隔符
@@ -103,7 +104,7 @@ func DeleteRegistryImage(c *gin.Context) {
 	registryID, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 	imageName := c.Param("name")
 	tag := c.Query("tag")
-	
+
 	// 通配符参数会包含前导的 /，需要去掉
 	imageName = strings.TrimPrefix(imageName, "/")
 	// 处理 URL 编码后的路径分隔符
@@ -304,4 +305,3 @@ func createHTTPClient(insecure bool) *http.Client {
 	}
 	return &http.Client{}
 }
-

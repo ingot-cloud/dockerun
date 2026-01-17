@@ -179,7 +179,7 @@ const showCreateDialog = () => {
 const handleCreate = async () => {
   creating.value = true;
   try {
-    await dockerApi.volumes.create(form.value);
+    await dockerApi.volumes.create(form.value.name, form.value.driver);
     ElMessage.success("Volume created successfully");
     dialogVisible.value = false;
     loadVolumes();

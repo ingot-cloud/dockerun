@@ -153,9 +153,9 @@ const fetchImages = async () => {
       pageSize.value,
       searchKeyword.value
     );
-    images.value = result.images || [];
+    images.value = result.items || [];
     totalImages.value = result.total || 0;
-    registryName.value = result.registry_name || "";
+    registryName.value = (result as any).registry_name || "";
   } catch (error: any) {
     ElMessage.error(
       error.response?.data?.error || "Failed to load registry images"
