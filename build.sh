@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 
 # 配置
 IMAGE_NAME="ingot/dockerun"
-IMAGE_TAG=0.1.0 # 默认 tag 为 latest，可通过参数指定
+IMAGE_TAG=1.1.0 # 默认 tag 为 latest，可通过参数指定
 DOCKER_REGISTRY=docker-registry.ingotcloud.top  # 可选的镜像仓库地址
 IMAGE_ALREADY_PUSHED=false  # 标记镜像是否已推送
 
