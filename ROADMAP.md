@@ -2,10 +2,11 @@
 
 ## 📋 文档信息
 
-- **版本**: v1.0
-- **更新日期**: 2025-01-07
-- **状态**: 规划中
-- **相关文档**: [AGENT_ARCHITECTURE_DESIGN.md](./AGENT_ARCHITECTURE_DESIGN.md)
+- **版本**: v1.1
+- **更新日期**: 2026-01-17
+- **团队**: Ingot Cloud
+- **维护者**: JY
+- **状态**: 持续更新中
 
 ---
 
@@ -867,11 +868,14 @@ Phase 6: 高级特性          [░░░░░░░░░░░░░░░░
 
 如有问题或建议，请通过以下方式联系：
 
-- GitHub Issues
-- Email: magician.of.technique@gmail.com
-- Discussions: GitHub Discussions
+- **GitHub Issues**: https://github.com/ingot-cloud/dockerun/issues
+- **团队**: Ingot Cloud
+- **维护者**: JY
+- **Email**: magician.of.technique@gmail.com
 
 ---
 
 **注意**: 此路线图可能根据实际开发情况进行调整。我们会定期更新进度和计划。
+
+**Made with ❤️ by Ingot Cloud Team**
 

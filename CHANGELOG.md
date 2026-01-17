@@ -1,287 +1,188 @@
-# 更新日志
+# 更新日志 (Changelog)
 
 所有重要的项目变更都会记录在此文件中。
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+版本遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [1.0.2] - 2025-12-08
+---
 
-### UI 重大升级
+## [Unreleased] - 开发中
 
-#### Portainer 风格深色主题
-- 🎨 完全重新设计 UI，采用 Portainer 的深色专业风格
-- 🌙 全局深色主题
-  - 主背景：`#1e1e1e`
-  - 卡片背景：`#2a2d31`
-  - 侧边栏：`#23252a`
-  - 主题色：`#4a9eff`
-- ✨ 重新设计登录页面
-  - 渐变深色背景
-  - 半透明卡片效果
-  - DOCKERUN Logo 大写样式
-  - 现代化输入框和按钮
-- ✨ 重新设计初始设置页面
-  - 与登录页面统一风格
-  - 引导式密码设置流程
-- ✨ 重新设计主布局
-  - 深色侧边栏 + "Ingot Cloud" 标签
-  - 图标化菜单导航
-  - 用户下拉菜单
-  - 统一的深色配色
-- ✨ 重新设计容器列表页面
-  - Portainer 风格表格
-  - 状态图标（绿色/灰色圆点）
-  - 快捷操作按钮（日志/统计/终端）
-  - 批量操作按钮栏
-  - 端口链接显示
-  - 所有权信息
+### 计划中
+- Agent 分布式架构支持
+- 监控和日志系统
+- RBAC 权限控制
+- 多租户支持
 
-#### 交互优化
-- 🎯 改进 Hover 效果（按钮上移+阴影）
-- 🎯 优化 Focus 状态（蓝色边框+阴影）
-- 🎯 侧边栏激活状态（左侧蓝边）
-- 🎯 表格行 Hover 高亮
-- 🎯 平滑过渡动画（0.3s）
+---
 
-#### 组件样式
-- 📦 深色主题按钮（Primary/Success/Warning/Danger）
-- 📦 深色输入框（半透明背景）
-- 📦 深色下拉菜单
-- 📦 深色对话框
-- 📦 深色表格
-- 📦 自定义滚动条样式
-
-### 功能修复
-
-#### 首次运行流程优化
-- 🔧 修复首次运行不提示设置密码的问题
-- 🔧 优化密码为空检测逻辑
-- 🔧 自动跳转到设置页面
-- ✅ 确保首次运行必须设置密码
-
-### 新增文档
-
-- 📚 添加 UI_DESIGN.md UI 设计规范文档
-  - 设计理念
-  - 页面布局说明
-  - 组件样式规范
-  - 颜色规范
-  - 交互效果
-  - 响应式设计
-  - 可访问性指南
-
-## [1.0.1] - 2025-12-08
-
-### 优化
-
-#### 前端构建优化
-- 🚀 升级 Node.js 版本要求至 20+
-- 📦 使用 pnpm 10.12.4 替代 npm 作为包管理器
-- ⚡ 添加 pnpm 配置文件（.npmrc）
-- 🔧 更新 Dockerfile 使用 pnpm 构建
-- 📝 更新所有文档中的命令为 pnpm
-- ✅ 添加 engines 字段约束 Node 20+ 和 pnpm 10+
-- 🛠️ 添加 type-check 脚本
-
-#### 后端依赖修复
-- 🔧 升级 Docker SDK 到 v25.0.5 解决兼容性问题
-- 🔧 修复 Docker SDK API 类型变更
-  - `image.ListOptions` → `types.ImageListOptions`
-  - `image.PullOptions` → `types.ImagePullOptions`
-  - `image.RemoveOptions` → `types.ImageRemoveOptions`
-  - `network.ListOptions` → `types.NetworkListOptions`
-  - `network.InspectOptions` → `types.NetworkInspectOptions`
-  - `network.CreateOptions` → `types.NetworkCreate`
-- 📦 更新 `github.com/docker/go-connections` 到 v0.5.0
-- ✅ 修复 `go.sum` 缺失问题
-- ✅ 修复 `distribution/reference` 包冲突
+## [0.2.0] - 2026-01-17
 
 ### 新增
+- ✨ **代码编辑器集成**
+  - 基于 Monaco Editor（VS Code 编辑器）
+  - 支持 20+ 种语言的语法高亮
+  - 智能语言识别（Shell、YAML、JSON、Python、Go 等）
+  - 代码折叠、行号、小地图、自动补全
+  - 暗色主题，与整体 UI 风格一致
+  - 主脚本编辑器高度 500px，文件编辑器 600px
 
-- 📚 添加 TROUBLESHOOTING.md 问题排查指南
-- 📚 添加 frontend/README.md 前端项目文档
-- 📚 添加 frontend/PNPM_MIGRATION.md 迁移指南
-- 📚 添加 OPTIMIZATION_SUMMARY.md 优化总结
+### 修复
+- 🐛 **部署脚本文件保存问题**
+  - 修复创建/更新部署脚本时关联文件未保存到数据库的问题
+  - 使用事务确保脚本和文件的原子性创建
+  - 执行脚本时从数据库正确读取并创建物理文件
 
-## [1.0.0] - 2025-12-08
+### 优化
+- 🎨 **前端 UI 优化**
+  - 统一所有对话框使用 `FormDialog` 组件
+  - Webhooks 页面的 URL 对话框和日志对话框样式统一
+  - 优化文件编辑对话框宽度（80%）和保存按钮
 
-### 新增功能
+### 技术细节
+- 添加 `@guolao/vue-monaco-editor` 和 `monaco-editor` 依赖
+- 新增 `CodeEditor.vue` 可复用组件
+- 添加 `getFileLanguage()` 智能语言识别函数
+- 优化 `CreateDeployScript` 和 `UpdateDeployScript` 的文件处理逻辑
 
-#### Docker资源管理
-- ✨ 容器管理功能
-  - 查看所有容器列表（运行中和已停止）
-  - 启动、停止、重启容器
-  - 查看容器实时日志
-  - 查看容器统计信息
-  - 删除容器（支持强制删除）
-  
-- ✨ 镜像管理功能
-  - 查看镜像列表
-  - 拉取Docker镜像（实时显示进度）
-  - 删除镜像
-  - 镜像打标签
-  
-- ✨ 网络管理功能
-  - 查看Docker网络列表
-  - 创建自定义网络（支持bridge、overlay等驱动）
-  - 删除网络
-  - 连接容器到网络
-  - 断开容器与网络的连接
-  
-- ✨ 卷管理功能
-  - 查看卷列表
-  - 创建命名卷
-  - 删除卷
+---
 
-#### 部署脚本管理
-- ✨ 脚本CRUD操作
-  - 创建部署脚本
-  - 编辑脚本内容
-  - 删除脚本
-  - 脚本列表展示
-  
-- ✨ 脚本执行功能
-  - 一键执行Shell脚本
-  - 支持Docker Compose部署
-  - 实时查看执行输出
-  - 脚本与容器关联
-  - 脚本状态跟踪（idle、running、stopped、failed）
+## [0.1.0] - 2026-01-16
 
-#### Docker环境管理
-- ✨ 系统信息检测
-  - 自动检测操作系统类型
-  - 检测系统架构（x86_64、aarch64）
-  - 检测Linux发行版和版本
-  - 检测网络连接状态
-  - 检测Docker和Docker Compose安装状态
-  
-- ✨ Docker自动安装
-  - 在线安装（Ubuntu/Debian/CentOS/RHEL/Fedora）
-  - 离线RPM包安装
-  - 离线DEB包安装
-  - 离线二进制文件安装
-  - 安装进度实时反馈
+### 新增
+- 🎨 **UI 大幅优化**
+  - 全新暗色主题设计系统
+  - 统一的设计变量（颜色、间距、字体）
+  - 可复用组件：`PageContainer`、`ContentCard`、`DataTable`、`FormDialog`
+  - 重构所有页面样式，确保一致性
+  - 优化所有对话框的 margin 和 padding
 
-#### 安全认证
-- ✨ 用户认证系统
-  - JWT Token认证
-  - 首次运行强制设置管理员密码
-  - 密码加密存储（bcrypt）
-  - Token自动刷新
-  - 登录状态持久化
-  
-- ✨ 权限管理
-  - 所有API接口都需要认证
-  - 用户信息管理
+- 🔄 **Webhook 自动部署功能**
+  - 支持 Docker Registry Webhook 集成
+  - 智能匹配镜像名称和标签（支持通配符）
+  - 单个 Webhook 可触发多个部署脚本
+  - 异步任务队列处理（不阻塞 Registry）
+  - HMAC-SHA256 签名验证
+  - 完整的执行日志记录
+  - 自动清理旧容器和镜像
+  - 支持 Docker Hub、Harbor、GitLab Registry 等
+
+- 🔐 **AES 密码加密**
+  - 用户登录密码 AES-256-CBC 加密
+  - Registry 密码 AES-256-CBC 加密存储
+  - 前后端加密传输
+  - 动态密钥生成和管理
+
+- 📦 **镜像导入导出**
+  - 支持镜像导出为 tar 文件
+  - 支持从 tar 文件导入镜像
+  - 进度显示和错误处理
+
+- 🎯 **Favicon 图标**
+  - Docker 主题的 SVG 图标
+  - 支持多尺寸（16x16, 32x32, 48x48）
+
+### 功能增强
+- 📝 **部署脚本增强**
+  - 添加 Webhook 自动部署配置
+  - 支持镜像名称和标签匹配
+  - 自动部署开关
+  - 工作目录、环境变量、关联文件管理
+
+- 🖥️ **前端组件化**
+  - 抽象通用页面容器组件
+  - 抽象通用卡片组件
+  - 抽象通用表格组件
+  - 抽象通用对话框组件
+
+### 技术改进
+- 🏗️ **多架构支持**
+  - 支持 AMD64 和 ARM64 架构
+  - 本地交叉编译（CGO_ENABLED=0）
+  - Docker Buildx 多架构镜像构建
+  - 纯 Go SQLite 驱动（github.com/glebarez/sqlite）
+
+- 🔧 **构建优化**
+  - 优化 `build.sh` 脚本
+  - 本地预编译前后端
+  - Dockerfile 使用预编译产物
+  - 减少构建时间和镜像大小
+
+- 📊 **数据库优化**
+  - 应用层处理外键关系（无 GORM 外键）
+  - 添加 Webhook 相关表（webhook_configs、webhook_logs）
+  - 优化索引和查询性能
+
+### 修复
+- 🐛 修复前端 TypeScript 类型错误
+- 🐛 修复 Docker 模板目录挂载问题
+- 🐛 修复部署脚本 Docker 命令找不到的问题
+- 🐛 修复跨架构镜像运行问题
+- 🐛 修复 GPG 密钥验证问题
+
+### 文档
+- 📚 新增 `WEBHOOK_GUIDE.md` - Webhook 功能详细指南
+- 📚 新增 `WEBHOOK_REFACTOR_GUIDE.md` - Webhook 重构说明
+- 📚 新增 `REGISTRY_PASSWORD_ENCRYPTION.md` - 密码加密说明
+- 📚 新增 `SECURITY.md` - 安全指南
+- 📚 新增 `DEPLOYMENT_PERMISSIONS.md` - 权限问题排查
+- 📚 新增 `UI_OPTIMIZATION_GUIDE.md` - UI 优化说明
+- 📚 新增 `CODE_EDITOR_FEATURE.md` - 代码编辑器功能说明
+
+---
+
+## [0.0.1] - 2026-01-10
+
+### 初始版本
+- 🐳 **Docker 资源管理**
+  - 容器管理（启动、停止、重启、删除、日志）
+  - 镜像管理（拉取、删除、标签）
+  - 网络管理（创建、删除、连接）
+  - 卷管理（创建、删除、查看）
+
+- 📝 **部署脚本管理**
+  - Shell 脚本支持
+  - Docker Compose 支持
+  - 脚本执行和日志查看
+  - 脚本模板系统
+
+- 🔐 **用户认证**
+  - JWT Token 认证
+  - 首次运行设置密码
   - 密码修改功能
-  - 安全退出登录
 
-#### 用户界面
-- ✨ 现代化Web界面
-  - 基于Vue 3和Element Plus
-  - 响应式设计
-  - 深色侧边栏导航
-  - 实时数据更新
-  - 友好的错误提示
-  - 加载状态指示
-  
-- ✨ 页面组件
-  - 登录页面
-  - 初始设置页面
-  - 容器管理页面
-  - 镜像管理页面
-  - 网络管理页面
-  - 卷管理页面
-  - 部署脚本管理页面
-  - 系统设置页面
+- 🎨 **前端界面**
+  - Vue 3 + TypeScript
+  - Element Plus UI
+  - 响应式布局
+  - 现代化设计
 
-#### 开发工具
-- ✨ 构建和部署工具
-  - Dockerfile多阶段构建
-  - Docker Compose配置
-  - Makefile便捷命令
-  - 自动化脚本
-    - install-docker.sh - Docker自动安装
-    - backup.sh - 数据备份
-    - restore.sh - 数据恢复
-    - update.sh - 系统更新
+- 🏗️ **技术栈**
+  - 后端：Go + Gin + GORM + SQLite
+  - 前端：Vue 3 + TypeScript + Pinia + Vite
+  - Docker SDK 集成
 
-#### 文档
-- 📝 完整的项目文档
-  - README.md - 项目说明
-  - QUICKSTART.md - 快速开始指南
-  - DEPLOYMENT.md - 详细部署指南
-  - CHANGELOG.md - 更新日志
-  - requirement.md - 需求文档
-
-### 技术栈
-
-#### 后端
-- Go 1.21
-- Gin Web框架
-- GORM ORM
-- SQLite数据库
-- Docker Go SDK
-- JWT认证
-
-#### 前端
-- Vue 3
-- TypeScript
-- Pinia状态管理
-- Element Plus UI库
-- Vite构建工具
-- Vue Router
-- Axios HTTP客户端
-
-### 性能优化
-- ⚡ 前端静态资源优化
-- ⚡ Docker镜像分层构建优化
-- ⚡ 数据库连接池
-- ⚡ API响应缓存
-
-### 安全增强
-- 🔒 JWT Token认证
-- 🔒 密码bcrypt加密
-- 🔒 API接口权限验证
-- 🔒 CORS跨域配置
-- 🔒 SQL注入防护（GORM）
-
-### 已知问题
-- 暂无
-
-### 计划功能
-- [ ] WebSocket终端（进入容器命令行）
-- [ ] 容器实时资源监控图表
-- [ ] 多用户管理
-- [ ] 角色权限系统
-- [ ] 容器编排模板
-- [ ] 日志搜索和过滤
-- [ ] 系统监控面板
-- [ ] Docker镜像构建
-- [ ] 容器备份和恢复
-- [ ] 国际化支持（i18n）
+---
 
 ## 版本说明
 
 ### 版本号规则
+- **主版本号（Major）**: 重大架构变更或不兼容的 API 变更
+- **次版本号（Minor）**: 新功能添加，向后兼容
+- **修订号（Patch）**: Bug 修复和小改进
 
-版本格式：`主版本号.次版本号.修订号`
-
-- **主版本号**：不兼容的API修改
-- **次版本号**：向下兼容的功能性新增
-- **修订号**：向下兼容的问题修正
-
-### 更新类型
-
-- `新增` - 新功能
-- `变更` - 对现有功能的变更
-- `弃用` - 即将移除的功能
-- `移除` - 已移除的功能
-- `修复` - 问题修复
-- `安全` - 安全相关修复
+### 图标含义
+- ✨ 新增功能
+- 🐛 Bug 修复
+- 🔧 配置/工具优化
+- 📚 文档更新
+- 🎨 UI/样式改进
+- ⚡ 性能优化
+- 🔐 安全相关
+- 🗑️ 移除功能
+- 🚧 开发中
 
 ---
 
-[1.0.0]: https://github.com/your-repo/releases/tag/v1.0.0
-
+**Maintained by Ingot Cloud Team - JY**

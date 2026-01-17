@@ -1,439 +1,215 @@
-# DockeRun - Docker管理平台
+# DockeRun - 现代化 Docker 管理平台
 
-一个功能强大的Docker管理平台，提供类似Portainer的核心功能，同时支持自定义脚本部署和Docker环境自动安装。
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/go-1.23+-00ADD8?logo=go)](https://golang.org)
+[![Vue Version](https://img.shields.io/badge/vue-3.x-4FC08D?logo=vue.js)](https://vuejs.org)
 
-## 主要功能
+> **开发团队**: Ingot Cloud  
+> **核心开发**: JY  
+> **项目类型**: 开源 Docker 管理平台
 
-### 1. Docker资源管理
-- **容器管理**
-  - 查看所有容器列表
-  - 启动、停止、重启容器
-  - 查看容器日志
-  - 删除容器
-  - 进入容器命令行（支持WebSocket终端）
-  
-- **镜像管理**
-  - 查看镜像列表
-  - 拉取镜像
-  - 删除镜像
-  - 镜像打标签
-  
-- **网络管理**
-  - 查看网络列表
-  - 创建、删除网络
-  - 连接/断开容器与网络
-  
-- **卷管理**
-  - 查看卷列表
-  - 创建、删除卷
+一个功能强大、界面现代的 Docker 管理平台，提供容器管理、镜像管理、Webhook 自动部署、代码编辑器等企业级功能。
 
-### 2. 部署脚本管理
-- 创建和管理部署脚本
-- 支持Shell脚本和Docker Compose
-- 脚本与容器关联
-- 一键执行部署脚本
-- 查看执行输出
+## ✨ 核心特性
 
-### 3. Webhook 自动部署 🆕
-- **Registry Webhook 集成**
-  - 支持 Docker Hub、Harbor、GitLab Registry 等
-  - 镜像推送时自动触发部署
-  - 智能匹配镜像名称和标签
-  
-- **自动化流程**
-  - 自动清理旧容器和旧镜像
+### 🐳 Docker 资源管理
+- **容器管理**: 启动/停止/重启、日志查看、命令行进入
+- **镜像管理**: 拉取/删除/标签、导入/导出镜像
+- **网络管理**: 创建/删除网络、容器网络连接
+- **卷管理**: 数据卷的完整生命周期管理
+- **私有仓库**: Docker Registry 集成与管理
+
+### 🚀 部署脚本管理
+- **智能编辑器**: 基于 Monaco Editor 的代码编辑器
+- **语法高亮**: 支持 Shell、YAML、JSON、Python、Go 等 20+ 种语言
+- **脚本类型**: Shell 脚本、Docker Compose
+- **模板系统**: 内置常用服务的部署模板
+- **文件管理**: 支持多文件配置和环境变量
+
+### 🔄 Webhook 自动部署
+- **Registry 集成**: 支持 Docker Hub、Harbor、GitLab Registry
+- **智能匹配**: 镜像名称和标签的通配符匹配
+- **自动化流程**: 
+  - 自动清理旧容器和镜像
   - 自动拉取最新镜像
   - 执行关联的部署脚本
-  - 异步任务队列，不阻塞 Registry
-  
-- **安全可靠**
-  - HMAC-SHA256 签名验证
-  - 完整的执行日志记录
-  - 支持通配符匹配
-  - 可配置开关和清理策略
+- **安全可靠**: HMAC-SHA256 签名验证、异步任务队列
 
-### 4. Docker环境检测与安装
-- 自动检测系统信息（OS、架构、发行版）
-- 检测Docker和Docker Compose是否已安装
-- 支持多种安装方式：
-  - 在线安装（Ubuntu/Debian、CentOS/RHEL、Fedora）
-  - 离线RPM包安装
-  - 离线DEB包安装
-  - 离线二进制文件安装
+### 🎨 现代化界面
+- **暗色主题**: 专业的暗色设计风格
+- **响应式布局**: 适配各种屏幕尺寸
+- **统一组件**: 一致的 UI/UX 体验
+- **实时反馈**: WebSocket 实时日志输出
 
-### 5. 安全认证
-- JWT Token认证
-- 首次运行需设置管理员密码
-- 支持修改密码
-- 所有API接口都需要认证
+### 🔒 安全特性
+- **AES 加密**: 敏感信息（密码）AES-256-CBC 加密
+- **JWT 认证**: Token 身份验证
+- **权限控制**: 完整的权限管理体系
 
-## 技术栈
+## 🏗️ 技术栈
 
 ### 后端
-- **语言**: Go 1.21
-- **框架**: Gin
-- **ORM**: GORM
-- **数据库**: SQLite
-- **Docker SDK**: Docker Go SDK
-- **认证**: JWT
+- **Go 1.23+** - 高性能后端语言
+- **Gin** - Web 框架
+- **GORM** - ORM 框架
+- **SQLite** - 嵌入式数据库（支持 MySQL）
+- **Docker SDK** - Docker API 集成
 
 ### 前端
-- **框架**: Vue 3
-- **语言**: TypeScript
-- **状态管理**: Pinia
-- **UI库**: Element Plus
-- **构建工具**: Vite
-- **路由**: Vue Router
+- **Vue 3** - 渐进式 JavaScript 框架
+- **TypeScript** - 类型安全
+- **Pinia** - 状态管理
+- **Element Plus** - UI 组件库
+- **Monaco Editor** - 代码编辑器
+- **Vite** - 构建工具
 
-## 快速开始
+## 🚀 快速开始
 
-### 方式一：使用Docker运行（推荐）
-
-1. **使用Docker Compose**
+### 使用 Docker 运行（推荐）
 
 ```bash
-# 克隆仓库
-git clone <repository-url>
+# 1. 克隆仓库
+git clone https://github.com/ingot-cloud/dockerun.git
 cd dockerun
 
-# 启动服务
+# 2. 启动服务
 docker-compose up -d
 
-# 查看日志
-docker-compose logs -f
+# 3. 访问应用
+# 浏览器打开: http://localhost:8080
+# 首次运行需要设置管理员密码
 ```
 
-2. **使用Docker命令**
+### 使用预构建脚本
 
 ```bash
-# 构建镜像
-docker build -t dockerun:latest .
+# 运行部署脚本
+chmod +x run.sh
+./run.sh
 
-# 运行容器
-docker run -d \
-  --name dockerun \
-  --restart always \
-  -p 8080:8080 \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $(pwd)/data:/app/data \
-  -e JWT_SECRET=your-secret-key \
-  dockerun:latest
+# 停止服务
+docker stop dockerun
 ```
 
-3. **访问应用**
-
-打开浏览器访问: `http://localhost:8080`
-
-首次运行会提示设置管理员密码。
-
-### 方式二：本地开发运行
-
-#### 前置要求
-- Go 1.21+
-- Node.js 20+
-- pnpm 8+
-- Docker (用于管理Docker资源)
-
-#### 安装依赖
+### 手动构建
 
 ```bash
-# 安装pnpm（如果还没有安装）
-npm install -g pnpm
+# 构建多架构镜像（支持 AMD64 和 ARM64）
+./build.sh
 
-# 安装所有依赖
-make install-deps
-
-# 或分别安装
-cd frontend && pnpm install
-cd backend && go mod download
+# 推送到私有仓库
+docker push your-registry.com/dockerun:latest
 ```
 
-#### 开发模式运行
-
-**方式1：使用Makefile**
-
-```bash
-# 终端1: 运行后端
-make dev-backend
-
-# 终端2: 运行前端
-make dev-frontend
-```
-
-**方式2：手动运行**
-
-```bash
-# 终端1: 运行后端
-cd backend
-go run main.go
-
-# 终端2: 运行前端
-cd frontend
-pnpm run dev
-```
-
-访问: `http://localhost:5173`
-
-#### 生产构建
-
-```bash
-# 构建整个项目
-make build
-
-# 运行
-make run
-```
-
-## 配置说明
+## 📦 配置说明
 
 ### 环境变量
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| SERVER_ADDR | 服务器监听地址 | :8080 |
-| DATABASE_PATH | 数据库文件路径 | ./data/dockerun.db |
-| JWT_SECRET | JWT密钥 | your-secret-key-change-in-production |
-| GIN_MODE | Gin运行模式 | debug |
+| `SERVER_ADDR` | 服务器监听地址 | `:8080` |
+| `DATABASE_TYPE` | 数据库类型 | `sqlite` |
+| `DATABASE_PATH` | SQLite 数据库路径 | `./data/dockerun.db` |
+| `MYSQL_DSN` | MySQL 连接字符串 | - |
+| `JWT_SECRET` | JWT 密钥 | `your-secret-key` |
+| `AES_KEY` | AES 加密密钥 | 自动生成 |
+| `AES_IV` | AES 初始化向量 | 自动生成 |
+| `NETWORK_NAME` | 默认 Docker 网络 | `ingot-net` |
 
-### Docker Compose配置
+### Docker Compose 配置示例
 
-```yaml
-environment:
-  - GIN_MODE=release
-  - SERVER_ADDR=:8080
-  - DATABASE_PATH=/app/data/dockerun.db
-  - JWT_SECRET=your-custom-secret-key
-
-volumes:
-  - /var/run/docker.sock:/var/run/docker.sock  # 必需
-  - ./data:/app/data                           # 数据持久化
-  - ./docker-packages:/app/docker-packages:ro  # 离线安装包（可选）
-```
-
-## 部署脚本示例
-
-### Shell脚本示例
-
-```bash
-#!/usr/bin/env bash
-
-VERSION=latest
-IMAGE_NAME=nginx
-SERVICE_NAME=my-nginx
-
-# 停止运行当前容器
-docker ps -q --filter name="${SERVICE_NAME}" | xargs -r docker rm -f
-
-# 拉取最新镜像
-docker pull ${IMAGE_NAME}:${VERSION}
-
-# 启动容器
-docker run -d --name ${SERVICE_NAME} \
-  --restart always \
-  -p 8080:80 \
-  ${IMAGE_NAME}:${VERSION}
-```
-
-### Docker Compose示例
-
-**脚本内容：**
-```bash
-#!/usr/bin/env bash
-
-SERVICE_NAME=my-app
-
-# 停止并删除旧容器
-docker-compose -f docker-compose.yml down
-
-# 启动新容器
-docker-compose -f docker-compose.yml up -d
-```
-
-**docker-compose.yml：**
 ```yaml
 version: '3.8'
 
 services:
-  app:
-    image: nginx:latest
-    container_name: my-app
+  dockerun:
+    image: docker-registry.ingotcloud.top/ingot/dockerun:0.1.0
+    container_name: dockerun
     restart: always
     ports:
-      - "8080:80"
+      - "8080:8080"
     volumes:
-      - ./html:/usr/share/nginx/html
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /ingot-data/dockerun:/app/data
+      - /ingot-data/dockerun:/ingot-data/dockerun
+    environment:
+      - GIN_MODE=release
+      - JWT_SECRET=your-custom-secret-key
+      - NETWORK_NAME=ingot-net
+    networks:
+      - ingot-net
+
+networks:
+  ingot-net:
+    external: true
 ```
 
-## Docker离线安装
+## 📖 文档
 
-### 准备离线安装包
+### 用户指南
+- [更新日志](./CHANGELOG.md) - 版本更新记录
+- [开发路线图](./ROADMAP.md) - 未来规划
 
-1. **在线下载Docker包**
+### 详细文档（docs 目录）
+- **快速开始**: 快速上手指南
+- **部署指南**: 生产环境部署
+- **Webhook 配置**: 自动部署配置
+- **模板使用**: 部署模板说明
+- **安全指南**: AES 加密与最佳实践
+- **故障排查**: 常见问题解决
+
+更多文档请查看 [docs](./docs/) 目录。
+
+## 🎯 开发路线图
+
+查看 [ROADMAP.md](./ROADMAP.md) 了解未来规划：
+
+- ✅ 基础容器管理
+- ✅ 部署脚本管理
+- ✅ Webhook 自动部署
+- ✅ 代码编辑器集成
+- 🚧 Agent 分布式架构
+- 🚧 监控和日志系统
+- 📋 RBAC 权限控制
+- 📋 多租户支持
+
+## 🤝 贡献
+
+欢迎贡献代码、提交 Issue 和 Pull Request！
+
+### 开发环境搭建
 
 ```bash
-# x86_64架构
-wget https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz
+# 1. 安装依赖
+cd frontend && pnpm install
+cd backend && go mod download
 
-# aarch64架构
-wget https://download.docker.com/linux/static/stable/aarch64/docker-24.0.7.tgz
+# 2. 启动开发服务
+# 终端 1: 后端
+cd backend && go run main.go
+
+# 终端 2: 前端
+cd frontend && pnpm run dev
+
+# 3. 访问开发服务器
+# 打开 http://localhost:5173
 ```
 
-2. **下载RPM包（CentOS/RHEL）**
+## 📄 许可证
 
-```bash
-# 下载Docker RPM包
-yumdownloader --resolve docker-ce docker-ce-cli containerd.io
-```
+本项目基于 [MIT License](./LICENSE) 开源。
 
-3. **下载DEB包（Ubuntu/Debian）**
+## 👥 团队
 
-```bash
-# 下载Docker DEB包
-apt-get download docker-ce docker-ce-cli containerd.io
-```
+**Ingot Cloud 团队**
+- **核心开发**: JY
+- **项目主页**: https://github.com/ingot-cloud/dockerun
 
-### 使用DockeRun安装Docker
+## 📮 联系我们
 
-1. 访问"系统设置"页面
-2. 选择安装方式
-3. 输入安装包路径（离线安装）
-4. 点击"开始安装"
-
-## 安全建议
-
-1. **修改默认密码**：首次运行后立即设置强密码
-2. **更改JWT密钥**：在生产环境中使用强随机JWT密钥
-3. **使用HTTPS**：建议在生产环境中配置反向代理（Nginx）并启用HTTPS
-4. **限制访问**：使用防火墙限制只有可信IP访问
-5. **定期备份**：定期备份`data`目录中的数据库文件
-
-## 常见问题
-
-### 1. 无法连接到Docker
-
-**问题**：页面显示Docker未安装或未运行
-
-**解决方案**：
-- 确保Docker已安装并运行：`systemctl status docker`
-- 确保挂载了Docker socket：`-v /var/run/docker.sock:/var/run/docker.sock`
-- 确保容器有足够的权限（可能需要`privileged: true`）
-
-### 2. 前端无法访问后端API
-
-**问题**：前端显示网络错误
-
-**解决方案**：
-- 检查后端是否正常运行
-- 检查端口映射是否正确
-- 检查防火墙设置
-
-### 3. 部署脚本执行失败
-
-**问题**：脚本执行返回错误
-
-**解决方案**：
-- 检查脚本语法是否正确
-- 确保脚本有执行权限
-- 查看执行输出中的错误信息
-- 确保Docker命令可以在容器内执行
-
-## 🎯 未来愿景
-
-Dockerun 正在向分布式容器管理平台演进！
-
-**即将推出的特性** (v1.0+):
-- 🌐 **Agent 分布式架构**: 类似 GitLab + Runner 的架构，支持多机器部署
-- 🎯 **智能任务调度**: 基于标签的灵活任务调度策略
-- 📊 **统一管理界面**: 集中管理所有节点和任务
-- 🔐 **企业级安全**: 完善的认证和权限控制
-- 📈 **监控和日志**: 完整的可观测性支持
-
-查看 **[开发路线图](./ROADMAP.md)** 了解详细计划！
+- 提交 Issue: https://github.com/ingot-cloud/dockerun/issues
+- 功能建议: 欢迎在 Issues 中讨论
 
 ---
 
-## 📚 文档
-
-### 快速开始
-- **[快速开始指南](./QUICKSTART.md)** - 快速上手指南
-- **[部署指南](./DEPLOYMENT.md)** - 详细部署说明
-- **[配置说明](./CONFIGURATION.md)** - 环境变量和系统配置
-
-### 功能指南
-- **[部署脚本指南](./DEPLOY_SCRIPT_GUIDE.md)** - 部署脚本使用说明
-- **[部署脚本 Docker 管理指南](./DEPLOY_SCRIPT_DOCKER_MANAGER_GUIDE.md)** - Docker 容器管理
-- **[Webhook 自动部署指南](./WEBHOOK_GUIDE.md)** - Webhook 功能详细配置
-- **[Registry 管理指南](./REGISTRY_GUIDE.md)** - 私有镜像仓库管理
-- **[网络管理指南](./NETWORK_GUIDE.md)** - Docker 网络自动创建和管理
-- **[模板使用指南](./TEMPLATE_GUIDE.md)** - 部署模板使用
-
-### 高级特性
-- **[🚀 Agent 分布式架构设计](./AGENT_ARCHITECTURE_DESIGN.md)** - **即将推出**
-- **[📅 开发路线图](./ROADMAP.md)** - **查看未来规划**
-
-### 运维和安全
-- **[安全指南](./SECURITY.md)** - AES 加密和安全最佳实践
-- **[故障排查](./TROUBLESHOOTING.md)** - 常见问题解决
-- **[MySQL 数据库配置](./MYSQL_SETUP.md)** - 使用 MySQL 数据库
-- **[不安全的 Registry 配置](./INSECURE_REGISTRY.md)** - HTTP Registry 配置
-- **[自签名证书配置](./SELF_SIGNED_CERTIFICATE.md)** - HTTPS 自签名证书
-
-## 项目结构
-
-```
-dockerun/
-├── backend/                 # 后端Go代码
-│   ├── internal/
-│   │   ├── config/         # 配置管理
-│   │   ├── database/       # 数据库初始化
-│   │   ├── docker/         # Docker操作
-│   │   ├── handler/        # API处理器
-│   │   ├── middleware/     # 中间件
-│   │   ├── models/         # 数据模型
-│   │   └── router/         # 路由配置
-│   ├── go.mod
-│   └── main.go
-├── frontend/               # 前端Vue代码
-│   ├── src/
-│   │   ├── api/           # API接口
-│   │   ├── layouts/       # 布局组件
-│   │   ├── router/        # 路由配置
-│   │   ├── stores/        # Pinia状态管理
-│   │   ├── views/         # 页面组件
-│   │   ├── App.vue
-│   │   └── main.ts
-│   ├── package.json
-│   └── vite.config.ts
-├── Dockerfile             # Docker镜像构建
-├── docker-compose.yml     # Docker Compose配置
-├── Makefile              # 构建脚本
-└── README.md             # 项目文档
-```
-
-## 开发指南
-
-### 添加新功能
-
-1. **后端**：在`backend/internal/handler/`中添加新的处理器
-2. **前端**：在`frontend/src/views/`中添加新的页面组件
-3. **路由**：分别在后端和前端的路由配置中添加新路由
-4. **API**：在`frontend/src/api/`中添加API接口定义
-
-### 代码规范
-
-- Go代码遵循Go标准规范
-- 使用`go fmt`格式化代码
-- 前端代码遵循Vue 3和TypeScript最佳实践
-
-## 许可证
-
-MIT License
-
-## 贡献
-
-欢迎提交Issue和Pull Request！
-
-## 联系方式
-
-如有问题或建议，请提交Issue。
-
+**Made with ❤️ by Ingot Cloud Team**
