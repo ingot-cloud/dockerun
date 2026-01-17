@@ -169,12 +169,11 @@
         <!-- 主脚本 -->
         <div class="form-section">
           <h3>Main Script</h3>
-          <el-input
+          <CodeEditor
             v-model="form.main_script"
-            type="textarea"
-            :rows="12"
-            placeholder="Enter your main execution script..."
-            class="code-input"
+            language="shell"
+            height="500px"
+            :minimap="true"
           />
           <div class="form-tip">This is the main script that will be executed. It should handle directory creation, file copying, and service startup.</div>
         </div>
@@ -291,21 +290,22 @@
     </FormDialog>
     
     <!-- 编辑文件内容对话框 -->
+    <!-- 文件内容编辑对话框 -->
     <el-dialog 
       v-model="fileDialogVisible" 
       :title="`Edit File: ${currentFile?.file_name}`" 
-      width="70%"
+      width="80%"
       class="file-dialog"
     >
-      <el-input
+      <CodeEditor
         v-model="currentFile.content"
-        type="textarea"
-        :rows="20"
-        placeholder="Enter file content..."
-        class="code-input"
+        :language="getFileLanguage(currentFile)"
+        height="600px"
+        :minimap="true"
       />
       <template #footer>
         <el-button @click="fileDialogVisible = false">Close</el-button>
+        <el-button type="primary" @click="fileDialogVisible = false">Save</el-button>
       </template>
     </el-dialog>
     
@@ -373,6 +373,7 @@ import PageContainer from '@/components/PageContainer.vue'
 import ContentCard from '@/components/ContentCard.vue'
 import DataTable from '@/components/DataTable.vue'
 import FormDialog from '@/components/FormDialog.vue'
+import CodeEditor from '@/components/CodeEditor.vue'
 
 const scripts = ref<DeployScript[]>([])
 const loading = ref(false)
@@ -1321,6 +1322,76 @@ const updateEnvKey = (oldKey: string, newKey: string) => {
 
 const deleteEnvVar = (key: string) => {
   delete form.env_vars![key]
+}
+
+// 根据文件类型和文件名自动判断语言
+const getFileLanguage = (file: DeployScriptFile) => {
+  if (!file) return 'plaintext'
+  
+  // 根据文件类型判断
+  if (file.file_type === 'compose') {
+    return 'yaml'
+  }
+  if (file.file_type === 'script') {
+    return 'shell'
+  }
+  
+  // 根据文件扩展名判断
+  const fileName = file.file_name?.toLowerCase() || ''
+  const filePath = file.file_path?.toLowerCase() || ''
+  const fullName = fileName || filePath
+  
+  if (fullName.endsWith('.yml') || fullName.endsWith('.yaml')) {
+    return 'yaml'
+  }
+  if (fullName.endsWith('.sh')) {
+    return 'shell'
+  }
+  if (fullName.endsWith('.json')) {
+    return 'json'
+  }
+  if (fullName.endsWith('.xml')) {
+    return 'xml'
+  }
+  if (fullName.endsWith('.properties') || fullName.endsWith('.conf') || fullName.endsWith('.config')) {
+    return 'ini'
+  }
+  if (fullName.endsWith('.env')) {
+    return 'shell'
+  }
+  if (fullName.endsWith('.js') || fullName.endsWith('.mjs')) {
+    return 'javascript'
+  }
+  if (fullName.endsWith('.ts')) {
+    return 'typescript'
+  }
+  if (fullName.endsWith('.py')) {
+    return 'python'
+  }
+  if (fullName.endsWith('.java')) {
+    return 'java'
+  }
+  if (fullName.endsWith('.go')) {
+    return 'go'
+  }
+  if (fullName.endsWith('.sql')) {
+    return 'sql'
+  }
+  if (fullName.endsWith('.md') || fullName.endsWith('.markdown')) {
+    return 'markdown'
+  }
+  if (fullName.endsWith('.html') || fullName.endsWith('.htm')) {
+    return 'html'
+  }
+  if (fullName.endsWith('.css')) {
+    return 'css'
+  }
+  if (fullName.endsWith('.dockerfile') || fullName === 'dockerfile') {
+    return 'dockerfile'
+  }
+  
+  // 默认使用纯文本
+  return 'plaintext'
 }
 
 // 显示模版选择
