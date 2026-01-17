@@ -199,6 +199,11 @@ func verifySignature(body []byte, secret, signature string) bool {
 		return false
 	}
 
+	// 首先简单判断，如果和secret相等则直接返回true
+	if signature == secret {
+		return true
+	}
+
 	// 支持多种签名格式
 	// Docker Hub: sha256=xxxxx
 	// Harbor: sha256:xxxxx
