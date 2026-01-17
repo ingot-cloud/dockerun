@@ -562,9 +562,9 @@ const handleDelete = async (config: WebhookConfig) => {
 const showWebhookUrl = async (config: WebhookConfig) => {
   currentConfig.value = config
   
-  // 使用新模式的 URL：基于 Registry ID
+  // 使用 Webhook ID（包含 secret 验证）
   const baseURL = window.location.origin
-  webhookUrl.value = `${baseURL}/webhooks/registry/${config.registry_id}`
+  webhookUrl.value = `${baseURL}/webhooks/${config.id}`
   
   urlDialogVisible.value = true
 }
@@ -593,7 +593,7 @@ const registryConfigYaml = computed(() => {
       threshold: 5
       backoff: 1s${currentConfig.value?.secret ? `
       headers:
-        Authorization: [${currentConfig.value.secret}]` : ''}
+        X-Registry-Signature: [${currentConfig.value.secret}]` : ''}
       `
   
   return config

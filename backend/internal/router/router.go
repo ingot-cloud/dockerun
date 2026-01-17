@@ -39,8 +39,7 @@ func Setup() *gin.Engine {
 	}
 
 	// Webhook 公开接口（不需要认证，Registry 调用）
-	r.POST("/webhooks/:id", handler.ReceiveWebhook)                   // 旧模式：基于 WebhookConfig ID
-	r.POST("/webhooks/registry/:registryId", handler.HandleWebhookByRegistry) // 新模式：基于 Registry ID
+	r.POST("/webhooks/:id", handler.ReceiveWebhook)
 
 	// 需要认证的接口
 	protected := r.Group("/api")

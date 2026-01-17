@@ -104,7 +104,7 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 	db := database.GetDB()
 	startTime := time.Now()
 
-	log.Printf("[Webhook] Worker %d processing task: log_id=%d", workerID, task.WebhookLogID)
+	log.Printf("[Webhook] Worker %d processing task: log_id=%d, script_id=%d", workerID, task.WebhookLogID, task.DeployScriptID)
 
 	// 更新日志状态为 processing
 	now := time.Now()
@@ -113,78 +113,33 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 		"started_at": &now,
 	})
 
-	// 判断使用新模式还是旧模式
-	var config models.WebhookConfig
-	var script *models.DeployScript
+	// 加载 DeployScript
+	var script models.DeployScript
+	if err := db.First(&script, task.DeployScriptID).Error; err != nil {
+		q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load deploy script: %v", err), startTime)
+		return
+	}
+
+	// 手动加载DeployScript的Files
+	var files []models.DeployScriptFile
+	if err := db.Where("deploy_script_id = ?", script.ID).Find(&files).Error; err == nil {
+		script.Files = files
+	}
+
+	// 加载 Registry（如果有）
 	var registry *models.Registry
-
-	if task.DeployScriptID > 0 {
-		// 新模式：直接加载 DeployScript
-		var s models.DeployScript
-		if err := db.First(&s, task.DeployScriptID).Error; err != nil {
-			q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load deploy script: %v", err), startTime)
-			return
-		}
-
-		// 手动加载DeployScript的Files
-		var files []models.DeployScriptFile
-		if err := db.Where("deploy_script_id = ?", s.ID).Find(&files).Error; err == nil {
-			s.Files = files
-		}
-		script = &s
-
-		// 加载 Registry（如果有）
-		if task.RegistryID != "" {
-			var reg models.Registry
-			if err := db.First(&reg, task.RegistryID).Error; err == nil {
-				registry = &reg
-			}
-		}
-
-		// 构造临时 config 对象（用于兼容旧代码）
-		config.RemoveOldImage = task.RemoveOldImage
-		config.RemoveOldContainer = task.RemoveOldContainer
-		config.DeployScript = script
-		config.Registry = registry
-	} else {
-		// 旧模式：加载 WebhookConfig
-		if err := db.First(&config, task.ConfigID).Error; err != nil {
-			q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load config: %v", err), startTime)
-			return
-		}
-
-		// 手动加载Registry
-		if config.RegistryID > 0 {
-			var reg models.Registry
-			if err := db.First(&reg, config.RegistryID).Error; err == nil {
-				config.Registry = &reg
-			}
-		}
-
-		// 手动加载DeployScript
-		if config.DeployScriptID > 0 {
-			var s models.DeployScript
-			if err := db.First(&s, config.DeployScriptID).Error; err != nil {
-				q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to load deploy script: %v", err), startTime)
-				return
-			}
-
-			// 手动加载DeployScript的Files
-			var files []models.DeployScriptFile
-			if err := db.Where("deploy_script_id = ?", s.ID).Find(&files).Error; err == nil {
-				s.Files = files
-			}
-
-			config.DeployScript = &s
+	if task.RegistryID != "" {
+		var reg models.Registry
+		if err := db.First(&reg, task.RegistryID).Error; err == nil {
+			registry = &reg
 		}
 	}
 
 	// 构建完整的镜像名
-	// 如果配置了 Registry，需要添加 registry 地址前缀
 	fullImageName := task.ImageName
-	if config.RegistryID > 0 && config.Registry != nil {
+	if registry != nil {
 		// 从 Registry URL 中提取地址（去掉 http:// 或 https://）
-		registryAddr := config.Registry.URL
+		registryAddr := registry.URL
 		registryAddr = strings.TrimPrefix(registryAddr, "http://")
 		registryAddr = strings.TrimPrefix(registryAddr, "https://")
 		registryAddr = strings.TrimSuffix(registryAddr, "/")
@@ -198,7 +153,7 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 	}
 
 	// 步骤1: 清理旧容器（如果配置了）
-	if config.RemoveOldContainer {
+	if task.RemoveOldContainer {
 		log.Printf("[Webhook] Removing old containers for image: %s", fullImageName)
 		if err := q.removeOldContainers(fullImageName); err != nil {
 			log.Printf("[Webhook] Warning: Failed to remove old containers: %v", err)
@@ -206,7 +161,7 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 	}
 
 	// 步骤2: 清理旧镜像（如果配置了）
-	if config.RemoveOldImage {
+	if task.RemoveOldImage {
 		log.Printf("[Webhook] Removing old image: %s", fullImageName)
 		if err := q.removeOldImage(fullImageName); err != nil {
 			log.Printf("[Webhook] Warning: Failed to remove old image: %v", err)
@@ -215,14 +170,14 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 
 	// 步骤3: 拉取新镜像
 	log.Printf("[Webhook] Pulling new image: %s", fullImageName)
-	if err := q.pullImage(fullImageName, &config); err != nil {
+	if err := q.pullImage(fullImageName, registry); err != nil {
 		q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to pull image: %v", err), startTime)
 		return
 	}
 
 	// 步骤4: 执行部署脚本
-	log.Printf("[Webhook] Executing deploy script: %s", config.DeployScript.Name)
-	if err := q.executeDeployScript(&config); err != nil {
+	log.Printf("[Webhook] Executing deploy script: %s", script.Name)
+	if err := q.executeDeployScript(&script, task.ImageName, task.ImageTag, registry); err != nil {
 		q.updateLogFailed(task.WebhookLogID, fmt.Sprintf("Failed to execute deploy script: %v", err), startTime)
 		return
 	}
@@ -235,12 +190,6 @@ func (q *TaskQueue) processTask(workerID int, task *DeployTask) {
 		"message":        fmt.Sprintf("Successfully deployed %s", fullImageName),
 		"completed_at":   &completedAt,
 		"execution_time": duration,
-	})
-
-	// 更新配置的触发统计
-	db.Model(&models.WebhookConfig{}).Where("id = ?", task.ConfigID).Updates(map[string]interface{}{
-		"last_triggered_at": &completedAt,
-		"trigger_count":     db.Raw("trigger_count + 1"),
 	})
 
 	log.Printf("[Webhook] Task completed successfully: log_id=%d, duration=%ds", task.WebhookLogID, duration)
@@ -296,7 +245,7 @@ func (q *TaskQueue) removeOldImage(imageName string) error {
 }
 
 // pullImage 拉取镜像
-func (q *TaskQueue) pullImage(imageName string, config *models.WebhookConfig) error {
+func (q *TaskQueue) pullImage(imageName string, reg *models.Registry) error {
 	ctx := context.Background()
 	cli := docker.GetClient()
 
@@ -304,22 +253,19 @@ func (q *TaskQueue) pullImage(imageName string, config *models.WebhookConfig) er
 	pullOptions := dockerTypes.ImagePullOptions{}
 
 	// 如果配置了 Registry 且有认证信息，添加认证
-	if config.RegistryID > 0 && config.Registry != nil {
-		reg := config.Registry
-		if reg.Username != "" && reg.Password != "" {
-			authConfig := registry.AuthConfig{
-				Username:      reg.Username,
-				Password:      reg.Password,
-				ServerAddress: reg.URL,
-			}
+	if reg != nil && reg.Username != "" && reg.Password != "" {
+		authConfig := registry.AuthConfig{
+			Username:      reg.Username,
+			Password:      reg.Password,
+			ServerAddress: reg.URL,
+		}
 
-			// 编码认证信息
-			encodedAuth, err := encodeAuthConfig(authConfig)
-			if err != nil {
-				log.Printf("[Webhook] Warning: Failed to encode auth config: %v", err)
-			} else {
-				pullOptions.RegistryAuth = encodedAuth
-			}
+		// 编码认证信息
+		encodedAuth, err := encodeAuthConfig(authConfig)
+		if err != nil {
+			log.Printf("[Webhook] Warning: Failed to encode auth config: %v", err)
+		} else {
+			pullOptions.RegistryAuth = encodedAuth
 		}
 	}
 
@@ -331,7 +277,7 @@ func (q *TaskQueue) pullImage(imageName string, config *models.WebhookConfig) er
 		if strings.Contains(errMsg, "server gave HTTP response to HTTPS client") {
 			// 提供详细的错误提示
 			registryHost := extractRegistryHost(imageName)
-			if config.RegistryID > 0 && config.Registry != nil && config.Registry.Insecure {
+			if reg != nil && reg.Insecure {
 				return fmt.Errorf("failed to pull image: Registry is configured as insecure, but Docker daemon requires HTTPS. "+
 					"Please add '%s' to Docker daemon's insecure-registries configuration. "+
 					"See INSECURE_REGISTRY.md for instructions. Original error: %w", registryHost, err)
@@ -384,10 +330,9 @@ func encodeAuthConfig(authConfig registry.AuthConfig) (string, error) {
 }
 
 // executeDeployScript 执行部署脚本
-func (q *TaskQueue) executeDeployScript(webhookConfig *models.WebhookConfig) error {
-	script := webhookConfig.DeployScript
+func (q *TaskQueue) executeDeployScript(script *models.DeployScript, imageName, imageTag string, registry *models.Registry) error {
 	if script == nil {
-		return fmt.Errorf("deploy script not loaded")
+		return fmt.Errorf("deploy script is nil")
 	}
 
 	log.Printf("[Webhook] Executing deploy script: %s (id=%d)", script.Name, script.ID)
@@ -407,7 +352,7 @@ func (q *TaskQueue) executeDeployScript(webhookConfig *models.WebhookConfig) err
 			workDir = filepath.Join(systemConfig.DeployWorkDir, fmt.Sprintf("script-%d", script.ID))
 		} else {
 			// 如果系统配置不存在，使用临时目录
-			workDir = filepath.Join(os.TempDir(), fmt.Sprintf("dockerun-webhook-%d-%d", webhookConfig.ID, time.Now().Unix()))
+			workDir = filepath.Join(os.TempDir(), fmt.Sprintf("dockerun-webhook-%d-%d", script.ID, time.Now().Unix()))
 			useTemp = true
 		}
 	}
@@ -473,10 +418,10 @@ func (q *TaskQueue) executeDeployScript(webhookConfig *models.WebhookConfig) err
 	env = append(env, fmt.Sprintf("DOCKER_NETWORK=%s", appConfig.NetworkName))
 
 	// 添加触发信息环境变量（方便脚本使用）
-	env = append(env, fmt.Sprintf("WEBHOOK_IMAGE_NAME=%s", webhookConfig.ImageName))
-	env = append(env, fmt.Sprintf("WEBHOOK_IMAGE_TAG=%s", webhookConfig.ImageTag))
-	if webhookConfig.Registry != nil {
-		env = append(env, fmt.Sprintf("WEBHOOK_REGISTRY_URL=%s", webhookConfig.Registry.URL))
+	env = append(env, fmt.Sprintf("WEBHOOK_IMAGE_NAME=%s", imageName))
+	env = append(env, fmt.Sprintf("WEBHOOK_IMAGE_TAG=%s", imageTag))
+	if registry != nil {
+		env = append(env, fmt.Sprintf("WEBHOOK_REGISTRY_URL=%s", registry.URL))
 	}
 
 	// 6. 执行脚本

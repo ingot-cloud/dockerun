@@ -54,8 +54,8 @@ type WebhookEventTarget struct {
 // @Success 200 {object} map[string]interface{}
 // @Router /webhooks/{id} [post]
 func ReceiveWebhook(c *gin.Context) {
-	configID := c.Param("id")
-	log.Printf("[Webhook] ReceiveWebhook: id=%s", configID)
+	webhookID := c.Param("id")
+	log.Printf("[Webhook] ReceiveWebhook: webhookId=%s", webhookID)
 
 	// 读取请求体
 	body, err := io.ReadAll(c.Request.Body)
@@ -69,59 +69,41 @@ func ReceiveWebhook(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "received"})
 
 	// 异步处理 Webhook
-	go processWebhook(configID, body, c.Request.Header)
-}
-
-// loadWebhookConfigRelations 加载WebhookConfig的关联数据
-func loadWebhookConfigRelations(db *gorm.DB, config *models.WebhookConfig) error {
-	// 加载Registry
-	if config.RegistryID > 0 {
-		var registry models.Registry
-		if err := db.First(&registry, config.RegistryID).Error; err == nil {
-			config.Registry = &registry
-		}
-	}
-
-	// 加载DeployScript
-	if config.DeployScriptID > 0 {
-		var script models.DeployScript
-		if err := db.First(&script, config.DeployScriptID).Error; err == nil {
-			config.DeployScript = &script
-		}
-	}
-
-	return nil
+	go processWebhook(webhookID, body, c.Request.Header)
 }
 
 // processWebhook 异步处理 Webhook
-func processWebhook(configID string, body []byte, headers http.Header) {
+func processWebhook(webhookID string, body []byte, headers http.Header) {
 	db := database.GetDB()
 
-	// 加载配置
-	var config models.WebhookConfig
-	if err := db.First(&config, configID).Error; err != nil {
-		log.Printf("[Webhook] Config not found: id=%s, error=%v", configID, err)
+	// 加载 Webhook 配置
+	var webhookConfig models.WebhookConfig
+	if err := db.First(&webhookConfig, webhookID).Error; err != nil {
+		log.Printf("[Webhook] Webhook config not found: id=%s, error=%v", webhookID, err)
 		return
 	}
 
-	// 手动加载关联数据
-	loadWebhookConfigRelations(db, &config)
-
-	// 检查是否启用
-	if !config.Enabled {
-		log.Printf("[Webhook] Config disabled: id=%s", configID)
+	// 加载关联的 Registry
+	var registry models.Registry
+	if err := db.First(&registry, webhookConfig.RegistryID).Error; err != nil {
+		log.Printf("[Webhook] Registry not found: id=%d, error=%v", webhookConfig.RegistryID, err)
 		return
 	}
+
+	log.Printf("[Webhook] Processing webhook: %s (id=%s) for registry: %s", webhookConfig.Name, webhookID, registry.Name)
 
 	// 验证签名（如果配置了 Secret）
-	if config.Secret != "" {
-		signature := headers.Get("X-Hub-Signature")
+	if webhookConfig.Secret != "" {
+		signature := headers.Get("X-Registry-Signature")
 		if signature == "" {
-			signature = headers.Get("X-Registry-Signature") // Harbor 使用的签名头
+			signature = headers.Get("X-Hub-Signature-256")
+		}
+		if signature == "" {
+			signature = headers.Get("X-Gitlab-Token")
 		}
 
-		if !verifySignature(body, config.Secret, signature) {
-			log.Printf("[Webhook] Signature verification failed: id=%s", configID)
+		if !verifySignature(body, webhookConfig.Secret, signature) {
+			log.Printf("[Webhook] Signature verification failed for webhook: %s", webhookID)
 			return
 		}
 	}
@@ -133,61 +115,82 @@ func processWebhook(configID string, body []byte, headers http.Header) {
 		return
 	}
 
-	log.Printf("[Webhook] payload=%v", payload)
+	log.Printf("[Webhook] Received %d events", len(payload.Events))
 
 	// 处理每个事件
 	for _, event := range payload.Events {
 		// 只处理 push 事件
 		if event.Action != "push" {
+			log.Printf("[Webhook] Skipping non-push event: action=%s", event.Action)
 			continue
 		}
 
 		imageName := event.Target.Repository
 		imageTag := event.Target.Tag
 
-		// 检查镜像名称是否匹配
-		if !matchImageName(config.ImageName, imageName) {
-			log.Printf("[Webhook] Image name not matched: config=%s, event=%s", config.ImageName, imageName)
+		log.Printf("[Webhook] Processing push event: image=%s, tag=%s", imageName, imageTag)
+
+		// 查找所有匹配的部署脚本
+		matchedScripts := findMatchingDeployScripts(db, imageName, imageTag)
+
+		if len(matchedScripts) == 0 {
+			log.Printf("[Webhook] No matching deploy scripts found for %s:%s", imageName, imageTag)
 			continue
 		}
 
-		// 检查标签是否匹配（如果配置了）
-		if config.ImageTag != "" && config.ImageTag != imageTag {
-			log.Printf("[Webhook] Image tag not matched: config=%s, event=%s", config.ImageTag, imageTag)
-			continue
-		}
+		log.Printf("[Webhook] Found %d matching scripts for %s:%s", len(matchedScripts), imageName, imageTag)
 
-		log.Printf("[Webhook] Matched event: image=%s:%s, config_id=%d", imageName, imageTag, config.ID)
+		// 为每个匹配的脚本创建部署任务
+		for _, script := range matchedScripts {
+			log.Printf("[Webhook] Creating task for script: %s (id=%d)", script.Name, script.ID)
 
-		// 创建日志记录
-		webhookLog := &models.WebhookLog{
-			WebhookConfigID: config.ID,
-			ImageName:       imageName,
-			ImageTag:        imageTag,
-			Status:          "pending",
-			Message:         fmt.Sprintf("Received push event for %s:%s", imageName, imageTag),
-		}
-		if err := db.Create(webhookLog).Error; err != nil {
-			log.Printf("[Webhook] Failed to create log: %v", err)
-			continue
-		}
+			// 创建 Webhook 日志
+			webhookLog := &models.WebhookLog{
+				WebhookConfigID: webhookConfig.ID,
+				ImageName:       imageName,
+				ImageTag:        imageTag,
+				Status:          "pending",
+				Message:         fmt.Sprintf("Auto-deploy triggered for script: %s", script.Name),
+			}
 
-		// 将任务加入队列
-		task := &webhook.DeployTask{
-			WebhookLogID: webhookLog.ID,
-			ConfigID:     config.ID,
-			ImageName:    imageName,
-			ImageTag:     imageTag,
-		}
+			if err := db.Create(webhookLog).Error; err != nil {
+				log.Printf("[Webhook] Failed to create webhook log: %v", err)
+				continue
+			}
 
-		if err := webhook.Enqueue(task); err != nil {
-			log.Printf("[Webhook] Failed to enqueue task: %v", err)
-			db.Model(webhookLog).Updates(map[string]interface{}{
-				"status":  "failed",
-				"message": fmt.Sprintf("Failed to enqueue task: %v", err),
-			})
+			// 创建部署任务
+			task := &webhook.DeployTask{
+				WebhookLogID:       webhookLog.ID,
+				DeployScriptID:     script.ID,
+				RegistryID:         fmt.Sprintf("%d", webhookConfig.RegistryID),
+				ImageName:          imageName,
+				ImageTag:           imageTag,
+				RemoveOldImage:     true, // 默认删除旧镜像
+				RemoveOldContainer: true, // 默认删除旧容器
+			}
+
+			if err := webhook.Enqueue(task); err != nil {
+				log.Printf("[Webhook] Failed to enqueue task: %v", err)
+				// 更新日志状态为失败
+				db.Model(webhookLog).Updates(map[string]interface{}{
+					"status":  "failed",
+					"message": fmt.Sprintf("Failed to enqueue task: %v", err),
+				})
+			}
 		}
 	}
+}
+
+func loadWebhookConfigRelations(db *gorm.DB, config *models.WebhookConfig) error {
+	// 加载Registry
+	if config.RegistryID > 0 {
+		var registry models.Registry
+		if err := db.First(&registry, config.RegistryID).Error; err == nil {
+			config.Registry = &registry
+		}
+	}
+
+	return nil
 }
 
 // verifySignature 验证签名
@@ -301,20 +304,11 @@ func CreateWebhookConfig(c *gin.Context) {
 		return
 	}
 
-	// 验证部署脚本存在
-	var script models.DeployScript
-	if err := db.First(&script, req.DeployScriptID).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Deploy script not found"})
+	// 验证 Registry 存在
+	var registry models.Registry
+	if err := db.First(&registry, req.RegistryID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Registry not found"})
 		return
-	}
-
-	// 如果指定了 Registry，验证其存在
-	if req.RegistryID > 0 {
-		var registry models.Registry
-		if err := db.First(&registry, req.RegistryID).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Registry not found"})
-			return
-		}
 	}
 
 	// 创建配置
@@ -346,16 +340,7 @@ func UpdateWebhookConfig(c *gin.Context) {
 		return
 	}
 
-	// 验证部署脚本存在
-	if req.DeployScriptID > 0 {
-		var script models.DeployScript
-		if err := db.First(&script, req.DeployScriptID).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Deploy script not found"})
-			return
-		}
-	}
-
-	// 如果指定了 Registry，验证其存在
+	// 验证 Registry 存在
 	if req.RegistryID > 0 {
 		var registry models.Registry
 		if err := db.First(&registry, req.RegistryID).Error; err != nil {
@@ -452,114 +437,6 @@ func GetWebhookURL(c *gin.Context) {
 		"url":  webhookURL,
 		"note": "Configure this URL in your Docker Registry webhook settings",
 	})
-}
-
-// HandleWebhookByRegistry 处理基于 Registry 的 Webhook（新模式）
-// 根据推送的镜像信息，自动匹配所有启用自动部署的脚本
-// @Summary 接收 Registry Webhook（新模式）
-// @Description 接收来自 Docker Registry 的 Webhook 推送事件，自动匹配部署脚本
-// @Tags Webhook
-// @Accept json
-// @Produce json
-// @Param registryId path int true "Registry ID"
-// @Success 200 {object} map[string]interface{}
-// @Router /webhooks/registry/{registryId} [post]
-func HandleWebhookByRegistry(c *gin.Context) {
-	registryID := c.Param("registryId")
-	log.Printf("[Webhook] HandleWebhookByRegistry: registryId=%s", registryID)
-
-	// 读取请求体
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		log.Printf("[Webhook] Failed to read request body: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	// 快速响应（避免 Registry 超时）
-	c.JSON(http.StatusOK, gin.H{"status": "received"})
-
-	// 异步处理 Webhook
-	go processRegistryWebhook(registryID, body, c.Request.Header)
-}
-
-// processRegistryWebhook 异步处理基于 Registry 的 Webhook
-func processRegistryWebhook(registryID string, body []byte, headers http.Header) {
-	db := database.GetDB()
-
-	// 验证 Registry 是否存在
-	var registry models.Registry
-	if err := db.First(&registry, registryID).Error; err != nil {
-		log.Printf("[Webhook] Registry not found: id=%s, error=%v", registryID, err)
-		return
-	}
-
-	log.Printf("[Webhook] Processing webhook for registry: %s (id=%s)", registry.Name, registryID)
-
-	// 解析 Payload
-	var payload WebhookPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
-		log.Printf("[Webhook] Failed to parse payload: %v", err)
-		return
-	}
-
-	log.Printf("[Webhook] Received %d events", len(payload.Events))
-
-	// 处理每个事件
-	for _, event := range payload.Events {
-		// 只处理 push 事件
-		if event.Action != "push" {
-			log.Printf("[Webhook] Skipping non-push event: action=%s", event.Action)
-			continue
-		}
-
-		imageName := event.Target.Repository
-		imageTag := event.Target.Tag
-
-		log.Printf("[Webhook] Processing push event: image=%s, tag=%s", imageName, imageTag)
-
-		// 查找所有匹配的部署脚本
-		matchedScripts := findMatchingDeployScripts(db, imageName, imageTag)
-
-		if len(matchedScripts) == 0 {
-			log.Printf("[Webhook] No matching deploy scripts found for %s:%s", imageName, imageTag)
-			continue
-		}
-
-		log.Printf("[Webhook] Found %d matching scripts for %s:%s", len(matchedScripts), imageName, imageTag)
-
-		// 为每个匹配的脚本创建部署任务
-		for _, script := range matchedScripts {
-			log.Printf("[Webhook] Creating task for script: %s (id=%d)", script.Name, script.ID)
-
-			// 创建 Webhook 日志（使用兼容方式）
-			webhookLog := &models.WebhookLog{
-				WebhookConfigID: 0, // 新模式下没有特定的 config ID
-				ImageName:       imageName,
-				ImageTag:        imageTag,
-				Status:          "pending",
-				Message:         fmt.Sprintf("Auto-deploy triggered for script: %s", script.Name),
-			}
-			db.Create(webhookLog)
-
-			// 创建部署任务
-			task := &webhook.DeployTask{
-				WebhookLogID:       webhookLog.ID,
-				DeployScriptID:     script.ID,
-				RegistryID:         registryID,
-				ImageName:          imageName,
-				ImageTag:           imageTag,
-				RemoveOldImage:     true, // 默认删除旧镜像
-				RemoveOldContainer: true, // 默认删除旧容器
-			}
-
-			if err := webhook.Enqueue(task); err != nil {
-				log.Printf("[Webhook] Failed to enqueue task: %v", err)
-			} else {
-				log.Printf("[Webhook] Task added to queue for script: %s", script.Name)
-			}
-		}
-	}
 }
 
 // findMatchingDeployScripts 查找匹配的部署脚本
