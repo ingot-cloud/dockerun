@@ -1095,6 +1095,9 @@ const handleCreate = () => {
   form.main_script = exampleScript
   form.work_dir = '/ingot-data/dockerun'
   form.env_vars = {}
+  form.auto_deploy = false
+  form.image_name = ''
+  form.image_tag = ''
   
   // 默认包含通用的 Docker 部署管理脚本
   form.files = [
@@ -1141,7 +1144,10 @@ const handleEdit = async (script: DeployScript) => {
     form.work_dir = data.work_dir || '/ingot-data/dockerun'
     form.env_vars = data.env_vars || {}
     form.files = data.files || []
-    
+    form.auto_deploy = data.auto_deploy || false
+    form.image_name = data.image_name || ''
+    form.image_tag = data.image_tag || ''
+
     dialogVisible.value = true
   } catch (error: any) {
     console.error('Failed to load script:', error)
