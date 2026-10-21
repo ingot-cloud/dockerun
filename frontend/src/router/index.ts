@@ -38,8 +38,21 @@ const router = createRouter({
         {
           path: 'containers',
           name: 'Containers',
-          component: () => import('@/views/Containers.vue')
+          component: () => import('@/views/Containers.vue'),
+          meta: { title: '容器', admin: true }
         },
+        {
+          path: 'containers/:id',
+          name: 'ContainerDetail',
+          component: () => import('@/views/ContainerDetail.vue'),
+          meta: { title: '容器详情', admin: true }
+        },
+        ...(['logs', 'inspect', 'stats', 'exec', 'attach'] as const).map(view => ({
+          path: `containers/:id/${view}`,
+          name: { logs: 'ContainerLogs', inspect: 'ContainerInspect', stats: 'ContainerStats', exec: 'ContainerExec', attach: 'ContainerAttach' }[view],
+          component: () => import('@/views/ContainerWorkspace.vue'),
+          meta: { title: { logs: '容器日志', inspect: '容器检查', stats: '容器统计', exec: '执行控制台', attach: '附加控制台' }[view], admin: true, containerView: view }
+        })),
         {
           path: 'images',
           name: 'Images',

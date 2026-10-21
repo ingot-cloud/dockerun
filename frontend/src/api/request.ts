@@ -28,6 +28,7 @@ request.interceptors.response.use(
     return response.data
   },
   error => {
+    if (axios.isCancel(error)) return Promise.reject(error)
     if (error.response) {
       const { status, data } = error.response
       

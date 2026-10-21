@@ -4,14 +4,17 @@ import (
 	"dockerun/internal/docker"
 	"io"
 	"net/http"
+	"strconv"
 
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/gin-gonic/gin"
 )
 
 // ListContainers 列出所有容器
 func ListContainers(c *gin.Context) {
 	showAll := c.DefaultQuery("all", "true") == "true"
-	
+
 	containers, err := docker.ListContainers(showAll)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -24,7 +27,7 @@ func ListContainers(c *gin.Context) {
 // InspectContainer 获取容器详情
 func InspectContainer(c *gin.Context) {
 	containerID := c.Param("id")
-	
+
 	container, err := docker.InspectContainer(containerID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "容器不存在"})
@@ -37,7 +40,7 @@ func InspectContainer(c *gin.Context) {
 // StartContainer 启动容器
 func StartContainer(c *gin.Context) {
 	containerID := c.Param("id")
-	
+
 	if err := docker.StartContainer(containerID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -49,7 +52,7 @@ func StartContainer(c *gin.Context) {
 // StopContainer 停止容器
 func StopContainer(c *gin.Context) {
 	containerID := c.Param("id")
-	
+
 	if err := docker.StopContainer(containerID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -61,7 +64,7 @@ func StopContainer(c *gin.Context) {
 // RestartContainer 重启容器
 func RestartContainer(c *gin.Context) {
 	containerID := c.Param("id")
-	
+
 	if err := docker.RestartContainer(containerID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -74,7 +77,7 @@ func RestartContainer(c *gin.Context) {
 func RemoveContainer(c *gin.Context) {
 	containerID := c.Param("id")
 	force := c.DefaultQuery("force", "false") == "true"
-	
+
 	if err := docker.RemoveContainer(containerID, force); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -87,8 +90,24 @@ func RemoveContainer(c *gin.Context) {
 func GetContainerLogs(c *gin.Context) {
 	containerID := c.Param("id")
 	tail := c.DefaultQuery("tail", "100")
-	
-	logs, err := docker.GetContainerLogs(containerID, tail)
+	if tail != "all" {
+		lines, err := strconv.Atoi(tail)
+		if err != nil || lines < 1 || lines > 100000 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "日志行数必须为 1 到 100000"})
+			return
+		}
+	}
+	info, err := docker.Client.ContainerInspect(c.Request.Context(), containerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法读取容器信息"})
+		return
+	}
+
+	logs, err := docker.Client.ContainerLogs(c.Request.Context(), containerID, container.LogsOptions{
+		ShowStdout: true, ShowStderr: true, Tail: tail,
+		Timestamps: c.DefaultQuery("timestamps", "true") == "true",
+		Since:      c.Query("since"), Until: c.Query("until"),
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -96,14 +115,18 @@ func GetContainerLogs(c *gin.Context) {
 	defer logs.Close()
 
 	c.Header("Content-Type", "text/plain; charset=utf-8")
-	io.Copy(c.Writer, logs)
+	if info.Config != nil && info.Config.Tty {
+		io.Copy(c.Writer, logs)
+	} else {
+		stdcopy.StdCopy(c.Writer, c.Writer, logs)
+	}
 }
 
 // GetContainerStats 获取容器统计信息
 func GetContainerStats(c *gin.Context) {
 	containerID := c.Param("id")
-	
-	stats, err := docker.GetContainerStats(containerID)
+
+	stats, err := docker.GetContainerStats(c.Request.Context(), containerID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -111,4 +134,3 @@ func GetContainerStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, stats)
 }
-

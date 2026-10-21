@@ -1,0 +1,26 @@
+.container-resource { --el-color-primary: #33a7d5; --el-fill-color-blank: #202020; --el-border-color: #444; --el-text-color-regular: #ddd; --el-text-color-placeholder: #999; display: flex; flex-direction: column; gap: 16px; min-width: 0; color: #ddd; font-size: 13px; }
+.container-resource .resource-heading { display: flex; align-items: center; gap: 16px; justify-content: space-between; flex-shrink: 0; min-height: 28px; }
+.container-resource h1 { font-size: 18px; font-weight: 600; margin: 0; }
+.container-resource .resource-heading-actions { display: flex; align-items: center; gap: 16px; }
+.container-resource a { color: #35acd7; text-decoration: none; }.container-resource a:hover { color: #85d3ee; text-decoration: underline; }
+.container-resource .resource-card { background: #202020; border: 1px solid #333; border-radius: 10px; overflow: hidden; padding: 18px 20px; }
+.container-resource .resource-card-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
+.container-resource h2 { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; margin: 0; white-space: nowrap; }
+.container-resource .resource-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #303844; color: #c6d4e5; }
+.container-resource .resource-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; line-height: 1.8; text-align: left; }
+.container-resource .resource-table > tbody > tr > th { width: 180px; font-weight: 500; color: #aaa; }
+.container-resource .resource-table th, .container-resource .resource-table td { padding: 9px 12px; border-bottom: 1px solid #373737; vertical-align: top; overflow-wrap: anywhere; }
+.container-resource .resource-table thead { background: #303030; color: #ccc; }.container-resource .resource-table thead th { font-weight: 500; }
+.container-resource .key-value-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }.container-resource .key-value-table th { width: 32%; font-weight: 400; color: #bbb; text-align: left; }
+.container-resource .key-value-table th, .container-resource .key-value-table td { padding: 4px 8px; border: 0; overflow-wrap: anywhere; }
+.container-resource code { font: 12px/1.7 Menlo, Monaco, Consolas, monospace; overflow-wrap: anywhere; }
+.container-resource .resource-form { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px 12px; align-items: center; font-size: 12px; }
+.container-resource .resource-form > label { font-weight: 500; }.container-resource .form-wide { max-width: 100%; }.container-resource .form-control { width: 240px; max-width: 100%; }
+.container-resource .resource-inline { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }.container-resource .resource-inline > .el-button { margin-left: 0; }
+.container-resource .resource-help { color: #999; font-size: 12px; line-height: 1.8; margin: 0; }.container-resource .resource-error { margin: 0; }.container-resource .resource-muted { color: #888; }
+.container-resource .resource-table-scroll { overflow: auto; }
+.container-resource .resource-state { display: inline-flex; align-items: center; border-radius: 10px; padding: 0 8px; line-height: 20px; background: #414141; color: #ddd; font-size: 11px; }.container-resource .resource-state.running { background: #145f3c; color: #d2f5e4; }.container-resource .resource-state.paused { background: #665023; color: #f9e1b5; }
+.container-resource .el-button { font-size: 12px; }.container-resource .el-button > span { gap: 5px; }
+.container-resource .el-input__wrapper, .container-resource .el-select__wrapper { background: #171717; border: 1px solid #444; box-shadow: none; border-radius: 4px; }.container-resource .el-input__wrapper.is-focus, .container-resource .el-select__wrapper.is-focused { border-color: #33a7d5; }
+.container-resource .resource-empty { display: grid; place-items: center; min-height: 160px; color: #999; }.container-resource .resource-heading a { font-size: 12px; }
+@media(max-width:760px) { .container-resource .resource-card { padding: 14px; }.container-resource .resource-form { grid-template-columns: 100px minmax(0, 1fr); }.container-resource .resource-table > tbody > tr > th { width: 100px; }.container-resource .resource-heading { align-items: flex-start; }.container-resource .resource-heading-actions { gap: 8px; }.container-resource .resource-table th, .container-resource .resource-table td { padding: 8px; } }

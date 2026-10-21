@@ -11,6 +11,7 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/opencontainers/go-digest v1.0.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/sys v0.48.0

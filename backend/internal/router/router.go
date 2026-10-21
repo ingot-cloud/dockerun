@@ -59,6 +59,8 @@ func Setup() *gin.Engine {
 	// 公开接口
 	public := r.Group("/api")
 	{
+		// 控制台 WebSocket 仅接受由已认证管理员签发的一次性票据。
+		public.GET("/containers/:id/console/ws", handler.ContainerConsoleSocket)
 		// 认证相关
 		public.POST("/auth/login", handler.Login)
 		public.GET("/auth/check-setup", handler.CheckInitialSetup)
@@ -139,9 +141,17 @@ func Setup() *gin.Engine {
 		protected.POST("/containers/:id/start", handler.StartContainer)
 		protected.POST("/containers/:id/stop", handler.StopContainer)
 		protected.POST("/containers/:id/restart", handler.RestartContainer)
+		protected.POST("/containers/:id/kill", handler.KillContainer)
+		protected.POST("/containers/:id/pause", handler.PauseContainer)
+		protected.POST("/containers/:id/resume", handler.ResumeContainer)
+		protected.POST("/containers/:id/rename", handler.RenameContainer)
+		protected.PUT("/containers/:id/restart-policy", handler.UpdateContainerRestart)
+		protected.POST("/containers/:id/commit", handler.CommitContainer)
+		protected.POST("/containers/:id/console", handler.CreateContainerConsole)
 		protected.DELETE("/containers/:id", handler.RemoveContainer)
 		protected.GET("/containers/:id/logs", handler.GetContainerLogs)
 		protected.GET("/containers/:id/stats", handler.GetContainerStats)
+		protected.GET("/containers/:id/top", handler.GetContainerProcesses)
 
 		// 镜像管理
 		protected.GET("/images", handler.ListImages)

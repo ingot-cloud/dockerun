@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 
 	"github.com/docker/docker/api/types"
@@ -59,9 +60,13 @@ func GetContainerLogs(containerID string, tail string) (io.ReadCloser, error) {
 }
 
 // GetContainerStats 获取容器统计信息
-func GetContainerStats(containerID string) (types.ContainerStats, error) {
-	ctx := context.Background()
+func GetContainerStats(ctx context.Context, containerID string) (types.StatsJSON, error) {
 	stats, err := Client.ContainerStats(ctx, containerID, false)
-	return stats, err
+	if err != nil {
+		return types.StatsJSON{}, err
+	}
+	defer stats.Body.Close()
+	var result types.StatsJSON
+	err = json.NewDecoder(stats.Body).Decode(&result)
+	return result, err
 }
-

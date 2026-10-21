@@ -5,7 +5,7 @@ import { resolve } from 'path'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const backend = env.VITE_BACKEND_URL || 'http://127.0.0.1:8080'
-  const proxy = { target: backend, changeOrigin: true }
+  const proxy = { target: backend, changeOrigin: true, ws: true }
   return {
     plugins: [vue()],
     resolve: {

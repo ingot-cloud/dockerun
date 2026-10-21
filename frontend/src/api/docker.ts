@@ -1,16 +1,25 @@
 import request from './request'
+import type { ContainerDetails, ContainerStats } from '@/utils/containers'
 
 export const dockerApi = {
   // 容器相关
   containers: {
     list: (all = true) => request.get('/containers', { params: { all } }),
-    inspect: (id: string) => request.get(`/containers/${id}`),
+    inspect: (id: string, signal?: AbortSignal) => request.get<unknown, ContainerDetails>(`/containers/${id}`, { signal }),
     start: (id: string) => request.post(`/containers/${id}/start`),
     stop: (id: string) => request.post(`/containers/${id}/stop`),
     restart: (id: string) => request.post(`/containers/${id}/restart`),
+    kill: (id: string) => request.post(`/containers/${id}/kill`),
+    pause: (id: string) => request.post(`/containers/${id}/pause`),
+    resume: (id: string) => request.post(`/containers/${id}/resume`),
+    rename: (id: string, name: string) => request.post(`/containers/${id}/rename`, { name }),
+    updateRestart: (id: string, name: string, maximum_retry_count = 0) => request.put(`/containers/${id}/restart-policy`, { name, maximum_retry_count }),
+    commit: (id: string, image: string) => request.post(`/containers/${id}/commit`, { image }, { timeout: 300000 }),
     remove: (id: string, force = false) => request.delete(`/containers/${id}`, { params: { force } }),
-    logs: (id: string, tail = '100') => request.get(`/containers/${id}/logs`, { params: { tail } }),
-    stats: (id: string) => request.get(`/containers/${id}/stats`)
+    logs: (id: string, tail = '100', options: { since?: number; timestamps?: boolean; signal?: AbortSignal } = {}) => request.get<unknown, string>(`/containers/${id}/logs`, { params: { tail, since: options.since, timestamps: options.timestamps ?? true }, responseType: 'text', signal: options.signal }),
+    stats: (id: string, signal?: AbortSignal) => request.get<unknown, ContainerStats>(`/containers/${id}/stats`, { signal }),
+    top: (id: string, signal?: AbortSignal) => request.get<unknown, { Titles: string[]; Processes: string[][] }>(`/containers/${id}/top`, { signal }),
+    console: (id: string, options: { mode: 'exec' | 'attach'; command: string[]; user: string }) => request.post<unknown, { ticket: string }>(`/containers/${id}/console`, options)
   },
 
   // 镜像相关
