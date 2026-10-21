@@ -1,66 +1,67 @@
 package middleware
 
 import (
-	"dockerun/internal/config"
+	"dockerun/internal/identity"
+	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
-
-type Claims struct {
-	UserID   uint   `json:"user_id"`
-	Username string `json:"username"`
-	IsAdmin  bool   `json:"is_admin"`
-	jwt.RegisteredClaims
-}
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 获取token
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供认证令牌"})
-			c.Abort()
+		raw := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
+		u, _, err := identity.Validate(raw, "web")
+		if strings.HasPrefix(raw, "dku_") {
+			var scopes []string
+			u, scopes, err = identity.Automation(raw)
+			c.Set("token_scopes", scopes)
+			c.Set("automation", true)
+		}
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "登录已失效"})
 			return
 		}
-
-		// 解析Bearer token
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证令牌格式错误"})
-			c.Abort()
-			return
+		if c.GetBool("automation") {
+			p := c.Request.URL.Path
+			if strings.HasPrefix(p, "/api/auth/") && p != "/api/auth/me" {
+				c.AbortWithStatusJSON(403, gin.H{"error": "自动化令牌不能管理账号或签发其他令牌"})
+				return
+			}
+			if strings.HasPrefix(p, "/api/builtin/") {
+				scopes, _ := c.Get("token_scopes")
+				v, _ := scopes.([]string)
+				if !identity.Has(v, "pull") {
+					c.AbortWithStatus(403)
+					return
+				}
+			}
 		}
-
-		tokenString := parts[1]
-
-		// 验证token
-		cfg := config.Load()
-		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte(cfg.JWTSecret), nil
-		})
-
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证令牌无效"})
-			c.Abort()
-			return
-		}
-
-		claims, ok := token.Claims.(*Claims)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证令牌解析失败"})
-			c.Abort()
-			return
-		}
-
-		// 将用户信息存入上下文
-		c.Set("user_id", claims.UserID)
-		c.Set("username", claims.Username)
-		c.Set("is_admin", claims.IsAdmin)
-
+		c.Set("user_id", u.ID)
+		c.Set("username", u.Username)
+		c.Set("is_admin", u.IsAdmin)
+		c.Set("user", u)
 		c.Next()
 	}
 }
-
+func RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !c.GetBool("is_admin") {
+			c.AbortWithStatusJSON(403, gin.H{"error": "此操作需要管理员权限"})
+			return
+		}
+		if c.GetBool("automation") {
+			scopes, _ := c.Get("token_scopes")
+			s, _ := scopes.([]string)
+			if !identity.Has(s, "deploy") {
+				c.AbortWithStatusJSON(403, gin.H{"error": "令牌未授权部署操作"})
+				return
+			}
+			p := c.Request.URL.Path
+			if !(strings.HasPrefix(p, "/api/applications") || strings.HasPrefix(p, "/api/environments") || strings.HasPrefix(p, "/api/releases") || strings.HasPrefix(p, "/api/deployments") || strings.HasPrefix(p, "/api/bundles")) {
+				c.AbortWithStatusJSON(403, gin.H{"error": "请使用网页登录执行系统管理"})
+				return
+			}
+		}
+		c.Next()
+	}
+}

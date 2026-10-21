@@ -1,215 +1,89 @@
-# DockeRun - 现代化 Docker 管理平台
+# Dockerun
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/go-1.23+-00ADD8?logo=go)](https://golang.org)
-[![Vue Version](https://img.shields.io/badge/vue-3.x-4FC08D?logo=vue.js)](https://vuejs.org)
+集成镜像仓库、应用发布和运行管理的轻量部署工具。一个 Dockerun 容器提供管理网页、内嵌 CNCF Distribution v3.1.2、用户认证和部署执行器，保留外部 Registry 连接。
 
-> **开发团队**: Ingot Cloud  
-> **核心开发**: JY  
-> **项目类型**: 开源 Docker 管理平台
+- 网页与 `docker login` 共用账号；普通用户按无权限、只读、读写授权。
+- 选择仓库、本机镜像或完整离线包发布，先准备镜像和预检查，再更新本应用的 Compose project。
+- 发布版本锁定 digest / Image ID；任务、配置快照、日志、健康及恢复结果持久化。
+- 发布包包含镜像、Compose 和非敏感配置；支持分块续传及服务器目录导入。
+- Portainer 风格暗色工作台，提供简单容器、Compose、环境、用户、仓库、任务和主机页面。
+- CLI 支持构建发布、打包、导入、晋升、状态和恢复；Agent 主动连接，固定主机组顺序发布。
 
-一个功能强大、界面现代的 Docker 管理平台，提供容器管理、镜像管理、Webhook 自动部署、代码编辑器等企业级功能。
+## 启动
 
-## ✨ 核心特性
-
-### 🐳 Docker 资源管理
-- **容器管理**: 启动/停止/重启、日志查看、命令行进入
-- **镜像管理**: 拉取/删除/标签、导入/导出镜像
-- **网络管理**: 创建/删除网络、容器网络连接
-- **卷管理**: 数据卷的完整生命周期管理
-- **私有仓库**: Docker Registry 集成与管理
-
-### 🚀 部署脚本管理
-- **智能编辑器**: 基于 Monaco Editor 的代码编辑器
-- **语法高亮**: 支持 Shell、YAML、JSON、Python、Go 等 20+ 种语言
-- **脚本类型**: Shell 脚本、Docker Compose
-- **模板系统**: 内置常用服务的部署模板
-- **文件管理**: 支持多文件配置和环境变量
-
-### 🔄 Webhook 自动部署
-- **Registry 集成**: 支持 Docker Hub、Harbor、GitLab Registry
-- **智能匹配**: 镜像名称和标签的通配符匹配
-- **自动化流程**: 
-  - 自动清理旧容器和镜像
-  - 自动拉取最新镜像
-  - 执行关联的部署脚本
-- **安全可靠**: HMAC-SHA256 签名验证、异步任务队列
-
-### 🎨 现代化界面
-- **暗色主题**: 专业的暗色设计风格
-- **响应式布局**: 适配各种屏幕尺寸
-- **统一组件**: 一致的 UI/UX 体验
-- **实时反馈**: WebSocket 实时日志输出
-
-### 🔒 安全特性
-- **AES 加密**: 敏感信息（密码）AES-256-CBC 加密
-- **JWT 认证**: Token 身份验证
-- **权限控制**: 完整的权限管理体系
-
-## 🏗️ 技术栈
-
-### 后端
-- **Go 1.23+** - 高性能后端语言
-- **Gin** - Web 框架
-- **GORM** - ORM 框架
-- **SQLite** - 嵌入式数据库（支持 MySQL）
-- **Docker SDK** - Docker API 集成
-
-### 前端
-- **Vue 3** - 渐进式 JavaScript 框架
-- **TypeScript** - 类型安全
-- **Pinia** - 状态管理
-- **Element Plus** - UI 组件库
-- **Monaco Editor** - 代码编辑器
-- **Vite** - 构建工具
-
-## 🚀 快速开始
-
-### 使用 Docker 运行（推荐）
+交付容器使用 Docker CLI 29；需要兼容的 Linux Docker Engine（API 1.44+，Docker 25+）与 Compose。支持 `linux/amd64`、`linux/arm64`；每个离线包对应一个平台。
 
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/ingot-cloud/dockerun.git
-cd dockerun
-
-# 2. 启动服务
-docker-compose up -d
-
-# 3. 访问应用
-# 浏览器打开: http://localhost:8080
-# 首次运行需要设置管理员密码
+cp .env.example .env
+# 修改 PUBLIC_URL，配置可用的 HTTPS 证书或现有反向代理。
+docker compose build
+docker compose up -d --no-build --pull never
 ```
 
-### 使用预构建脚本
+首次访问网页初始化管理员。数据统一持久化在 `/var/lib/dockerun`；该路径与宿主保持一致，以便 Docker 访问 Compose 配置及挂载文件。管理界面、`/api/`、`/v2/` 和 `/registry/token` 使用同一入口。
+
+离线安装先在联网机器准备同平台的 Dockerun 镜像，使用 `docker save` 交付，在目标机器 `docker load` 后运行上述启动命令。运行时不安装依赖、不读取外部 CDN。目标机器需预先安装 Docker Engine。
+
+## 本地开发启动
+
+先启动 Docker Desktop 或本机 Docker Engine。准备 Node 22.17.0、pnpm 10.12.4，以及支持自动工具链下载的 Go（Go 1.21+，`GOTOOLCHAIN` 不要设为 `local`）；项目实际使用 Go 1.26.0。首次启动需要联网下载工具链和依赖。
+
+在项目根目录先执行一次：
 
 ```bash
-# 运行部署脚本
-chmod +x run.sh
-./run.sh
-
-# 停止服务
-docker stop dockerun
+make install-deps
 ```
 
-### 手动构建
+然后打开两个终端，均切换到项目根目录：
 
 ```bash
-# 构建多架构镜像（支持 AMD64 和 ARM64）
-./build.sh
-
-# 推送到私有仓库
-docker push your-registry.com/dockerun:latest
+# 终端一：后端 API、内置 Registry 和部署执行器，默认 8080
+make dev-backend
 ```
-
-## 📦 配置说明
-
-### 环境变量
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `SERVER_ADDR` | 服务器监听地址 | `:8080` |
-| `DATABASE_TYPE` | 数据库类型 | `sqlite` |
-| `DATABASE_PATH` | SQLite 数据库路径 | `./data/dockerun.db` |
-| `MYSQL_DSN` | MySQL 连接字符串 | - |
-| `JWT_SECRET` | JWT 密钥 | `your-secret-key` |
-| `AES_KEY` | AES 加密密钥 | 自动生成 |
-| `AES_IV` | AES 初始化向量 | 自动生成 |
-| `NETWORK_NAME` | 默认 Docker 网络 | `ingot-net` |
-
-### Docker Compose 配置示例
-
-```yaml
-version: '3.8'
-
-services:
-  dockerun:
-    image: docker-registry.ingotcloud.top/ingot/dockerun:0.1.0
-    container_name: dockerun
-    restart: always
-    ports:
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /ingot-data/dockerun:/app/data
-      - /ingot-data/dockerun:/ingot-data/dockerun
-    environment:
-      - GIN_MODE=release
-      - JWT_SECRET=your-custom-secret-key
-      - NETWORK_NAME=ingot-net
-    networks:
-      - ingot-net
-
-networks:
-  ingot-net:
-    external: true
-```
-
-## 📖 文档
-
-### 用户指南
-- [更新日志](./CHANGELOG.md) - 版本更新记录
-- [开发路线图](./ROADMAP.md) - 未来规划
-
-### 详细文档（docs 目录）
-- **快速开始**: 快速上手指南
-- **部署指南**: 生产环境部署
-- **Webhook 配置**: 自动部署配置
-- **模板使用**: 部署模板说明
-- **安全指南**: AES 加密与最佳实践
-- **故障排查**: 常见问题解决
-
-更多文档请查看 [docs](./docs/) 目录。
-
-## 🎯 开发路线图
-
-查看 [ROADMAP.md](./ROADMAP.md) 了解未来规划：
-
-- ✅ 基础容器管理
-- ✅ 部署脚本管理
-- ✅ Webhook 自动部署
-- ✅ 代码编辑器集成
-- 🚧 Agent 分布式架构
-- 🚧 监控和日志系统
-- 📋 RBAC 权限控制
-- 📋 多租户支持
-
-## 🤝 贡献
-
-欢迎贡献代码、提交 Issue 和 Pull Request！
-
-### 开发环境搭建
 
 ```bash
-# 1. 安装依赖
-cd frontend && pnpm install
-cd backend && go mod download
-
-# 2. 启动开发服务
-# 终端 1: 后端
-cd backend && go run main.go
-
-# 终端 2: 前端
-cd frontend && pnpm run dev
-
-# 3. 访问开发服务器
-# 打开 http://localhost:5173
+# 终端二：前端热更新，默认 5173
+make dev-frontend
 ```
 
-## 📄 许可证
+访问 [http://localhost:5173](http://localhost:5173)。首次设置 `admin` 密码。API 与 Registry 由前端开发代理转发到后端；`docker login/push/pull` 使用 `localhost:8080`。在对应终端按 `Ctrl+C` 停止进程。
 
-本项目基于 [MIT License](./LICENSE) 开源。
+开发模式默认 SQLite，统一使用项目内 `data/local`，与本地体验数据一致，不自动迁移旧的 `backend/data`。`make -C backend dev` 使用相同配置。前端端口被占用时明确报错，不静默切换端口。
 
-## 👥 团队
+Make 命令默认通过 `goproxy.cn` 下载工具链及模块，并通过它的镜像访问官方 `sum.golang.org` 校验数据库；校验保持开启，不改写全局 `go env`。如果之前遇到 `sum.golang.org ... connection reset by peer`，直接重试 `make install-deps`。可以通过环境变量或 Make 参数覆盖，例如：
 
-**Ingot Cloud 团队**
-- **核心开发**: JY
-- **项目主页**: https://github.com/ingot-cloud/dockerun
+```bash
+# 自定义网络或团队代理
+make dev-backend GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org
+# 使用其他端口时，同时指定服务地址、Registry 对外地址和前端代理
+make dev-backend SERVER_ADDR=127.0.0.1:8081 PUBLIC_URL=http://localhost:8081
+make dev-frontend BACKEND_URL=http://127.0.0.1:8081 FRONTEND_PORT=5174
+```
 
-## 📮 联系我们
+如需 MySQL，显式指定 `DATABASE_TYPE=mysql` 和 `MYSQL_DSN`，不要将密码写入 Makefile。开发命令不自动加载容器部署的 `.env`；通过进程环境或 Make 参数提供配置。若只体验构建后的界面，可执行 `make build`、`make run`，直接访问 [http://localhost:8080](http://localhost:8080)，无需另开前端开发服务器。
 
-- 提交 Issue: https://github.com/ingot-cloud/dockerun/issues
-- 功能建议: 欢迎在 Issues 中讨论
+## 本地交付
 
----
+```bash
+export DOCKERUN_URL=https://dockerun.example.com
+# DOCKERUN_TOKEN 使用个人账号页面创建的受限令牌；不要写入仓库。
+dockerun deploy gateway --env test --build --wait
+dockerun package gateway --file compose.yaml --platform linux/amd64 --output gateway-release.tar.gz
+dockerun deploy gateway --env prod --bundle gateway-release.tar.gz --wait
+dockerun promote gateway --release 12 --to prod --wait
+```
 
-**Made with ❤️ by Ingot Cloud Team**
+先在网页创建应用和环境。构建默认使用缓存，按目标平台构建；多架构需具有相应能力的 Buildx builder。普通用户的令牌不能部署应用。完整包导入不会自动替换服务。
+
+## 文档与验证
+
+- [一体化操作、权限、迁移及接口](docs/INTEGRATED_DEPLOYMENT.md)
+- [分阶段实施与验收](ROADMAP.md)
+- [UI 规范](docs/UI_DESIGN.md)
+- [可重复验证步骤](docs/VALIDATION.md)
+
+工具链固定 Go 1.26.0、Node 22.17.0、pnpm 10.12.4。开发时使用 `make build`，产生 `bin/dockerun-server` 和 `bin/dockerun`。
+
+Registry 已运行官方 OCI 基础镜像交付 profile（SHA-256 镜像、索引、标签、上传和读取），不能据此声称 OCI 1.1 全量一致。维护删除、Referrers、SHA-512 与外部层的边界见验收文档。普通容器替换可能短暂停机；数据库业务数据回滚、跨机迁移和零停机发布不在此版本范围。
+
+MIT License · Ingot Cloud

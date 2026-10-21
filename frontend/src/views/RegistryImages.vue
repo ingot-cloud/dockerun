@@ -11,7 +11,7 @@
       </div>
     </template>
 
-    <ContentCard title="Images" :icon="Box" :no-padding="true">
+    <ContentCard title="本机镜像" :icon="Box" :no-padding="true">
       <template #actions>
         <el-input
           v-model="searchKeyword"
@@ -22,7 +22,7 @@
           @input="handleSearch"
         />
         <el-button :icon="Refresh" @click="fetchImages" :loading="loading">
-          Refresh
+          刷新
         </el-button>
       </template>
 
@@ -62,7 +62,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Image Name" min-width="400">
+        <el-table-column label="镜像引用" min-width="400">
           <template #default="{ row }">
             <div style="display: flex; align-items: center; gap: 8px">
               <el-icon style="color: var(--color-primary)"><Box /></el-icon>
@@ -71,7 +71,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Tags" width="120" align="center">
+        <el-table-column label="标签" width="120" align="center">
           <template #default="{ row }">
             <el-tag type="info" size="small">
               {{ row.tags.length }}
@@ -79,7 +79,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Quick Actions" width="120" align="center">
+        <el-table-column label="快捷操作" width="120" align="center">
           <template #default="{ row }">
             <div class="quick-actions">
               <el-tooltip content="Copy Image Name" placement="top">

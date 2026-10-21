@@ -1,0 +1,3 @@
+package utils
+import("testing";"dockerun/internal/config";"strings")
+func TestAuthenticatedCredentialStorage(t *testing.T){t.Setenv("DATA_DIR",t.TempDir());if err:=config.Initialize();err!=nil{t.Fatal(err)};c,err:=SealCredential("example-password");if err!=nil{t.Fatal(err)};p,err:=OpenCredential(c);if err!=nil||p!="example-password"{t.Fatal(err)};bad:=c[:len(c)-4]+"AAAA";if _,err=OpenCredential(bad);err==nil{t.Fatal("tampered credential accepted")};legacy,err:=AESEncrypt("legacy");if err!=nil{t.Fatal(err)};if p,err=OpenCredential(legacy);err!=nil||p!="legacy"{t.Fatal("legacy compatibility")};if !strings.HasPrefix(c,"gcm:"){t.Fatal("new storage not authenticated")}}

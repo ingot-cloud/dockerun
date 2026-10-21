@@ -1,37 +1,18 @@
-version: '3.8'
-
 services:
   dockerun:
+    image: ${DOCKERUN_IMAGE:-dockerun:local}
     build: .
-    image: dockerun:latest
-    container_name: dockerun
-    restart: always
+    restart: unless-stopped
     ports:
       - "8080:8080"
-    volumes:
-      # 挂载Docker socket，使容器能够管理宿主机的Docker
-      - /var/run/docker.sock:/var/run/docker.sock
-      # 持久化数据库
-      - ./data:/app/data
-      # 可选：离线安装包目录
-      - ./docker-packages:/app/docker-packages:ro
     environment:
-      - GIN_MODE=release
-      - SERVER_ADDR=:8080
-      - DATABASE_PATH=/app/data/dockerun.db
-      - TEMPLATE_DIR=/app/templates
-      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
-      # Docker Network 配置
-      - DOCKER_NETWORK_NAME=dockerun-net
-      - DOCKER_NETWORK_DRIVER=bridge
-      - DOCKER_NETWORK_SUBNET=172.20.0.0/16
-      - DOCKER_NETWORK_GATEWAY=172.20.0.1
-    # 如果需要访问Docker，容器需要有相应的权限
-    privileged: true
-    networks:
-      - dockerun-net
-
-networks:
-  dockerun-net:
-    driver: bridge
-
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      DATA_DIR: /var/lib/dockerun
+      DATABASE_TYPE: ${DATABASE_TYPE:-sqlite}
+      MYSQL_DSN: ${MYSQL_DSN:-}
+      TLS_CERT: ${TLS_CERT:-}
+      TLS_KEY: ${TLS_KEY:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Same absolute path lets the host Docker resolve Compose bind/config mounts.
+      - /var/lib/dockerun:/var/lib/dockerun

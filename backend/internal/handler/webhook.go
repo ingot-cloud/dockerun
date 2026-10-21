@@ -4,11 +4,13 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"dockerun/internal/database"
+	"dockerun/internal/identity"
 	"dockerun/internal/models"
-	"dockerun/internal/webhook"
+	"dockerun/internal/release"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"gorm.io/gorm/clause"
 	"io"
 	"log"
 	"net/http"
@@ -54,131 +56,60 @@ type WebhookEventTarget struct {
 // @Success 200 {object} map[string]interface{}
 // @Router /webhooks/{id} [post]
 func ReceiveWebhook(c *gin.Context) {
-	webhookID := c.Param("id")
-	log.Printf("[Webhook] ReceiveWebhook: webhookId=%s", webhookID)
-
-	// 读取请求体
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		log.Printf("[Webhook] Failed to read request body: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	var cfg models.WebhookConfig
+	if database.DB.First(&cfg, c.Param("id")).Error != nil || !cfg.Enabled || cfg.Secret == "" {
+		c.JSON(403, gin.H{"error": "Webhook 未启用或未配置签名密钥"})
 		return
 	}
-
-	// 快速响应（避免 Registry 超时）
-	c.JSON(http.StatusOK, gin.H{"status": "received"})
-
-	// 异步处理 Webhook
-	go processWebhook(webhookID, body, c.Request.Header)
-}
-
-// processWebhook 异步处理 Webhook
-func processWebhook(webhookID string, body []byte, headers http.Header) {
-	db := database.GetDB()
-
-	// 加载 Webhook 配置
-	var webhookConfig models.WebhookConfig
-	if err := db.First(&webhookConfig, webhookID).Error; err != nil {
-		log.Printf("[Webhook] Webhook config not found: id=%s, error=%v", webhookID, err)
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, 4<<20+1))
+	if err != nil || len(body) > 4<<20 {
+		c.Status(413)
 		return
 	}
-
-	// 加载关联的 Registry
-	var registry models.Registry
-	if err := db.First(&registry, webhookConfig.RegistryID).Error; err != nil {
-		log.Printf("[Webhook] Registry not found: id=%d, error=%v", webhookConfig.RegistryID, err)
+	signature := c.GetHeader("X-Registry-Signature")
+	if signature == "" {
+		signature = c.GetHeader("X-Hub-Signature-256")
+	}
+	if signature == "" {
+		signature = c.GetHeader("X-Gitlab-Token")
+	}
+	if !verifySignature(body, cfg.Secret, signature) {
+		c.Status(401)
 		return
 	}
-
-	log.Printf("[Webhook] Processing webhook: %s (id=%s) for registry: %s", webhookConfig.Name, webhookID, registry.Name)
-
-	// 验证签名（如果配置了 Secret）
-	if webhookConfig.Secret != "" {
-		signature := headers.Get("X-Registry-Signature")
-		if signature == "" {
-			signature = headers.Get("X-Hub-Signature-256")
+	var payload WebhookPayload
+	if json.Unmarshal(body, &payload) != nil {
+		c.Status(400)
+		return
+	}
+	var reg models.Registry
+	if database.DB.First(&reg, cfg.RegistryID).Error != nil || reg.Kind == "builtin" {
+		c.Status(400)
+		return
+	}
+	var owner models.User
+	if database.DB.First(&owner, cfg.OwnerID).Error != nil || !owner.Enabled || !owner.IsAdmin {
+		c.JSON(409, gin.H{"error": "请由管理员重新保存 Webhook 来源规则"})
+		return
+	}
+	for _, e := range payload.Events {
+		if e.Action != "push" || !strings.Contains(e.Target.MediaType, "manifest") && !strings.Contains(e.Target.MediaType, "index") || e.Target.Tag == "" {
+			continue
 		}
-		if signature == "" {
-			signature = headers.Get("X-Gitlab-Token")
+		ref := strings.TrimPrefix(strings.TrimPrefix(reg.URL, "https://"), "http://") + "/" + e.Target.Repository + ":" + e.Target.Tag
+		im, err := release.Resolve(c.Request.Context(), reg, ref)
+		if err != nil || im.Digest != e.Target.Digest {
+			c.JSON(502, gin.H{"error": "无法确认镜像提交结果"})
+			return
 		}
-
-		if !verifySignature(body, webhookConfig.Secret, signature) {
-			log.Printf("[Webhook] Signature verification failed for webhook: %s", webhookID)
+		key := identity.Hash(fmt.Sprintf("external:%d:%s:%s:%s", cfg.ID, e.Target.Repository, e.Target.Tag, im.Digest))
+		ev := models.ImageEvent{RegistryID: reg.ID, Repository: e.Target.Repository, Reference: e.Target.Tag, Digest: im.Digest, MediaType: e.Target.MediaType, UserID: owner.ID, Key: key, Committed: true}
+		if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&ev).Error; err != nil {
+			c.Status(503)
 			return
 		}
 	}
-
-	// 解析 Payload
-	var payload WebhookPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
-		log.Printf("[Webhook] Failed to parse payload: %v", err)
-		return
-	}
-
-	log.Printf("[Webhook] Received %d events", len(payload.Events))
-
-	// 处理每个事件
-	for _, event := range payload.Events {
-		// 只处理 push 事件
-		if event.Action != "push" {
-			log.Printf("[Webhook] Skipping non-push event: action=%s", event.Action)
-			continue
-		}
-
-		imageName := event.Target.Repository
-		imageTag := event.Target.Tag
-
-		log.Printf("[Webhook] Processing push event: image=%s, tag=%s", imageName, imageTag)
-
-		// 查找所有匹配的部署脚本
-		matchedScripts := findMatchingDeployScripts(db, imageName, imageTag)
-
-		if len(matchedScripts) == 0 {
-			log.Printf("[Webhook] No matching deploy scripts found for %s:%s", imageName, imageTag)
-			continue
-		}
-
-		log.Printf("[Webhook] Found %d matching scripts for %s:%s", len(matchedScripts), imageName, imageTag)
-
-		// 为每个匹配的脚本创建部署任务
-		for _, script := range matchedScripts {
-			log.Printf("[Webhook] Creating task for script: %s (id=%d)", script.Name, script.ID)
-
-			// 创建 Webhook 日志
-			webhookLog := &models.WebhookLog{
-				WebhookConfigID: webhookConfig.ID,
-				ImageName:       imageName,
-				ImageTag:        imageTag,
-				Status:          "pending",
-				Message:         fmt.Sprintf("Auto-deploy triggered for script: %s", script.Name),
-			}
-
-			if err := db.Create(webhookLog).Error; err != nil {
-				log.Printf("[Webhook] Failed to create webhook log: %v", err)
-				continue
-			}
-
-			// 创建部署任务
-			task := &webhook.DeployTask{
-				WebhookLogID:       webhookLog.ID,
-				DeployScriptID:     script.ID,
-				RegistryID:         fmt.Sprintf("%d", webhookConfig.RegistryID),
-				ImageName:          imageName,
-				ImageTag:           imageTag,
-				RemoveOldImage:     true, // 默认删除旧镜像
-				RemoveOldContainer: true, // 默认删除旧容器
-			}
-
-			if err := webhook.Enqueue(task); err != nil {
-				log.Printf("[Webhook] Failed to enqueue task: %v", err)
-				// 更新日志状态为失败
-				db.Model(webhookLog).Updates(map[string]interface{}{
-					"status":  "failed",
-					"message": fmt.Sprintf("Failed to enqueue task: %v", err),
-				})
-			}
-		}
-	}
+	c.JSON(202, gin.H{"status": "persisted"})
 }
 
 func loadWebhookConfigRelations(db *gorm.DB, config *models.WebhookConfig) error {
@@ -186,6 +117,7 @@ func loadWebhookConfigRelations(db *gorm.DB, config *models.WebhookConfig) error
 	if config.RegistryID > 0 {
 		var registry models.Registry
 		if err := db.First(&registry, config.RegistryID).Error; err == nil {
+			registry.Password = ""
 			config.Registry = &registry
 		}
 	}
@@ -200,7 +132,7 @@ func verifySignature(body []byte, secret, signature string) bool {
 	}
 
 	// 首先简单判断，如果和secret相等则直接返回true
-	if signature == secret {
+	if hmac.Equal([]byte(signature), []byte(secret)) {
 		return true
 	}
 
@@ -316,6 +248,7 @@ func CreateWebhookConfig(c *gin.Context) {
 		return
 	}
 
+	req.OwnerID = c.GetUint("user_id")
 	// 创建配置
 	if err := db.Create(&req).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -356,7 +289,8 @@ func UpdateWebhookConfig(c *gin.Context) {
 
 	// 更新配置
 	req.ID = config.ID
-	if err := db.Model(&config).Updates(&req).Error; err != nil {
+	req.OwnerID = c.GetUint("user_id")
+	if err := db.Model(&config).Select("name", "description", "enabled", "registry_id", "secret", "owner_id").Updates(&req).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

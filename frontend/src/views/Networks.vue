@@ -1,10 +1,10 @@
 <template>
-  <PageContainer title="Network Management">
-    <ContentCard title="Networks" :icon="Connection" :no-padding="true">
+  <PageContainer title="网络管理">
+    <ContentCard title="网络" :icon="Connection" :no-padding="true">
       <template #actions>
         <el-input
           v-model="searchText"
-          placeholder="Search..."
+          placeholder="搜索…"
           :prefix-icon="Search"
           style="width: 240px"
           clearable
@@ -15,7 +15,7 @@
           @click="handleBatchRemove"
           :disabled="selectedNetworks.length === 0"
         >
-          Remove
+          删除
         </el-button>
         <el-button type="primary" :icon="Plus" @click="showCreateDialog">
           Add Network
@@ -30,7 +30,7 @@
       >
         <el-table-column type="selection" width="45" fixed="left" />
 
-        <el-table-column label="Name" min-width="200">
+        <el-table-column label="名称" min-width="200">
           <template #default="{ row }">
             <span class="network-name">{{ row.Name }}</span>
           </template>
@@ -80,14 +80,14 @@
         </el-table-column>
 
         <el-table-column
-          label="Quick Actions"
+          label="快捷操作"
           width="100"
           align="center"
           fixed="right"
         >
           <template #default="{ row }">
             <div class="quick-actions">
-              <el-tooltip content="Remove" placement="top">
+              <el-tooltip content="删除" placement="top">
                 <el-button
                   link
                   :icon="Delete"
@@ -114,7 +114,7 @@
       <el-form :model="form" :rules="rules" ref="formRef" label-width="140px">
         <div class="form-section">
           <h3>Basic Information</h3>
-          <el-form-item label="Name" prop="name">
+          <el-form-item label="名称" prop="name">
             <el-input v-model="form.name" placeholder="e.g. my-network" />
           </el-form-item>
           <el-form-item label="Driver" prop="driver">

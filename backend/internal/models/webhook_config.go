@@ -15,8 +15,9 @@ type WebhookConfig struct {
 	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index"`
 	Name            string         `json:"name" gorm:"size:200;not null;comment:配置名称"`
 	Description     string         `json:"description" gorm:"size:500;comment:配置描述"`
-	Enabled         bool           `json:"enabled" gorm:"default:true;comment:是否启用"`
+	Enabled         bool           `json:"enabled" gorm:"default:false;comment:是否启用"`
 	RegistryID      uint           `json:"registry_id" gorm:"index;not null;comment:关联的 Registry ID"`
+	OwnerID         uint           `json:"owner_id"`
 	Registry        *Registry      `json:"registry,omitempty" gorm:"-"` // 应用层处理关联，不使用外键
 	Secret          string         `json:"secret,omitempty" gorm:"size:200;comment:Webhook 密钥（用于验证）"`
 	LastTriggeredAt *time.Time     `json:"last_triggered_at,omitempty" gorm:"comment:最后触发时间"`

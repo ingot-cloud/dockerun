@@ -1,15 +1,18 @@
-.PHONY: run build test clean
+.PHONY: dev run build test clean
 
 dev:
-	TEMPLATE_DIR=../templates DATABASE_TYPE=mysql MYSQL_DSN="dockerun:dockerun123@tcp(localhost:3306)/dockerun?charset=utf8mb4&parseTime=True&loc=Local" go run main.go
+	$(MAKE) -C .. dev-backend
+
+run:
+	$(MAKE) -C .. run
 
 build:
-	go build -o ../bin/dockerun main.go
+	$(MAKE) -C .. build
 
 test:
-	go test ./...
+	$(MAKE) -C .. test-backend
 
 clean:
 	go clean
-	rm -f ../bin/dockerun
+	rm -f ../bin/dockerun-server ../bin/dockerun
 

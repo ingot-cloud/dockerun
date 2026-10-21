@@ -1,388 +1,138 @@
 <template>
-  <el-container class="main-layout">
-    <el-aside width="200px" class="sidebar">
-      <div class="logo">
-        <h2>DOCKERUN</h2>
-        <span class="edition">Ingot Cloud</span>
-      </div>
-      
-      <el-menu
-        :default-active="activeMenu"
-        router
-        background-color="#23252a"
-        text-color="#8a929c"
-        active-text-color="#4a9eff"
-        class="sidebar-menu"
+  <div class="workspace" :class="{ collapsed }">
+    <aside class="workspace-sidebar">
+      <router-link
+        class="brand"
+        :to="auth.user?.is_admin ? '/overview' : '/builtin'"
+        ><span class="brand-mark">D</span
+        ><span v-if="!collapsed"
+          ><strong>Dockerun</strong><small>轻量部署工作台</small></span
+        ></router-link
       >
-        <el-menu-item index="/containers">
-          <el-icon><Box /></el-icon>
-          <span>Containers</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/images">
-          <el-icon><Picture /></el-icon>
-          <span>Images</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/networks">
-          <el-icon><Connection /></el-icon>
-          <span>Networks</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/volumes">
-          <el-icon><FolderOpened /></el-icon>
-          <span>Volumes</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/deploy-scripts">
-          <el-icon><Document /></el-icon>
-          <span>Deploy Scripts</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/registry">
-          <el-icon><DataBoard /></el-icon>
-          <span>Registry</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/webhooks">
-          <el-icon><Connection /></el-icon>
-          <span>Webhooks</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/system">
-          <el-icon><Setting /></el-icon>
-          <span>System</span>
-        </el-menu-item>
-      </el-menu>
-      
-      <div class="sidebar-footer">
-        <div class="version-info">Ingot Cloud</div>
+      <nav aria-label="主导航">
+        <template v-for="group in groups" :key="group.title"
+          ><p v-if="!collapsed" class="nav-group">{{ group.title }}</p>
+          <router-link
+            v-for="item in group.items"
+            :key="item.path"
+            :to="item.path"
+            class="nav-item"
+            :class="{ 'router-link-active': item.path === '/images' && route.name === 'ImageDetail' }"
+            :title="item.title"
+            ><el-icon><PortainerIcon v-if="item.path === '/images'" name="list" /><component v-else :is="item.icon" /></el-icon
+            ><span v-if="!collapsed">{{ item.title }}</span></router-link
+          ></template
+        >
+      </nav>
+      <div class="sidebar-bottom">
+        <el-icon><Monitor /></el-icon
+        ><span v-if="!collapsed">{{
+          auth.user?.is_admin ? "本机 · 独立模式" : "镜像仓库工作区"
+        }}</span>
       </div>
-    </el-aside>
-    
-    <el-container class="content-wrapper">
-      <el-header class="top-header">
-        <div class="header-content">
-          <span></span>
-          <div class="user-section">
-            <el-dropdown @command="handleCommand" class="user-dropdown">
-              <span class="user-info">
-                <el-icon class="user-icon"><User /></el-icon>
-                <span class="username">{{ authStore.user?.username || 'admin' }}</span>
-                <el-icon class="arrow-icon"><ArrowDown /></el-icon>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu class="user-menu">
-                  <el-dropdown-item command="changePassword">
-                    <el-icon><Lock /></el-icon>
-                    Change Password
-                  </el-dropdown-item>
-                  <el-dropdown-item command="logout" divided>
-                    <el-icon><SwitchButton /></el-icon>
-                    Logout
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
+    </aside>
+    <div class="workspace-body">
+      <header class="workspace-header">
+        <el-button
+          text
+          circle
+          aria-label="折叠或展开导航"
+          @click="collapsed = !collapsed"
+          ><el-icon
+            ><Fold v-if="!collapsed" /><Expand v-else /></el-icon></el-button
+        ><el-breadcrumb separator="/"
+          ><el-breadcrumb-item>Dockerun</el-breadcrumb-item
+          ><el-breadcrumb-item v-if="route.name === 'ImageDetail'" :to="{ name: 'Images', query: route.query }">本地镜像</el-breadcrumb-item
+          ><el-breadcrumb-item>{{
+            route.meta.title || route.name
+          }}</el-breadcrumb-item></el-breadcrumb
+        >
+        <div class="header-account">
+          <el-tag size="small" effect="plain">{{
+            auth.user?.is_admin ? "管理员" : "普通用户"
+          }}</el-tag
+          ><router-link to="/account"
+            ><el-icon><User /></el-icon> {{ auth.user?.username }}</router-link
+          ><el-button text @click="logout">退出</el-button>
         </div>
-      </el-header>
-      
-      <el-main class="main-content">
-        <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
-  
-  <!-- 修改密码对话框 -->
-  <el-dialog 
-    v-model="changePasswordVisible" 
-    title="Change Password" 
-    width="400px"
-    class="change-password-dialog"
-  >
-    <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef">
-      <el-form-item label="Old Password" prop="old_password">
-        <el-input v-model="passwordForm.old_password" type="password" show-password />
-      </el-form-item>
-      <el-form-item label="New Password" prop="new_password">
-        <el-input v-model="passwordForm.new_password" type="password" show-password />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="changePasswordVisible = false">Cancel</el-button>
-      <el-button type="primary" @click="handleChangePassword">Confirm</el-button>
-    </template>
-  </el-dialog>
+      </header>
+      <main class="workspace-main" :class="{ 'workspace-main--images': route.name === 'Images', 'workspace-main--image-detail': route.name === 'ImageDetail' }"><router-view /></main>
+    </div>
+  </div>
 </template>
-
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  User, 
-  Lock, 
-  SwitchButton,
-  Box,
-  Picture,
-  Connection,
-  FolderOpened,
-  Document,
-  DataBoard,
-  Setting,
-  ArrowDown
-} from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
-import { authApi } from '@/api/auth'
-
-const router = useRouter()
-const route = useRoute()
-const authStore = useAuthStore()
-
-const activeMenu = computed(() => route.path)
-const changePasswordVisible = ref(false)
-const passwordFormRef = ref()
-
-const passwordForm = reactive({
-  old_password: '',
-  new_password: ''
-})
-
-const passwordRules = {
-  old_password: [{ required: true, message: 'Please enter old password', trigger: 'blur' }],
-  new_password: [
-    { required: true, message: 'Please enter new password', trigger: 'blur' },
-    { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' }
-  ]
-}
-
-onMounted(() => {
-  if (!authStore.user) {
-    authStore.fetchCurrentUser()
-  }
-})
-
-const handleCommand = (command: string) => {
-  if (command === 'logout') {
-    ElMessageBox.confirm('Are you sure you want to logout?', 'Confirm', {
-      confirmButtonText: 'Yes',
-      cancelButtonText: 'No',
-      type: 'warning'
-    }).then(() => {
-      authStore.logout()
-      router.push('/login')
-    })
-  } else if (command === 'changePassword') {
-    changePasswordVisible.value = true
-  }
-}
-
-const handleChangePassword = async () => {
-  await passwordFormRef.value.validate()
-  
-  try {
-    await authApi.changePassword(passwordForm)
-    ElMessage.success('Password changed successfully')
-    changePasswordVisible.value = false
-    passwordForm.old_password = ''
-    passwordForm.new_password = ''
-  } catch (error) {
-    console.error(error)
-  }
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+import PortainerIcon from "@/components/PortainerIcon.vue";
+const auth = useAuthStore();
+const route = useRoute();
+const router = useRouter();
+const collapsed = ref(window.innerWidth <= 1100);
+const groups = computed(() =>
+  auth.user?.is_admin
+    ? [
+        {
+          title: "发布工作区",
+          items: [
+            { path: "/overview", title: "概览", icon: "Odometer" },
+            { path: "/applications", title: "应用", icon: "Grid" },
+            { path: "/deployments", title: "部署记录", icon: "List" },
+            { path: "/bundles", title: "发布包", icon: "Box" },
+          ],
+        },
+        {
+          title: "镜像与资源",
+          items: [
+            { path: "/builtin", title: "内置仓库", icon: "Collection" },
+            { path: "/registry", title: "外部仓库", icon: "Connection" },
+            { path: "/images", title: "本地镜像", icon: "List" },
+            { path: "/containers", title: "容器", icon: "Box" },
+            { path: "/networks", title: "网络", icon: "Share" },
+            { path: "/volumes", title: "卷", icon: "FolderOpened" },
+          ],
+        },
+        {
+          title: "系统管理",
+          items: [
+            { path: "/users", title: "用户管理", icon: "User" },
+            { path: "/hosts", title: "目标主机", icon: "Monitor" },
+            { path: "/settings", title: "仓库与维护", icon: "Tools" },
+            { path: "/webhooks", title: "外部 Webhook", icon: "Link" },
+            { path: "/system", title: "系统设置", icon: "Setting" },
+            { path: "/deploy-scripts", title: "历史脚本", icon: "Document" },
+            { path: "/account", title: "个人账号", icon: "UserFilled" },
+          ],
+        },
+      ]
+    : [
+        {
+          title: "镜像工作区",
+          items: [
+            { path: "/builtin", title: "内置仓库", icon: "Collection" },
+            { path: "/account", title: "个人账号", icon: "User" },
+          ],
+        },
+      ],
+);
+function logout() {
+  auth.logout();
+  router.push("/login");
 }
 </script>
 
 <style scoped>
-.main-layout {
-  height: 100vh;
-  background-color: #1e1e1e;
-}
-
-.sidebar {
-  background-color: #23252a;
-  color: #fff;
+.workspace-main--images, .workspace-main--image-detail {
   display: flex;
   flex-direction: column;
-}
-
-.logo {
-  height: 60px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background-color: #1a1c20;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 12px 0;
-}
-
-.logo h2 {
-  margin: 0;
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.logo .edition {
-  font-size: 10px;
-  color: #8a929c;
-  margin-top: 2px;
-  letter-spacing: 0.5px;
-}
-
-.sidebar-menu {
-  border: none;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px 20px;
+  background: #151515;
 }
-
-.sidebar-menu :deep(.el-menu-item) {
-  height: 44px;
-  line-height: 44px;
-  border-left: 3px solid transparent;
-  transition: all 0.3s;
-}
-
-.sidebar-menu :deep(.el-menu-item:hover) {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #4a9eff;
-}
-
-.sidebar-menu :deep(.el-menu-item.is-active) {
-  background-color: rgba(74, 158, 255, 0.1);
-  border-left-color: #4a9eff;
-  color: #4a9eff;
-}
-
-.sidebar-menu :deep(.el-icon) {
-  margin-right: 8px;
-  font-size: 16px;
-}
-
-.sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.version-info {
-  font-size: 11px;
-  color: #8a929c;
-  text-align: center;
-}
-
-.content-wrapper {
-  display: flex;
-  flex-direction: column;
-}
-
-.top-header {
-  background-color: #2a2d31;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-  height: 60px !important;
-}
-
-.header-content {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.user-section {
-  display: flex;
-  align-items: center;
-}
-
-.user-dropdown {
-  cursor: pointer;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background-color: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-  transition: all 0.3s;
-  color: #fff;
-}
-
-.user-info:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.user-icon {
-  font-size: 18px;
-}
-
-.username {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.arrow-icon {
-  font-size: 12px;
-  margin-left: 4px;
-}
-
-.main-content {
-  background-color: #1e1e1e;
-  padding: 24px;
-  overflow-y: auto;
-}
-
-/* 对话框样式 */
-.change-password-dialog :deep(.el-dialog) {
-  background-color: #2a2d31;
-}
-
-.change-password-dialog :deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.change-password-dialog :deep(.el-dialog__title) {
-  color: #fff;
-}
-
-.change-password-dialog :deep(.el-dialog__body) {
-  color: #fff;
-}
-
-.change-password-dialog :deep(.el-form-item__label) {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.change-password-dialog :deep(.el-input__wrapper) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: none;
-}
-
-.change-password-dialog :deep(.el-input__inner) {
-  color: #fff;
-}
-
-/* 用户菜单样式 */
-.user-menu {
-  background-color: #2a2d31;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.user-menu :deep(.el-dropdown-menu__item) {
-  color: #fff;
-}
-
-.user-menu :deep(.el-dropdown-menu__item:hover) {
-  background-color: rgba(74, 158, 255, 0.1);
-  color: #4a9eff;
-}
-
-.user-menu :deep(.el-icon) {
-  margin-right: 8px;
+.workspace-main--image-detail { overflow: auto; }
+@media (max-width: 760px) {
+  .workspace-main--images, .workspace-main--image-detail { padding: 12px; }
 }
 </style>

@@ -1,10 +1,10 @@
 <template>
-  <PageContainer title="Container Management">
-    <ContentCard title="Containers" :icon="Box" :no-padding="true">
+  <PageContainer title="容器管理">
+    <ContentCard title="容器" :icon="Box" :no-padding="true">
       <template #actions>
         <el-input
           v-model="searchText"
-          placeholder="Search..."
+          placeholder="搜索…"
           :prefix-icon="Search"
           style="width: 240px"
           clearable
@@ -39,7 +39,7 @@
           @click="handleBatchAction('remove')"
           :disabled="selectedContainers.length === 0"
         >
-          Remove
+          删除
         </el-button>
       </template>
 
@@ -51,7 +51,7 @@
       >
         <el-table-column type="selection" width="45" fixed="left" />
 
-        <el-table-column label="Name" min-width="200">
+        <el-table-column label="名称" min-width="200">
           <template #default="{ row }">
             <div class="name-cell">
               <el-icon :class="['status-icon', getStateClass(row.State)]">
@@ -65,7 +65,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="State" label="State" width="100">
+        <el-table-column prop="State" label="运行状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStateType(row.State)" size="small">
               {{ row.State }}
@@ -73,7 +73,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Image" min-width="250">
+        <el-table-column label="镜像" min-width="250">
           <template #default="{ row }">
             <code class="code-text">{{ row.Image }}</code>
           </template>
@@ -85,7 +85,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Ports" min-width="180">
+        <el-table-column label="端口" min-width="180">
           <template #default="{ row }">
             <div class="ports-cell">
               <div
@@ -101,13 +101,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Created" width="180">
+        <el-table-column label="创建时间" width="180">
           <template #default="{ row }">
             <span class="text-normal">{{ formatDate(row.Created) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="Quick Actions" width="150" align="center" fixed="right">
+        <el-table-column label="快捷操作" width="150" align="center" fixed="right">
           <template #default="{ row }">
             <div class="quick-actions">
               <el-tooltip content="Logs" placement="top">

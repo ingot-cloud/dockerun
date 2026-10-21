@@ -1,12 +1,15 @@
 package handler
 
 import (
-	"crypto/tls"
+	"context"
+	"dockerun/internal/builtin"
 	"dockerun/internal/database"
 	"dockerun/internal/models"
+	"dockerun/internal/release"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -78,7 +81,7 @@ func GetRegistryImageTags(c *gin.Context) {
 	imageName := c.Param("name")
 
 	// 通配符参数会包含前导的 /，需要去掉
-	imageName = strings.TrimPrefix(imageName, "/")
+	imageName = strings.TrimSuffix(strings.TrimPrefix(imageName, "/"), "/tags")
 	// 处理 URL 编码后的路径分隔符
 	imageName = strings.ReplaceAll(imageName, "%2F", "/")
 
@@ -133,175 +136,67 @@ func DeleteRegistryImage(c *gin.Context) {
 
 // fetchRegistryImages 从 Registry 获取镜像列表
 func fetchRegistryImages(registry models.Registry, search string) ([]RegistryImage, error) {
-	// 创建 HTTP 客户端
-	client := createHTTPClient(registry.Insecure)
-
-	// 调用 /v2/_catalog API
-	catalogURL := fmt.Sprintf("%s/v2/_catalog", strings.TrimSuffix(registry.URL, "/"))
-	req, err := http.NewRequest("GET", catalogURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// 添加认证（解密密码）
-	if registry.Username != "" {
-		password := GetDecryptedPassword(&registry)
-		req.SetBasicAuth(registry.Username, password)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API 返回错误状态码: %d", resp.StatusCode)
-	}
-
-	// 解析响应
-	var catalogResp struct {
-		Repositories []string `json:"repositories"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&catalogResp); err != nil {
-		return nil, err
-	}
-
-	// 过滤和构建结果
-	var images []RegistryImage
-	for _, repo := range catalogResp.Repositories {
-		// 搜索过滤
-		if search != "" && !strings.Contains(strings.ToLower(repo), strings.ToLower(search)) {
-			continue
+	var out []RegistryImage
+	last := ""
+	for {
+		path := "/v2/_catalog?n=1000"
+		if last != "" {
+			path += "&last=" + url.QueryEscape(last)
 		}
-
-		// 获取标签
-		tags, err := fetchImageTags(registry, repo)
+		b, _, err := release.RegistryRequest(context.Background(), registry, "GET", path)
 		if err != nil {
-			// 如果获取标签失败，仍然返回镜像，但标签为空
-			tags = []string{}
+			return nil, err
 		}
-
-		images = append(images, RegistryImage{
-			Name: repo,
-			Tags: tags,
-		})
+		var page struct {
+			Repositories []string `json:"repositories"`
+		}
+		if err = json.Unmarshal(b, &page); err != nil {
+			return nil, err
+		}
+		for _, repo := range page.Repositories {
+			if search != "" && !strings.Contains(strings.ToLower(repo), strings.ToLower(search)) {
+				continue
+			}
+			tags, err := fetchImageTags(registry, repo)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, RegistryImage{Name: repo, Tags: tags})
+		}
+		if len(page.Repositories) < 1000 {
+			break
+		}
+		next := page.Repositories[len(page.Repositories)-1]
+		if next == last {
+			return nil, fmt.Errorf("Registry 分页没有前进")
+		}
+		last = next
 	}
-
-	return images, nil
+	return out, nil
 }
-
-// fetchImageTags 获取镜像的标签列表
-func fetchImageTags(registry models.Registry, imageName string) ([]string, error) {
-	client := createHTTPClient(registry.Insecure)
-
-	// 调用 /v2/<name>/tags/list API
-	tagsURL := fmt.Sprintf("%s/v2/%s/tags/list", strings.TrimSuffix(registry.URL, "/"), imageName)
-	req, err := http.NewRequest("GET", tagsURL, nil)
+func fetchImageTags(registry models.Registry, name string) ([]string, error) {
+	b, _, err := release.RegistryRequest(context.Background(), registry, "GET", "/v2/"+name+"/tags/list")
 	if err != nil {
 		return nil, err
 	}
-
-	// 添加认证（解密密码）
-	if registry.Username != "" {
-		password := GetDecryptedPassword(&registry)
-		req.SetBasicAuth(registry.Username, password)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API 返回错误状态码: %d", resp.StatusCode)
-	}
-
-	// 解析响应
-	var tagsResp struct {
-		Name string   `json:"name"`
+	var result struct {
 		Tags []string `json:"tags"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
-		return nil, err
-	}
-
-	return tagsResp.Tags, nil
+	err = json.Unmarshal(b, &result)
+	return result.Tags, err
 }
-
-// deleteRegistryImage 删除 Registry 镜像
-func deleteRegistryImage(registry models.Registry, imageName, tag string) error {
-	client := createHTTPClient(registry.Insecure)
-
-	// 解密密码（统一获取）
-	password := GetDecryptedPassword(&registry)
-
-	// 1. 获取 manifest digest
-	manifestURL := fmt.Sprintf("%s/v2/%s/manifests/%s", strings.TrimSuffix(registry.URL, "/"), imageName, tag)
-	req, err := http.NewRequest("GET", manifestURL, nil)
+func deleteRegistryImage(registry models.Registry, name, tag string) error {
+	if registry.Kind == "builtin" {
+		return fmt.Errorf("请使用内置仓库受保护删除接口")
+	}
+	_, headers, err := release.RegistryRequest(context.Background(), registry, "GET", "/v2/"+name+"/manifests/"+tag)
 	if err != nil {
 		return err
 	}
-
-	// 添加认证
-	if registry.Username != "" {
-		req.SetBasicAuth(registry.Username, password)
-	}
-
-	// 必须指定 Accept header
-	req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("获取 manifest 失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("获取 manifest 失败，状态码: %d", resp.StatusCode)
-	}
-
-	// 获取 digest
-	digest := resp.Header.Get("Docker-Content-Digest")
-	if digest == "" {
-		return fmt.Errorf("无法获取 manifest digest")
-	}
-
-	// 2. 删除 manifest
-	deleteURL := fmt.Sprintf("%s/v2/%s/manifests/%s", strings.TrimSuffix(registry.URL, "/"), imageName, digest)
-	delReq, err := http.NewRequest("DELETE", deleteURL, nil)
-	if err != nil {
+	d := headers.Get("Docker-Content-Digest")
+	if err = builtin.Protected(d); err != nil {
 		return err
 	}
-
-	// 添加认证
-	if registry.Username != "" {
-		delReq.SetBasicAuth(registry.Username, password)
-	}
-
-	delResp, err := client.Do(delReq)
-	if err != nil {
-		return fmt.Errorf("删除失败: %w", err)
-	}
-	defer delResp.Body.Close()
-
-	if delResp.StatusCode != http.StatusAccepted && delResp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("删除失败，状态码: %d", delResp.StatusCode)
-	}
-
-	return nil
-}
-
-// createHTTPClient 创建 HTTP 客户端
-func createHTTPClient(insecure bool) *http.Client {
-	if insecure {
-		// 允许不安全的 HTTPS
-		return &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		}
-	}
-	return &http.Client{}
+	_, _, err = release.RegistryRequest(context.Background(), registry, "DELETE", "/v2/"+name+"/manifests/"+d)
+	return err
 }

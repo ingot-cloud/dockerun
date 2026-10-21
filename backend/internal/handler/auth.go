@@ -1,9 +1,8 @@
 package handler
 
 import (
-	"dockerun/internal/config"
 	"dockerun/internal/database"
-	"dockerun/internal/middleware"
+	"dockerun/internal/identity"
 	"dockerun/internal/models"
 	"dockerun/internal/utils"
 	"log"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type LoginRequest struct {
@@ -21,9 +19,9 @@ type LoginRequest struct {
 
 type SetPasswordRequest struct {
 	NewPassword        string `json:"new_password" binding:"required,min=6"`
-	DeployWorkDir      string `json:"deploy_work_dir"`                      // 部署脚本工作目录
-	MaxScriptExecutors int    `json:"max_script_executors"`                 // 最大并发脚本执行数
-	ScriptTimeout      int    `json:"script_timeout"`                       // 脚本超时时间（秒）
+	DeployWorkDir      string `json:"deploy_work_dir"`      // 部署脚本工作目录
+	MaxScriptExecutors int    `json:"max_script_executors"` // 最大并发脚本执行数
+	ScriptTimeout      int    `json:"script_timeout"`       // 脚本超时时间（秒）
 }
 
 type ChangePasswordRequest struct {
@@ -48,8 +46,8 @@ func Login(c *gin.Context) {
 	// 检查密码是否为空（首次登录）
 	if user.Password == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":          "需要设置初始密码",
-			"require_setup":  true,
+			"error":         "需要设置初始密码",
+			"require_setup": true,
 		})
 		return
 	}
@@ -63,7 +61,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 验证解密后的密码
-	if !user.CheckPassword(decryptedPassword) {
+	if !user.Enabled || !user.CheckPassword(decryptedPassword) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
 		return
 	}
@@ -80,7 +78,7 @@ func Login(c *gin.Context) {
 		"user": gin.H{
 			"id":       user.ID,
 			"username": user.Username,
-			"is_admin": user.IsAdmin,
+			"is_admin": user.IsAdmin, "enabled": user.Enabled, "registry_access": user.RegistryAccess,
 		},
 	})
 }
@@ -115,12 +113,17 @@ func SetInitialPassword(c *gin.Context) {
 	}
 
 	// 设置新密码（使用解密后的密码）
+	if len(decryptedPassword) < 6 || len(decryptedPassword) > 72 {
+		c.JSON(400, gin.H{"error": "密码长度应为 6–72 字节"})
+		return
+	}
 	if err := admin.HashPassword(decryptedPassword); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
 		return
 	}
 
-	if err := database.GetDB().Save(&admin).Error; err != nil {
+	result := database.GetDB().Model(&models.User{}).Where("id = ? AND password = ?", admin.ID, "").Updates(map[string]any{"password": admin.Password, "auth_version": admin.AuthVersion + 1})
+	if result.Error != nil || result.RowsAffected != 1 {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存密码失败"})
 		return
 	}
@@ -194,12 +197,19 @@ func ChangePassword(c *gin.Context) {
 	}
 
 	// 设置新密码
+	if len(decryptedNewPassword) < 6 || len(decryptedNewPassword) > 72 {
+		c.JSON(400, gin.H{"error": "密码长度应为 6–72 字节"})
+		return
+	}
+	oldVersion := user.AuthVersion
+	user.AuthVersion++
 	if err := user.HashPassword(decryptedNewPassword); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
 		return
 	}
 
-	if err := database.GetDB().Save(&user).Error; err != nil {
+	result := database.GetDB().Model(&models.User{}).Where("id = ? AND auth_version = ?", user.ID, oldVersion).Updates(map[string]any{"password": user.Password, "auth_version": user.AuthVersion})
+	if result.Error != nil || result.RowsAffected != 1 {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存密码失败"})
 		return
 	}
@@ -219,24 +229,10 @@ func GetCurrentUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":       user.ID,
 		"username": user.Username,
-		"is_admin": user.IsAdmin,
+		"is_admin": user.IsAdmin, "enabled": user.Enabled, "registry_access": user.RegistryAccess,
 	})
 }
 
-// generateToken 生成JWT token
 func generateToken(user *models.User) (string, error) {
-	cfg := config.Load()
-	claims := &middleware.Claims{
-		UserID:   user.ID,
-		Username: user.Username,
-		IsAdmin:  user.IsAdmin,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(cfg.JWTSecret))
+	return identity.Issue(user, "web", nil, 24*time.Hour)
 }
-

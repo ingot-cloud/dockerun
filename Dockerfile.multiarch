@@ -1,78 +1,28 @@
-# 多架构 Dockerfile
-# 使用 TARGETARCH 变量自动选择对应架构的二进制文件
+FROM --platform=$BUILDPLATFORM node:22.17.0-alpine AS frontend
+WORKDIR /src
+RUN corepack enable && corepack prepare pnpm@10.12.4 --activate
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm run build
 
-FROM debian:bookworm-slim
-
-# 接收构建时的架构参数
+FROM --platform=$BUILDPLATFORM golang:1.26.0-alpine AS backend
+WORKDIR /src
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
+ARG TARGETOS=linux
 ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/dockerun-server . && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/dockerun ./cmd/dockerun
 
-# 安装运行时依赖和 Docker CLI
-RUN apt-get update --allow-releaseinfo-change --allow-insecure-repositories 2>/dev/null || true \
-    && apt-get install -y --no-install-recommends --allow-unauthenticated \
-    ca-certificates \
-    tzdata \
-    sqlite3 \
-    bash \
-    curl \
-    gnupg \
-    lsb-release \
-    && rm -rf /var/lib/apt/lists/*
-
-# 安装 Docker CLI
-RUN mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
-       | tee /etc/apt/sources.list.d/docker.list > /dev/null \
-    && apt-get update --allow-releaseinfo-change --allow-insecure-repositories 2>/dev/null || true \
-    && apt-get install -y --no-install-recommends --allow-unauthenticated docker-ce-cli docker-compose-plugin \
-    && rm -rf /var/lib/apt/lists/*
-
-# 设置时区
-ENV TZ=Asia/Shanghai
-
-# 设置工作目录
+FROM docker:29.1.3-cli
+RUN apk add --no-cache bash ca-certificates tzdata curl mariadb-client
 WORKDIR /app
-
-# 根据架构复制对应的二进制文件
-COPY backend/main-${TARGETARCH} ./main
-
-# 复制前端构建产物
-COPY frontend/dist ./static
-
-# 复制模板目录
+COPY --from=backend /out/ /usr/local/bin/
+COPY --from=frontend /src/dist ./static
 COPY templates ./templates
-
-# 创建数据目录和部署工作目录
-RUN mkdir -p /app/data \
-    && mkdir -p /ingot-data/dockerun \
-    && chmod 755 /ingot-data/dockerun
-
-# 设置可执行权限
-RUN chmod +x /app/main
-
-# 暴露端口
+ENV DATA_DIR=/var/lib/dockerun GIN_MODE=release SERVER_ADDR=:8080 TEMPLATE_DIR=/app/templates
+VOLUME /var/lib/dockerun
 EXPOSE 8080
-
-# 设置环境变量
-ENV GIN_MODE=release
-ENV SERVER_ADDR=:8080
-ENV DATABASE_PATH=/app/data/dockerun.db
-ENV TEMPLATE_DIR=/app/templates
-
-# Docker Network 配置
-ENV DOCKER_NETWORK_NAME=ingot-net
-ENV DOCKER_NETWORK_DRIVER=bridge
-ENV DOCKER_NETWORK_SUBNET=172.88.0.0/16
-ENV DOCKER_NETWORK_GATEWAY=172.88.0.1
-
-# AES 加密配置（生产环境建议使用 docker run -e 覆盖）
-ENV AES_KEY=dockerun-aes-key-2025-secret-key
-ENV AES_IV=dockerun-aes-iv16
-
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
-
-# 运行应用
-CMD ["./main"]
-
+HEALTHCHECK --interval=30s --timeout=5s CMD curl --fail http://localhost:8080/health || exit 1
+CMD ["dockerun-server"]

@@ -17,9 +17,13 @@ func (m *StringMap) Scan(value interface{}) error {
 		*m = make(StringMap)
 		return nil
 	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		*m = make(StringMap)
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
 		return nil
 	}
 	return json.Unmarshal(bytes, m)

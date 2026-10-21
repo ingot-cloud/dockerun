@@ -1,10 +1,10 @@
 <template>
-  <PageContainer title="Registry Management">
-    <ContentCard title="Registries" :icon="DataBoard" :no-padding="true">
+  <PageContainer title="外部仓库管理">
+    <ContentCard title="外部仓库" :icon="DataBoard" :no-padding="true">
       <template #actions>
         <el-input
           v-model="searchText"
-          placeholder="Search..."
+          placeholder="搜索…"
           :prefix-icon="Search"
           style="width: 240px"
           clearable
@@ -15,7 +15,7 @@
           @click="handleBatchRemove"
           :disabled="selectedItems.length === 0"
         >
-          Remove
+          删除
         </el-button>
         <el-button type="primary" :icon="Plus" @click="showAddDialog">
           Add Registry
@@ -30,7 +30,7 @@
       >
         <el-table-column type="selection" width="45" fixed="left" />
 
-        <el-table-column label="Name" min-width="180">
+        <el-table-column label="名称" min-width="180">
           <template #default="{ row }">
             <span class="registry-name" @click="viewImages(row)">
               {{ row.name }}
@@ -44,7 +44,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Username" width="150">
+        <el-table-column label="用户名" width="150">
           <template #default="{ row }">
             <span class="text-normal">{{ row.username || "-" }}</span>
           </template>
@@ -68,14 +68,14 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Created" width="180">
+        <el-table-column label="创建时间" width="180">
           <template #default="{ row }">
             <span class="text-normal">{{ formatDate(row.created_at) }}</span>
           </template>
         </el-table-column>
 
         <el-table-column
-          label="Quick Actions"
+          label="快捷操作"
           width="150"
           align="center"
           fixed="right"
@@ -98,7 +98,7 @@
                   class="action-btn"
                 />
               </el-tooltip>
-              <el-tooltip content="Remove" placement="top">
+              <el-tooltip content="删除" placement="top">
                 <el-button
                   link
                   :icon="Delete"
@@ -122,49 +122,62 @@
       @cancel="dialogVisible = false"
       wide
     >
-      <el-form
-        :model="form"
-        :rules="rules"
-        ref="formRef"
-        label-width="140px"
-      >
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="140px">
         <div class="form-section">
           <h3>Basic Information</h3>
-          <el-form-item label="Name" prop="name">
+          <el-form-item label="名称" prop="name">
             <el-input v-model="form.name" placeholder="e.g. My Registry" />
           </el-form-item>
-          <el-form-item label="Registry URL" prop="url">
+          <el-form-item label="仓库地址" prop="url">
             <el-input
               v-model="form.url"
               placeholder="https://registry.example.com"
             />
             <div class="form-tip">
-              Full URL of the Docker registry (e.g., https://registry.hub.docker.com for Docker Hub)
+              Full URL of the Docker registry (e.g.,
+              https://registry-1.docker.io for Docker Hub)
             </div>
           </el-form-item>
         </div>
 
         <div class="form-section">
           <h3>Authentication</h3>
-          <el-form-item label="Username">
+          <el-form-item label="用户名">
             <el-input v-model="form.username" placeholder="Optional" />
           </el-form-item>
-          <el-form-item label="Password">
+          <el-form-item label="密码">
             <el-input
               v-model="form.password"
               type="password"
               placeholder="Optional"
               show-password
             />
-            <div class="form-tip">
-              Password will be encrypted before transmission
-            </div>
+            <div class="form-tip">通过 HTTPS 传输，并在服务器加密保存</div>
           </el-form-item>
           <el-form-item label="Email">
             <el-input v-model="form.email" placeholder="Optional" />
           </el-form-item>
         </div>
 
+        <div class="form-section">
+          <h3>Agent 专用拉取账号</h3>
+          <p class="form-tip">
+            在外部 Registry 创建只读账号后填写；Agent 不使用上面的管理凭据。
+          </p>
+          <el-form-item label="拉取用户名"
+            ><el-input v-model="form.pull_username" /></el-form-item
+          ><el-form-item label="拉取密码"
+            ><el-input
+              v-model="form.pull_password"
+              type="password"
+              show-password
+              placeholder="留空保留已有凭据" /></el-form-item
+          ><el-form-item label="权限确认"
+            ><el-checkbox v-model="form.pull_only_confirmed"
+              >已在外部 Registry 将该账号限制为只读</el-checkbox
+            ></el-form-item
+          >
+        </div>
         <div class="form-section">
           <h3>Options</h3>
           <el-form-item label="Default Registry">
@@ -217,6 +230,9 @@ const form = ref({
   id: 0,
   name: "",
   url: "",
+  pull_username: "",
+  pull_password: "",
+  pull_only_confirmed: false,
   username: "",
   password: "",
   email: "",
@@ -238,7 +254,7 @@ const filteredRegistries = computed(() => {
     (item) =>
       item.name.toLowerCase().includes(search) ||
       item.url.toLowerCase().includes(search) ||
-      (item.username && item.username.toLowerCase().includes(search))
+      (item.username && item.username.toLowerCase().includes(search)),
   );
 });
 
@@ -246,11 +262,13 @@ const fetchRegistries = async () => {
   loading.value = true;
   try {
     const response = await registryApi.list();
-    registries.value = response || [];
+    registries.value = (response || []).filter(
+      (r: any) => r.kind !== "builtin",
+    );
   } catch (error: any) {
     console.error("Failed to fetch registries:", error);
     ElMessage.error(
-      error.response?.data?.error || "Failed to fetch registry list"
+      error.response?.data?.error || "Failed to fetch registry list",
     );
   } finally {
     loading.value = false;
@@ -275,7 +293,7 @@ const handleBatchRemove = async () => {
         type: "warning",
         confirmButtonText: "Remove",
         cancelButtonText: "Cancel",
-      }
+      },
     );
 
     for (const item of selectedItems.value) {
@@ -288,7 +306,7 @@ const handleBatchRemove = async () => {
   } catch (error: any) {
     if (error !== "cancel") {
       ElMessage.error(
-        error.response?.data?.error || "Failed to remove registries"
+        error.response?.data?.error || "Failed to remove registries",
       );
     }
   }
@@ -300,6 +318,9 @@ const showAddDialog = () => {
     id: 0,
     name: "",
     url: "",
+    pull_username: "",
+    pull_password: "",
+    pull_only_confirmed: false,
     username: "",
     password: "",
     email: "",
@@ -315,6 +336,9 @@ const editRegistry = (row: Registry) => {
     id: row.id,
     name: row.name,
     url: row.url,
+    pull_username: row.pull_username || "",
+    pull_password: "",
+    pull_only_confirmed: row.pull_only_confirmed || false,
     username: row.username,
     password: "",
     email: row.email || "",
@@ -361,7 +385,7 @@ const deleteRegistry = async (row: Registry) => {
         type: "warning",
         confirmButtonText: "Remove",
         cancelButtonText: "Cancel",
-      }
+      },
     );
     await registryApi.delete(row.id);
     ElMessage.success("Registry removed successfully");
@@ -369,7 +393,7 @@ const deleteRegistry = async (row: Registry) => {
   } catch (error: any) {
     if (error !== "cancel") {
       ElMessage.error(
-        error.response?.data?.error || "Failed to remove registry"
+        error.response?.data?.error || "Failed to remove registry",
       );
     }
   }

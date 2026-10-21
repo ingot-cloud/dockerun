@@ -1,10 +1,10 @@
 <template>
-  <PageContainer title="Volume Management">
-    <ContentCard title="Volumes" :icon="FolderOpened" :no-padding="true">
+  <PageContainer title="卷管理">
+    <ContentCard title="卷" :icon="FolderOpened" :no-padding="true">
       <template #actions>
         <el-input
           v-model="searchText"
-          placeholder="Search..."
+          placeholder="搜索…"
           :prefix-icon="Search"
           style="width: 240px"
           clearable
@@ -15,7 +15,7 @@
           @click="handleBatchRemove"
           :disabled="selectedVolumes.length === 0"
         >
-          Remove
+          删除
         </el-button>
         <el-button type="primary" :icon="Plus" @click="showCreateDialog">
           Add Volume
@@ -30,7 +30,7 @@
       >
         <el-table-column type="selection" width="45" fixed="left" />
 
-        <el-table-column label="Name" min-width="250">
+        <el-table-column label="名称" min-width="250">
           <template #default="{ row }">
             <span class="volume-name">{{ row.Name }}</span>
           </template>
@@ -54,21 +54,21 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Created" width="180">
+        <el-table-column label="创建时间" width="180">
           <template #default="{ row }">
             <span class="text-normal">{{ formatDate(row.CreatedAt) }}</span>
           </template>
         </el-table-column>
 
         <el-table-column
-          label="Quick Actions"
+          label="快捷操作"
           width="100"
           align="center"
           fixed="right"
         >
           <template #default="{ row }">
             <div class="quick-actions">
-              <el-tooltip content="Remove" placement="top">
+              <el-tooltip content="删除" placement="top">
                 <el-button
                   link
                   :icon="Delete"
@@ -94,7 +94,7 @@
       <el-form :model="form" :rules="rules" ref="formRef" label-width="140px">
         <div class="form-section">
           <h3>Basic Information</h3>
-          <el-form-item label="Name" prop="name">
+          <el-form-item label="名称" prop="name">
             <el-input v-model="form.name" placeholder="e.g. my-volume" />
             <div class="form-tip">
               Leave empty to generate a random name

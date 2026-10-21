@@ -62,3 +62,6 @@ backend/dockerun
 data/
 docker-packages/
 
+
+# Local dependency cache
+.pnpm-store/

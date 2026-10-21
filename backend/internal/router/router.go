@@ -1,18 +1,45 @@
 package router
 
 import (
+	"dockerun/internal/builtin"
+	"dockerun/internal/config"
 	"dockerun/internal/handler"
 	"dockerun/internal/middleware"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 func Setup() *gin.Engine {
+	gin.SetMode(config.Load().Mode)
 	r := gin.Default()
+	r.SetTrustedProxies(nil)
+
+	r.Use(func(c *gin.Context) {
+		p := c.Request.URL.Path
+		numeric := false
+		for _, prefix := range []string{"/webhooks/", "/agent/tasks/", "/api/applications/", "/api/releases/", "/api/deployments/", "/api/bundles/", "/api/users/", "/api/registries/", "/api/targets/", "/api/deploy-scripts/", "/api/webhook-configs/", "/api/system/backups/"} {
+			if strings.HasPrefix(p, prefix) {
+				numeric = true
+				break
+			}
+		}
+		if id := c.Param("id"); numeric && id != "" {
+			v, err := strconv.ParseUint(id, 10, 32)
+			if err != nil || v == 0 {
+				c.AbortWithStatusJSON(400, gin.H{"error": "无效的资源 ID"})
+				return
+			}
+		}
+		c.Next()
+	})
+	r.Any("/v2/*path", gin.WrapH(http.HandlerFunc(builtin.Serve)))
+	r.GET("/registry/token", gin.WrapH(http.HandlerFunc(builtin.Token)))
+	r.POST("/registry/token", gin.WrapH(http.HandlerFunc(builtin.Token)))
 
 	// CORS中间件
 	r.Use(func(c *gin.Context) {
@@ -38,6 +65,14 @@ func Setup() *gin.Engine {
 		public.POST("/auth/setup", handler.SetInitialPassword)
 	}
 
+	agents := r.Group("/agent")
+	agents.Use(handler.AgentAuth())
+	agents.GET("/poll", handler.AgentPoll)
+	agents.POST("/tasks/:id/heartbeat", handler.AgentHeartbeat)
+	agents.POST("/tasks/:id/logs", handler.AgentLog)
+	agents.POST("/tasks/:id/complete", handler.AgentComplete)
+	agents.GET("/tasks/:id/bundle", handler.AgentBundle)
+	r.GET("/health", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ok"}) })
 	// Webhook 公开接口（不需要认证，Registry 调用）
 	r.POST("/webhooks/:id", handler.ReceiveWebhook)
 
@@ -49,6 +84,49 @@ func Setup() *gin.Engine {
 		protected.GET("/auth/me", handler.GetCurrentUser)
 		protected.POST("/auth/change-password", handler.ChangePassword)
 
+		protected.GET("/builtin/catalog", handler.BuiltinCatalog)
+		protected.GET("/builtin/tags", handler.BuiltinTags)
+		protected.GET("/auth/tokens", handler.ListTokens)
+		protected.POST("/auth/tokens", handler.CreateToken)
+		protected.DELETE("/auth/tokens/:id", handler.RevokeToken)
+		protected.Use(middleware.RequireAdmin())
+		protected.POST("/system/backups", handler.CreateBackup)
+		protected.GET("/system/backups", handler.ListBackups)
+		protected.GET("/system/backups/:id/download", handler.DownloadBackup)
+		protected.GET("/targets", handler.ListTargets)
+		protected.POST("/targets", handler.CreateTarget)
+		protected.PATCH("/targets/:id", handler.UpdateTarget)
+		protected.GET("/users", handler.ListUsers)
+		protected.POST("/users", handler.CreateUser)
+		protected.PATCH("/users/:id", handler.UpdateUser)
+		protected.GET("/audit", handler.ListAudit)
+		protected.GET("/overview", handler.Overview)
+		protected.GET("/managed-templates", handler.ManagedTemplates)
+		protected.GET("/builtin/status", handler.BuiltinStatus)
+		protected.POST("/builtin/maintenance", handler.RegistryMaintenance)
+		protected.DELETE("/builtin/manifests", handler.BuiltinDelete)
+		protected.GET("/applications", handler.ListApplications)
+		protected.POST("/applications", handler.CreateApplication)
+		protected.GET("/applications/:id", handler.ApplicationDetail)
+		protected.GET("/applications/:id/sources", handler.ApplicationSources)
+		protected.PUT("/applications/:id/environments", handler.SaveEnvironment)
+		protected.POST("/applications/:id/releases", handler.CreateRelease)
+		protected.POST("/releases/:id/promote", handler.Promote)
+		protected.DELETE("/releases/:id/retention", handler.ReleaseRetention)
+		protected.POST("/deployments/preflight", handler.PreflightDeployment)
+		protected.POST("/deployments", handler.EnqueueDeployment)
+		protected.GET("/deployments", handler.ListDeployments)
+		protected.GET("/deployments/:id", handler.DeploymentDetail)
+		protected.GET("/deployments/:id/events", handler.DeploymentEvents)
+		protected.GET("/bundles", handler.ListBundles)
+		protected.GET("/bundles/uploads/:upload", handler.UploadBundle)
+		protected.PUT("/bundles/uploads/:upload", handler.UploadBundle)
+		protected.POST("/bundles/uploads/:upload/complete", handler.FinishUpload)
+		protected.POST("/bundles/import-directory", handler.ImportBundleDirectory)
+		protected.POST("/bundles/:id/version", handler.BundleVersion)
+		protected.POST("/bundles/:id/retry", handler.RetryBundle)
+		protected.POST("/bundles/publish", handler.PublishBundle)
+		protected.GET("/bundles/:id/download", handler.DownloadBundle)
 		// 系统相关
 		protected.GET("/system/docker-status", handler.CheckDockerStatus)
 		protected.GET("/system/info", handler.GetSystemInfo)
@@ -68,12 +146,14 @@ func Setup() *gin.Engine {
 		// 镜像管理
 		protected.GET("/images", handler.ListImages)
 		protected.GET("/images/:id", handler.InspectImage)
+		protected.GET("/images/:id/history", handler.GetImageHistory)
 		protected.POST("/images/pull", handler.PullImage)
 		protected.DELETE("/images/:id", handler.RemoveImage)
 		protected.POST("/images/tag", handler.TagImage)
 		protected.POST("/images/load", handler.LoadImage)
 		protected.POST("/images/save", handler.SaveImage)
 		protected.POST("/images/import", handler.ImportImage)
+		protected.POST("/images/export", handler.ExportImages)
 		protected.GET("/images/:id/export", handler.ExportImage)
 
 		// 网络管理
@@ -167,7 +247,7 @@ func setupStaticFiles(r *gin.Engine) {
 	// SPA 路由处理 - 所有非 API 和非静态资源请求都返回 index.html
 	r.NoRoute(func(c *gin.Context) {
 		// 如果是 API 请求，返回 404
-		if strings.HasPrefix(c.Request.URL.Path, "/api") {
+		if strings.HasPrefix(c.Request.URL.Path, "/api") || strings.HasPrefix(c.Request.URL.Path, "/agent/") || strings.HasPrefix(c.Request.URL.Path, "/v2/") || c.Request.Method != "GET" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
 			return
 		}

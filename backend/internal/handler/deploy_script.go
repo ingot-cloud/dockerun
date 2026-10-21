@@ -1,20 +1,16 @@
 package handler
 
 import (
-	"bufio"
-	"dockerun/internal/config"
 	"dockerun/internal/database"
 	"dockerun/internal/docker"
 	"dockerun/internal/models"
+	"dockerun/internal/release"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -203,24 +199,6 @@ func DeleteDeployScript(c *gin.Context) {
 			return err
 		}
 
-		// 2. 查找使用此脚本的 Webhook 配置
-		var webhookConfigs []models.WebhookConfig
-		if err := tx.Where("deploy_script_id = ?", script.ID).Find(&webhookConfigs).Error; err != nil {
-			return err
-		}
-
-		// 3. 删除这些 Webhook 配置的日志
-		for _, config := range webhookConfigs {
-			if err := tx.Where("webhook_config_id = ?", config.ID).Delete(&models.WebhookLog{}).Error; err != nil {
-				return err
-			}
-		}
-
-		// 4. 删除这些 Webhook 配置
-		if err := tx.Where("deploy_script_id = ?", script.ID).Delete(&models.WebhookConfig{}).Error; err != nil {
-			return err
-		}
-
 		// 5. 最后删除脚本本身
 		if err := tx.Delete(&script).Error; err != nil {
 			return err
@@ -239,217 +217,50 @@ func DeleteDeployScript(c *gin.Context) {
 
 // ExecuteDeployScript 执行部署脚本
 func ExecuteDeployScript(c *gin.Context) {
-	db := database.GetDB()
-	id := c.Param("id")
-
 	var script models.DeployScript
-	if err := db.First(&script, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "脚本不存在"})
+	if database.DB.First(&script, c.Param("id")).Error != nil {
+		c.JSON(404, gin.H{"error": "脚本不存在"})
 		return
 	}
-
-	// 手动加载关联文件
-	loadDeployScriptFiles(db, &script)
-
-	// 使用配置的工作目录或系统默认工作目录
-	var workDir string
-	useTemp := false
-	if script.WorkDir != "" && script.WorkDir != "/ingot-data/dockerun" {
-		// 使用用户指定的工作目录
-		workDir = script.WorkDir
-	} else {
-		// 使用系统配置的默认工作目录
-		var systemConfig models.SystemConfig
-		if err := database.GetDB().First(&systemConfig).Error; err == nil {
-			workDir = filepath.Join(systemConfig.DeployWorkDir, fmt.Sprintf("script-%d", script.ID))
-		} else {
-			// 如果系统配置不存在，使用临时目录
-			workDir = filepath.Join(os.TempDir(), fmt.Sprintf("dockerun-deploy-%d", script.ID))
-			useTemp = true
-		}
-	}
-
-	// 创建工作目录
-	if err := os.MkdirAll(workDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建工作目录失败: " + err.Error()})
-		return
-	}
-
-	// 如果使用临时目录，执行完后清理
-	if useTemp {
-		defer os.RemoveAll(workDir)
-	}
-
-	// 写入所有关联文件
-	for _, file := range script.Files {
-		// 创建文件所在的目录
-		fileFullPath := filepath.Join(workDir, file.FilePath)
-		fileDir := filepath.Dir(fileFullPath)
-		if err := os.MkdirAll(fileDir, 0755); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("创建目录失败: %s", fileDir),
-			})
-			return
-		}
-
-		// 写入文件内容
-		perm := os.FileMode(0644)
-		if file.FileType == "script" {
-			perm = 0755
-		}
-		log.Println("写入文件: ", fileFullPath)
-		if err := os.WriteFile(fileFullPath, []byte(file.Content), perm); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("写入文件失败: %s", file.FileName),
-			})
-			return
-		}
-	}
-
-	// 写入主脚本文件
-	mainScriptPath := filepath.Join(workDir, "deploy.sh")
-	if err := os.WriteFile(mainScriptPath, []byte(script.MainScript), 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "写入主脚本失败"})
-		return
-	}
-
-	// 更新脚本状态
-	script.Status = "running"
-	database.GetDB().Save(&script)
-
-	// 准备环境变量
-	env := os.Environ()
-	if script.EnvVars != nil {
-		for key, value := range script.EnvVars {
-			env = append(env, fmt.Sprintf("%s=%s", key, value))
-		}
-	}
-	// 添加工作目录环境变量
-	env = append(env, fmt.Sprintf("WORK_DIR=%s", workDir))
-
-	// 添加 Docker 网络名称（从配置中获取）
-	cfg := config.Load()
-	env = append(env, fmt.Sprintf("DOCKER_NETWORK=%s", cfg.NetworkName))
-
-	// 执行脚本（流式输出）
-	cmd := exec.Command("/bin/bash", mainScriptPath)
-	cmd.Dir = workDir
-	cmd.Env = env
-
-	// 获取输出管道
-	stdout, err := cmd.StdoutPipe()
+	loadDeployScriptFiles(database.DB, &script)
+	task, err := release.EnqueueLegacy(script, c.GetUint("user_id"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建输出管道失败"})
+		fail(c, err)
 		return
 	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建错误管道失败"})
-		return
-	}
-
-	// 设置流式响应头
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
-
-	// 启动命令
-	if err := cmd.Start(); err != nil {
-		script.Status = "failed"
-		database.GetDB().Save(&script)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "启动脚本失败: " + err.Error()})
-		return
-	}
-
-	// 用于收集所有输出
-	var fullOutput strings.Builder
-	flusher, _ := c.Writer.(http.Flusher)
-
-	// 发送日志事件
-	sendLogEvent := func(line string) {
-		fullOutput.WriteString(line + "\n")
-		data, _ := json.Marshal(map[string]string{
-			"type": "log",
-			"data": line,
-		})
-		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
-		if flusher != nil {
-			flusher.Flush()
+	after := uint(0)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		var logs []models.TaskLog
+		database.DB.Where("deployment_id = ? AND id > ?", task.ID, after).Order("id").Find(&logs)
+		for _, l := range logs {
+			data, _ := json.Marshal(gin.H{"type": "log", "data": l.Message, "task_id": task.ID})
+			fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+			after = l.ID
 		}
-	}
-
-	// 读取标准输出
-	go func() {
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			sendLogEvent(scanner.Text())
+		database.DB.First(task, task.ID)
+		c.Writer.Flush()
+		if task.Status != "queued" && task.Status != "running" {
+			kind := "complete"
+			if task.Status != "success" {
+				kind = "error"
+			}
+			data, _ := json.Marshal(gin.H{"type": kind, "message": task.Result, "task_id": task.ID})
+			fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+			c.Writer.Flush()
+			return
 		}
-	}()
-
-	// 读取标准错误
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			sendLogEvent("[STDERR] " + scanner.Text())
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case <-ticker.C:
 		}
-	}()
-
-	// 等待命令完成
-	cmdErr := cmd.Wait()
-
-	outputStr := fullOutput.String()
-
-	// 发送完成事件
-	if cmdErr != nil {
-		script.Status = "failed"
-		database.GetDB().Save(&script)
-
-		data, _ := json.Marshal(map[string]interface{}{
-			"type":    "error",
-			"message": "脚本执行失败: " + cmdErr.Error(),
-			"output":  outputStr,
-		})
-		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
-		if flusher != nil {
-			flusher.Flush()
-		}
-		return
-	}
-
-	// 智能提取容器ID
-	containerID := extractContainerID(outputStr)
-	if containerID != "" {
-		script.ContainerID = containerID
-		script.ContainerName = docker.GetContainerName(containerID)
-
-		// 检查容器是否真的在运行
-		if docker.IsContainerRunning(containerID) {
-			script.Status = "running"
-		} else {
-			script.Status = "stopped"
-		}
-	} else {
-		script.Status = "stopped"
-	}
-
-	database.GetDB().Save(&script)
-
-	// 发送成功事件
-	data, _ := json.Marshal(map[string]interface{}{
-		"type":         "complete",
-		"message":      "脚本执行成功",
-		"output":       outputStr,
-		"script":       script,
-		"container_id": containerID,
-	})
-	fmt.Fprintf(c.Writer, "data: %s\n\n", data)
-	if flusher != nil {
-		flusher.Flush()
 	}
 }
 
-// extractContainerID 智能提取容器ID
 func extractContainerID(output string) string {
 	// 方法1: 查找标准的Docker容器ID（64位或12位十六进制）
 	// 匹配 "Container ID:" 或类似的输出
