@@ -6,6 +6,8 @@
 
 设置 `PUBLIC_URL` 为客户端及 Docker daemon 可达的根地址；不能带路径、账号或查询参数。默认禁止匿名访问，初始化管理员前仓库不可用。直接 HTTPS 使用 `TLS_CERT`、`TLS_KEY`；已有反向代理需保留 Authorization、WWW-Authenticate、Location 等协议头，并允许大文件及流式响应。HTTP 本机验证与正式 HTTPS 配置应分别管理；Docker daemon 对 HTTP Registry 的要求沿用 Docker 标准配置。
 
+Docker Desktop 本地开发时，宿主机 Go 服务与虚拟机中的 daemon 不在同一网络环境。本地 Make 命令默认设置 `PUBLIC_URL=http://host.docker.internal:8080`，执行 `make dev-backend` 即可使用该认证入口，无需额外传参。若 `docker login localhost:8080` 超时，但宿主机执行 `curl http://localhost:8080/v2/` 正常返回带 `WWW-Authenticate` 的 401，应从 daemon 环境检查宿主访问地址。使用 `host.docker.internal:8080` 登录时，认证令牌地址也必须使用此入口；已有后端进程需重启以应用配置。仅本地 HTTP 调试时，把该地址合并到 Docker Desktop 的 `insecure-registries` 并 Apply & Restart；已有配置应保留。Linux 本机 Docker Engine 可用 `make dev-backend PUBLIC_URL=http://localhost:8080` 覆盖，正式容器部署仍通过 `.env` 指定实际入口。步骤见 README 的本地开发部分。
+
 `DATA_DIR` 默认 `./data`，容器中为 `/var/lib/dockerun`：
 
 | 目录 | 内容 |
@@ -100,9 +102,11 @@ Agent 要求 HTTPS，回环地址仅供本机验证。通过 `DOCKERUN_URL`、`D
 
 ## 维护与恢复
 
-仓库维护先切换只读，等待在途请求结束，再由成熟引擎执行 GC，保留未打标签的 manifest。原始 `/v2/` 和网页删除都检查保护引用；镜像层不开放独立 DELETE，交由 GC 清理。
+仓库维护先切换只读，等待在途请求结束，再创建持久化 GC 任务，保留未打标签的 manifest。任务在后台执行，离开页面不会中断；完成后保持管理员开启的只读状态。原始 `/v2/` 和网页删除都检查保护引用；镜像层不开放独立 DELETE，交由 GC 清理。
 
 管理员从“仓库与维护”创建持久化完整备份任务，刷新页面后仍可查询状态并下载结果。SQLite 使用一致性快照；MySQL 通过 `mysqldump --single-transaction`。本机执行和包导入在备份窗口暂停，Registry 只读。备份包含元数据、keys、Registry 内容、发布材料和任务材料；业务数据卷及外部 Registry 自身内容需单独备份。
+
+备份和 GC 任务按提交顺序串行执行，同类任务排队或执行期间重复提交会返回已有任务。备份结束后恢复原来的手动维护状态，执行中不能恢复写入；排队或运行中的 GC 也会阻止结束只读维护。页面只在存在活动任务时轮询；失败任务可重新提交。进程重启后，正在运行的任务会标记为失败，未完成的备份不会提供下载。
 
 ```bash
 # 停止当前 Dockerun，恢复到新的空目录；不会覆盖已有目录。
@@ -120,7 +124,9 @@ MySQL 备份会解出 `metadata.sql`，需恢复到专用 MySQL 数据库，再�
 | `GET/POST/DELETE /api/auth/tokens[/:id]` | 本人自动化令牌 |
 | `GET /api/builtin/catalog`、`GET /api/builtin/tags` | 有权限用户浏览内置仓库 |
 | `DELETE /api/builtin/manifests` | 管理员受保护删除 |
-| `POST /api/builtin/maintenance` | 管理员只读窗口 / GC |
+| `POST /api/builtin/maintenance` | 指定 `read_only` 切换管理员只读窗口；只读窗口内以 `gc: true` 创建后台 GC 任务，返回 `job_id` |
+| `GET /api/builtin/maintenance` | 最近 100 条 GC 任务及执行结果 |
+| `GET/POST /api/system/backups`、`GET /api/system/backups/:id/download` | 完整备份任务及已完成文件下载 |
 | `GET/POST /api/applications`、`GET /api/applications/:id` | 应用及环境、版本 |
 | `PUT /api/applications/:id/environments` | 创建或更新环境，支持固定目标列表 |
 | `POST /api/applications/:id/releases` | 创建不可变本机/仓库版本 |

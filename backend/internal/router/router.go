@@ -106,6 +106,7 @@ func Setup() *gin.Engine {
 		protected.GET("/managed-templates", handler.ManagedTemplates)
 		protected.GET("/builtin/status", handler.BuiltinStatus)
 		protected.POST("/builtin/maintenance", handler.RegistryMaintenance)
+		protected.GET("/builtin/maintenance", handler.ListRegistryMaintenance)
 		protected.DELETE("/builtin/manifests", handler.BuiltinDelete)
 		protected.GET("/applications", handler.ListApplications)
 		protected.POST("/applications", handler.CreateApplication)

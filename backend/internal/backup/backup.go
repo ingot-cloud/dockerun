@@ -28,9 +28,11 @@ func Create(ctx context.Context) (string, error) {
 		}
 	}
 	defer release.ExecutionGate.Unlock()
-	ro := builtin.ReadOnly()
-	builtin.SetReadOnly(true)
-	defer builtin.SetReadOnly(ro)
+	finish, err := builtin.BeginMaintenance(ctx, "backup")
+	if err != nil {
+		return "", err
+	}
+	defer finish()
 	cfg := config.Load()
 	dir, err := os.MkdirTemp(filepath.Join(cfg.DataDir, "backups"), "snapshot-")
 	if err != nil {
@@ -52,7 +54,13 @@ func Create(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	complete := false
+	defer func() {
+		f.Close()
+		if !complete {
+			os.Remove(path + ".partial")
+		}
+	}()
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
 	write := func(name, path string) error {
@@ -78,7 +86,9 @@ func Create(ctx context.Context) (string, error) {
 		return err
 	}
 	meta, _ := json.Marshal(map[string]any{"schema_version": 1, "complete": true, "database_type": cfg.DatabaseType, "database_file": dbFile, "created_at": time.Now().UTC(), "contents": []string{"metadata", "keys", "registry", "releases", "uploads", "jobs"}})
-	os.WriteFile(filepath.Join(dir, "backup.json"), meta, 0600)
+	if err = os.WriteFile(filepath.Join(dir, "backup.json"), meta, 0600); err != nil {
+		return "", err
+	}
 	for _, name := range []string{dbFile, "backup.json"} {
 		if err = write(name, filepath.Join(dir, name)); err != nil {
 			return "", err
@@ -114,6 +124,7 @@ func Create(ctx context.Context) (string, error) {
 	if err = os.Rename(path+".partial", path); err != nil {
 		return "", err
 	}
+	complete = true
 	return path, nil
 }
 func dumpMySQL(ctx context.Context, dsn, path string) error {

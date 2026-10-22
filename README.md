@@ -38,6 +38,7 @@ make install-deps
 
 ```bash
 # 终端一：后端 API、内置 Registry 和部署执行器，默认 8080
+# PUBLIC_URL 默认 http://host.docker.internal:8080，适用于 Docker Desktop
 make dev-backend
 ```
 
@@ -46,7 +47,30 @@ make dev-backend
 make dev-frontend
 ```
 
-访问 [http://localhost:5173](http://localhost:5173)。首次设置 `admin` 密码。API 与 Registry 由前端开发代理转发到后端；`docker login/push/pull` 使用 `localhost:8080`。在对应终端按 `Ctrl+C` 停止进程。
+访问 [http://localhost:5173](http://localhost:5173)。首次设置 `admin` 密码。API 与 Registry 由前端开发代理转发到后端。在对应终端按 `Ctrl+C` 停止进程。
+
+本地 Make 命令默认设置 `PUBLIC_URL=http://host.docker.internal:8080`，Docker Desktop 开发时无需重复传参。macOS / Windows 的 Docker Desktop daemon 运行在虚拟机中，通过 `host.docker.internal:8080` 访问宿主机服务。网页仍使用 `localhost:5173`，前端 API 代理仍连接 `127.0.0.1:8080`。
+
+HTTP 本地调试还需在 Docker Desktop 的 Settings → Docker Engine 中，将 `host.docker.internal:8080` 合并到已有的 `insecure-registries` 列表（保留其他条目和设置），然后 Apply & Restart：
+
+```json
+{
+  "insecure-registries": ["host.docker.internal:8080"]
+}
+```
+
+```bash
+docker login -u admin host.docker.internal:8080
+```
+
+`PUBLIC_URL` 决定认证挑战中的 `/registry/token` 地址，也必须能从 daemon 所在环境访问。只修改 `docker login` 的地址或添加 `http://` 参数不足以完成配置。该 HTTP 配置只用于本地调试；正式部署使用 daemon 可达的 HTTPS 域名及可信证书。Linux 的 HTTP 仓库配置写入 `/etc/docker/daemon.json` 并重启 Docker 服务。
+
+Linux Docker Engine 与后端运行在同一台机器时，可显式覆盖为回环地址；远程测试时设置为 Docker daemon 可达的服务器 IP 或域名：
+
+```bash
+make dev-backend PUBLIC_URL=http://localhost:8080
+docker login -u admin localhost:8080
+```
 
 开发模式默认 SQLite，统一使用项目内 `data/local`，与本地体验数据一致，不自动迁移旧的 `backend/data`。`make -C backend dev` 使用相同配置。前端端口被占用时明确报错，不静默切换端口。
 
@@ -55,8 +79,8 @@ Make 命令默认通过 `goproxy.cn` 下载工具链及模块，并通过它的�
 ```bash
 # 自定义网络或团队代理
 make dev-backend GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org
-# 使用其他端口时，同时指定服务地址、Registry 对外地址和前端代理
-make dev-backend SERVER_ADDR=127.0.0.1:8081 PUBLIC_URL=http://localhost:8081
+# Docker Desktop 使用其他端口时，同时指定服务地址、Registry 对外地址和前端代理
+make dev-backend SERVER_ADDR=127.0.0.1:8081 PUBLIC_URL=http://host.docker.internal:8081
 make dev-frontend BACKEND_URL=http://127.0.0.1:8081 FRONTEND_PORT=5174
 ```
 

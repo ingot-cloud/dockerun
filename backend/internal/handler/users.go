@@ -113,12 +113,15 @@ func UpdateUser(c *gin.Context) {
 	c.JSON(200, u)
 }
 func ListAudit(c *gin.Context) {
-	var rows []models.AuditEvent
-	q := database.DB.Order("id DESC").Limit(200)
+	rows := []models.AuditEvent{}
+	q := database.DB.WithContext(c.Request.Context()).Order("id DESC").Limit(200)
 	if a := c.Query("action"); a != "" {
 		q = q.Where("action = ?", a)
 	}
-	q.Find(&rows)
+	if err := q.Find(&rows).Error; err != nil {
+		c.JSON(500, gin.H{"error": "无法加载审计事件，请重试"})
+		return
+	}
 	c.JSON(200, rows)
 }
 func ListTokens(c *gin.Context) {

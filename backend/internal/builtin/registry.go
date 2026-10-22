@@ -32,8 +32,8 @@ import (
 var ReferenceGate sync.RWMutex
 var Engine http.Handler
 var gate sync.RWMutex
-var readonly bool
-var maintenanceMu sync.Mutex
+
+const CatalogPageSize = 1000
 
 func init() {
 	auth.Register("dockerun", func(options map[string]any) (auth.AccessController, error) { return controller{}, nil })
@@ -47,6 +47,8 @@ func Init() error {
 		return fmt.Errorf("registry signing key unavailable")
 	}
 	c := &configuration.Configuration{Version: configuration.CurrentVersion, Storage: configuration.Storage{"filesystem": configuration.Parameters{"rootdirectory": filepath.Join(cfg.DataDir, "registry")}, "delete": configuration.Parameters{"enabled": true}, "maintenance": configuration.Parameters{"uploadpurging": map[any]any{"enabled": false}}}, Auth: configuration.Auth{"dockerun": configuration.Parameters{}}, HTTP: configuration.HTTP{Secret: config.RegistryHTTPSecret(), RelativeURLs: true}}
+	// YAML parsing normally applies this default. Embedded configurations bypass it.
+	c.Catalog.MaxEntries = CatalogPageSize
 	Engine = handlers.NewApp(context.Background(), c)
 	return nil
 }
@@ -213,7 +215,7 @@ func Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	write := r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS"
-	if readonly && write {
+	if ReadOnly() && write {
 		http.Error(w, "仓库只读维护中", 503)
 		return
 	}
@@ -325,15 +327,22 @@ func Protected(d string) error {
 	}
 	return nil
 }
-func SetReadOnly(v bool) { gate.Lock(); defer gate.Unlock(); readonly = v }
-func ReadOnly() bool     { gate.RLock(); defer gate.RUnlock(); return readonly }
 func GarbageCollect(ctx context.Context) error {
-	maintenanceMu.Lock()
-	defer maintenanceMu.Unlock()
-	gate.Lock()
+	finish, err := BeginMaintenance(ctx, "registry_gc")
+	if err != nil {
+		return err
+	}
+	defer finish()
+	if err := lockRegistry(ctx); err != nil {
+		return err
+	}
 	defer gate.Unlock()
-	if !readonly {
-		return fmt.Errorf("请先开启只读维护窗口")
+	// An unused filesystem registry has no repository or blob directories yet.
+	// Distribution's GC requires both enumeration roots, even for an empty store.
+	for _, name := range []string{"repositories", "blobs"} {
+		if err := os.MkdirAll(filepath.Join(config.Load().DataDir, "registry", "docker", "registry", "v2", name), 0700); err != nil {
+			return err
+		}
 	}
 	driver, err := filesystem.FromParameters(map[string]any{"rootdirectory": filepath.Join(config.Load().DataDir, "registry")})
 	if err != nil {

@@ -19,12 +19,13 @@ func InspectVolume(volumeName string) (volume.Volume, error) {
 }
 
 // CreateVolume 创建卷
-func CreateVolume(name string, driver string, labels map[string]string) (volume.Volume, error) {
+func CreateVolume(name string, driver string, labels, options map[string]string) (volume.Volume, error) {
 	ctx := context.Background()
 	return Client.VolumeCreate(ctx, volume.CreateOptions{
-		Name:   name,
-		Driver: driver,
-		Labels: labels,
+		Name:       name,
+		Driver:     driver,
+		Labels:     labels,
+		DriverOpts: options,
 	})
 }
 
@@ -33,4 +34,3 @@ func RemoveVolume(volumeName string, force bool) error {
 	ctx := context.Background()
 	return Client.VolumeRemove(ctx, volumeName, force)
 }
-

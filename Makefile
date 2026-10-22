@@ -12,7 +12,8 @@ DATA_DIR ?= $(ROOT_DIR)/data/local
 TEMPLATE_DIR ?= $(ROOT_DIR)/templates
 DATABASE_TYPE ?= sqlite
 SERVER_ADDR ?= 127.0.0.1:8080
-PUBLIC_URL ?= http://localhost:8080
+# Local Make targets default to Docker Desktop's host address; override for other environments.
+PUBLIC_URL ?= http://host.docker.internal:8080
 BACKEND_URL ?= http://127.0.0.1:8080
 FRONTEND_PORT ?= 5173
 BACKEND_ENV = DATA_DIR="$(abspath $(DATA_DIR))" TEMPLATE_DIR="$(abspath $(TEMPLATE_DIR))" DATABASE_TYPE="$(DATABASE_TYPE)" SERVER_ADDR="$(SERVER_ADDR)" PUBLIC_URL="$(PUBLIC_URL)"
