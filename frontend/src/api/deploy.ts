@@ -54,15 +54,15 @@ export interface ScriptTemplate {
 }
 
 export const deployApi = {
-  list: () => request.get('/deploy-scripts'),
-  get: (id: number) => request.get(`/deploy-scripts/${id}`),
-  create: (data: DeployScript) => request.post('/deploy-scripts', data),
-  update: (id: number, data: DeployScript) => request.put(`/deploy-scripts/${id}`, data),
+  list: () => request.get('/deploy-scripts', {silentError:true}),
+  get: (id: number) => request.get(`/deploy-scripts/${id}`, {silentError:true}),
+  create: (data: DeployScript) => request.post('/deploy-scripts', data, {silentError:true}),
+  update: (id: number, data: DeployScript) => request.put(`/deploy-scripts/${id}`, data, {silentError:true}),
   delete: (id: number) => request.delete(`/deploy-scripts/${id}`),
   execute: (id: number) => request.post(`/deploy-scripts/${id}/execute`),
   
   // 模版相关
-  getTemplates: () => request.get<ScriptTemplate[]>('/templates'),
+  getTemplates: () => request.get<ScriptTemplate[]>('/templates', {silentError:true}),
   getTemplate: (id: string) => request.get<ScriptTemplate>(`/templates/${id}`)
 }
 

@@ -1,10 +1,12 @@
 import request from './request'
 import type { ContainerDetails, ContainerStats } from '@/utils/containers'
+import type { DockerNetwork, NetworkCreateRequest } from '@/utils/networks'
+import type { DockerVolume, VolumeCreateRequest } from '@/utils/volumes'
 
 export const dockerApi = {
   // 容器相关
   containers: {
-    list: (all = true) => request.get('/containers', { params: { all } }),
+    list: (all = true, signal?: AbortSignal) => request.get('/containers', { params: { all }, signal }),
     inspect: (id: string, signal?: AbortSignal) => request.get<unknown, ContainerDetails>(`/containers/${id}`, { signal }),
     start: (id: string) => request.post(`/containers/${id}/start`),
     stop: (id: string) => request.post(`/containers/${id}/stop`),
@@ -41,9 +43,9 @@ export const dockerApi = {
 
   // 网络相关
   networks: {
-    list: () => request.get('/networks'),
-    inspect: (id: string) => request.get(`/networks/${id}`),
-    create: (params: any) => request.post('/networks', params),
+    list: (signal?: AbortSignal) => request.get<unknown, DockerNetwork[] | null>('/networks', { signal }),
+    inspect: (id: string, signal?: AbortSignal) => request.get<unknown, DockerNetwork>(`/networks/${encodeURIComponent(id)}`, { signal }),
+    create: (params: NetworkCreateRequest) => request.post<unknown, { Id: string; Warning?: string }>('/networks', params),
     remove: (id: string) => request.delete(`/networks/${id}`),
     connect: (id: string, containerId: string) => request.post(`/networks/${id}/connect`, { container_id: containerId }),
     disconnect: (id: string, containerId: string, force = false) => request.post(`/networks/${id}/disconnect`, { container_id: containerId, force })
@@ -51,10 +53,10 @@ export const dockerApi = {
 
   // 卷相关
   volumes: {
-    list: () => request.get('/volumes'),
-    inspect: (name: string) => request.get(`/volumes/${name}`),
-    create: (name: string, driver = 'local', labels?: Record<string, string>) => request.post('/volumes', { name, driver, labels }),
-    remove: (name: string, force = false) => request.delete(`/volumes/${name}`, { params: { force } })
+    list: (signal?: AbortSignal) => request.get<unknown, { Volumes: DockerVolume[] | null; Warnings?: string[] | null }>('/volumes', { signal }),
+    inspect: (name: string, signal?: AbortSignal) => request.get<unknown, DockerVolume>(`/volumes/${encodeURIComponent(name)}`, { signal }),
+    create: (params: VolumeCreateRequest) => request.post<unknown, DockerVolume>('/volumes', params),
+    remove: (name: string, force = false) => request.delete(`/volumes/${encodeURIComponent(name)}`, { params: { force } })
   }
 }
 

@@ -1,17 +1,17 @@
 import type { Registry } from '@/api/registry'
 
 export const registryProviders = [
-  { id: 'custom', label: 'Custom registry', description: '兼容 Docker Registry v2 的仓库', url: '' },
+  { id: 'custom', label: '通用镜像仓库', description: '兼容 Docker Registry v2 的仓库', url: '' },
   { id: 'dockerhub', label: 'Docker Hub', description: 'Docker 官方镜像仓库', url: 'https://registry-1.docker.io' },
   { id: 'quay', label: 'Quay.io', description: 'Quay 容器镜像仓库', url: 'https://quay.io' },
-  { id: 'github', label: 'GitHub', description: 'GitHub Container Registry', url: 'https://ghcr.io' },
+  { id: 'github', label: 'GitHub', description: 'GitHub 容器镜像仓库', url: 'https://ghcr.io' },
   { id: 'gitlab', label: 'GitLab', description: 'GitLab.com 或自托管仓库', url: 'https://registry.gitlab.com' },
-  { id: 'azure', label: 'Azure', description: 'Azure Container Registry', url: '' },
+  { id: 'azure', label: 'Azure', description: 'Azure 容器镜像仓库', url: '' },
 ] as const
 export type RegistryProvider = typeof registryProviders[number]['id']
 export type RegistrySortKey = 'name' | 'type' | 'url' | 'authentication'
 export const registryColumns: { key: RegistrySortKey; label: string }[] = [
-  { key: 'name', label: '名称' }, { key: 'type', label: '类型' }, { key: 'url', label: 'URL' }, { key: 'authentication', label: '身份认证' },
+  { key: 'name', label: '名称' }, { key: 'type', label: '类型' }, { key: 'url', label: '仓库地址' }, { key: 'authentication', label: '身份认证' },
 ]
 
 export function registryProvider(url: string): RegistryProvider {

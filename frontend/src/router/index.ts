@@ -68,17 +68,44 @@ const router = createRouter({
         {
           path: 'networks',
           name: 'Networks',
-          component: () => import('@/views/Networks.vue')
+          component: () => import('@/views/Networks.vue'),
+          meta: { title: '网络', admin: true }
+        },
+        {
+          path: 'networks/new',
+          name: 'NetworkCreate',
+          component: () => import('@/views/NetworkCreate.vue'),
+          meta: { title: '创建网络', admin: true }
+        },
+        {
+          path: 'networks/:id',
+          name: 'NetworkDetail',
+          component: () => import('@/views/NetworkDetail.vue'),
+          meta: { title: '网络详情', admin: true }
         },
         {
           path: 'volumes',
           name: 'Volumes',
-          component: () => import('@/views/Volumes.vue')
+          component: () => import('@/views/Volumes.vue'),
+          meta: { title: '卷', admin: true }
+        },
+        {
+          path: 'volumes/new',
+          name: 'VolumeCreate',
+          component: () => import('@/views/VolumeCreate.vue'),
+          meta: { title: '创建卷', admin: true }
+        },
+        {
+          path: 'volumes/:name/details',
+          name: 'VolumeDetail',
+          component: () => import('@/views/VolumeDetail.vue'),
+          meta: { title: '卷详情', admin: true }
         },
         {
           path: 'deploy-scripts',
           name: 'DeployScripts',
-          component: () => import('@/views/DeployScripts.vue')
+          component: () => import('@/views/DeployScripts.vue'),
+          meta: {title:'历史脚本',admin:true}
         },
         {
           path: 'registry',
@@ -90,7 +117,7 @@ const router = createRouter({
           path: 'registry/new',
           name: 'RegistryCreate',
           component: () => import('@/views/RegistryDetail.vue'),
-          meta: { title: '添加 Registry', admin: true }
+          meta: { title: '添加仓库', admin: true }
         },
         {
           path: 'registry/:id',
@@ -107,12 +134,14 @@ const router = createRouter({
         {
           path: 'webhooks',
           name: 'WebhookConfigs',
-          component: () => import('@/views/WebhookConfigs.vue')
+          component: () => import('@/views/WebhookConfigs.vue'),
+          meta: {title:'外部回调',admin:true}
         },
         {
           path: 'system',
           name: 'System',
-          component: () => import('@/views/System.vue')
+          component: () => import('@/views/System.vue'),
+          meta: {title:'系统信息',admin:true}
         }
       ]
     }

@@ -1,253 +1,43 @@
 <template>
-  <div class="page-heading">
-    <div>
-      <h1>{{ data.application?.name || "应用详情" }}</h1>
-      <p>
-        {{
-          data.application?.description ||
-          "独立管理各环境的版本、健康与发布授权。"
-        }}
-      </p>
-    </div>
-    <el-button
-      type="primary"
-      @click="$router.push(`/applications/${id}/deploy`)"
-      >发布应用</el-button
-    >
+  <div class="workspace-page">
+    <WorkspaceHeading :title="data.application?.name || '应用详情'" :loading="loading" :busy="busy" @refresh="load()"><router-link :to="{path:'/applications',query:route.query}">返回应用列表</router-link><el-button type="primary" :disabled="!data.application || busy" @click="router.push({path:`/applications/${id}/deploy`,query:route.query})">发布应用</el-button></WorkspaceHeading>
+    <p class="management-description">{{data.application?.description || '独立管理各环境的版本、健康与发布授权。'}}</p>
+    <div v-if="error || actionError" class="management-error" role="alert"><span>{{error || actionError}}</span><el-button link @click="actionError='';load()">重试</el-button></div>
+    <div v-if="optionsError" class="management-warning" role="alert"><span>{{optionsError}}</span><el-button link :disabled="optionsLoading" @click="loadOptions">重试</el-button></div>
+    <ResourceList title="部署环境" icon="Connection" :items="data.environments || []" :loading="loading" :busy="busy" query-prefix="env_" :sorts="[{key:'name',label:'环境名称'}]" empty-text="暂无部署环境" style="flex:none;height:370px" @refresh="load()"><template #actions><el-button type="primary" :disabled="optionsLoading || !!optionsError || !data.application" @click="edit()">添加环境</el-button></template><el-table-column prop="name" label="环境" min-width="150" /><el-table-column label="目标主机" width="120"><template #default="{row}">{{row.target_id>1?`主机 #${row.target_id}`:'本机'}}</template></el-table-column><el-table-column label="当前版本" width="120"><template #default="{row}">{{row.current_release_id?`#${row.current_release_id}`:'尚未发布'}}</template></el-table-column><el-table-column label="健康状态" width="180"><template #default="{row}"><StatusBadge :value="row.health" /></template></el-table-column><el-table-column label="发布方式" min-width="180"><template #default="{row}">{{row.auto_deploy?'自动（受推送人限制）':'手动'}}</template></el-table-column><el-table-column label="操作" width="190"><template #default="{row}"><div class="management-row-actions"><el-button link type="primary" :disabled="busy || !!optionsError || optionsLoading" @click="edit(row)">配置</el-button><el-button link :disabled="busy || !!optionsError || optionsLoading" @click="clone(row)">复制</el-button><router-link :to="{path:'/deployments',query:{environment_id:row.id}}">记录</router-link></div></template></el-table-column></ResourceList>
+    <ResourceList title="发布版本" icon="Collection" :items="data.releases || []" :loading="loading" :busy="busy" :search-keys="['version','platform','id']" query-prefix="release_" :sorts="[{key:'created_at',label:'创建时间'},{key:'version',label:'版本名称'}]" empty-text="暂无发布版本" style="flex:none;height:420px" @refresh="load()"><el-table-column prop="version" label="版本" min-width="170" /><el-table-column label="来源" width="140"><template #default="{row}">{{sourceLabel(row.source)}}</template></el-table-column><el-table-column label="平台" width="140"><template #default="{row}">{{row.platform || '—'}}</template></el-table-column><el-table-column label="创建时间" width="180"><template #default="{row}">{{formatDate(row.created_at)}}</template></el-table-column><el-table-column label="操作" min-width="260"><template #default="{row}"><div class="management-row-actions"><el-button link type="primary" :disabled="busy" @click="router.push({path:`/applications/${id}/deploy`,query:{...route.query,release:row.id}})">晋升 / 恢复</el-button><el-button link @click="inspect=row">查看版本</el-button><el-button v-if="row.source==='bundle'" link type="primary" :loading="publishing===row.id" :disabled="busy" @click="publishBundle(row)">镜像入库</el-button></div></template></el-table-column></ResourceList>
+    <FormDialog v-model="visible" title="环境配置" wide :loading="saving" confirm-text="保存环境" @confirm="save" @cancel="visible=false">
+      <div v-if="formError" class="management-error management-feedback" role="alert">{{formError}}</div>
+      <el-form :model="form" label-position="top" :disabled="saving" @submit.prevent="save">
+        <div class="form-section"><h3>基本配置</h3><el-form-item label="环境名称" required><el-input v-model="form.name" placeholder="例如：测试环境、生产环境" maxlength="100" /></el-form-item><el-form-item label="目标主机" required><el-select v-model="form.target_id" placeholder="选择目标主机"><el-option v-for="host in hosts" :key="host.id" :value="host.id" :label="host.name" :disabled="host.id!==1 && !host.enabled" /></el-select></el-form-item><el-form-item label="固定主机组"><el-select v-model="targetIds" multiple placeholder="可选，按选择顺序逐台部署"><el-option v-for="host in hosts" :key="host.id" :value="host.id" :label="host.name" :disabled="host.id!==1 && !host.enabled" /></el-select><p class="management-form-help">多台主机按选择顺序逐台部署，失败后暂停后续任务。</p></el-form-item></div>
+        <div class="form-section"><h3>环境参数与恢复</h3><el-form-item label="环境参数（JSON 对象）"><el-input v-model="params" type="textarea" :rows="5" class="mono" /><p class="management-form-help">仅保存在本环境，不会被发布包默认值覆盖。</p></el-form-item><el-checkbox v-model="form.stateless">无状态应用</el-checkbox><el-checkbox v-model="form.auto_rollback" :disabled="!form.stateless">失败自动恢复</el-checkbox></div>
+        <div class="form-section"><h3>自动发布</h3><el-switch v-model="form.auto_deploy" active-text="允许镜像提交后自动发布" aria-label="允许镜像提交后自动发布" /><template v-if="form.auto_deploy"><div class="management-warning management-feedback">默认仅管理员推送可触发；普通用户需明确授权。生产环境建议手动发布。</div><el-form-item label="来源仓库" required><el-select v-model="form.registry_id" placeholder="选择来源仓库"><el-option v-for="registry in registries" :key="registry.id" :value="registry.id" :label="registry.name" /></el-select></el-form-item><el-form-item label="镜像名称（不含仓库域名）" required><el-input v-model="form.repository" placeholder="例如：team/gateway" /></el-form-item><el-form-item label="标签规则"><el-input v-model="form.tag_pattern" placeholder="例如：* 或 test-*" /></el-form-item><el-form-item label="允许触发的普通用户"><el-select v-model="publishers" multiple placeholder="默认仅管理员"><el-option v-for="user in users.filter(user=>!user.is_admin && user.enabled)" :key="user.id" :value="user.id" :label="user.username" /></el-select></el-form-item></template></div><button type="submit" hidden>保存环境</button>
+      </el-form>
+    </FormDialog>
+    <FormDialog :model-value="!!inspect" title="不可变发布版本" extra-wide :show-footer="false" @update:model-value="(value:boolean)=>{if(!value)inspect=null}"><pre class="management-code">{{JSON.stringify(inspect,null,2)}}</pre></FormDialog>
   </div>
-  <el-alert v-if="error" :title="error" type="error" class="inline-error" />
-  <section class="panel">
-    <div class="toolbar">
-      <h2 style="margin: 0; flex: 1">部署环境</h2>
-      <el-button @click="edit()">添加环境</el-button>
-    </div>
-    <el-table :data="data.environments || []"
-      ><el-table-column prop="name" label="环境" /><el-table-column
-        label="目标主机"
-        ><template #default="{ row }">{{
-          row.target_id > 1 ? `#${row.target_id}` : "本机"
-        }}</template></el-table-column
-      ><el-table-column
-        prop="current_release_id"
-        label="当前版本"
-      /><el-table-column label="健康"
-        ><template #default="{ row }"
-          ><StatusBadge :value="row.health" /></template></el-table-column
-      ><el-table-column label="发布方式"
-        ><template #default="{ row }">{{
-          row.auto_deploy ? "自动（受推送人限制）" : "手动"
-        }}</template></el-table-column
-      ><el-table-column label="操作" width="220"
-        ><template #default="{ row }"
-          ><el-button link type="primary" @click="edit(row)">配置</el-button
-          ><el-button link @click="clone(row)">复制</el-button
-          ><el-button
-            link
-            @click="$router.push(`/deployments?environment_id=${row.id}`)"
-            >记录</el-button
-          ></template
-        ></el-table-column
-      ></el-table
-    >
-  </section>
-  <section class="panel">
-    <h2>发布版本</h2>
-    <el-table :data="data.releases || []"
-      ><el-table-column prop="version" label="版本" /><el-table-column
-        prop="source"
-        label="来源"
-        width="100"
-      /><el-table-column prop="platform" label="平台" /><el-table-column
-        prop="created_at"
-        label="创建时间"
-      /><el-table-column label="操作" width="190"
-        ><template #default="{ row }"
-          ><el-button
-            link
-            type="primary"
-            @click="
-              $router.push(`/applications/${id}/deploy?release=${row.id}`)
-            "
-            >晋升 / 恢复</el-button
-          ><el-button link @click="inspect = row">查看</el-button
-          ><el-button
-            v-if="row.source === 'bundle'"
-            link
-            type="primary"
-            @click="publishBundle(row)"
-            >镜像入库</el-button
-          ></template
-        ></el-table-column
-      ></el-table
-    >
-  </section>
-  <el-dialog v-model="visible" title="环境配置" width="680px"
-    ><el-alert
-      v-if="error"
-      :title="error"
-      type="error"
-      class="inline-error"
-      :closable="false"
-    /><el-form label-position="top"
-      ><el-form-item label="环境名称"
-        ><el-input
-          v-model="form.name"
-          placeholder="test / prod" /></el-form-item
-      ><el-form-item label="目标主机"
-        ><el-select v-model="form.target_id"
-          ><el-option
-            v-for="h in hosts"
-            :key="h.id"
-            :value="h.id"
-            :label="h.name" /></el-select></el-form-item
-      ><el-form-item label="固定主机组（按选择顺序逐台部署，失败暂停）"
-        ><el-select v-model="targetIds" multiple
-          ><el-option
-            v-for="h in hosts"
-            :key="h.id"
-            :value="h.id"
-            :label="h.name" /></el-select></el-form-item
-      ><el-form-item
-        label="环境参数（JSON，仅保存在本环境，不会被发布包默认值覆盖）"
-        ><el-input
-          v-model="params"
-          type="textarea"
-          :rows="5"
-          class="mono" /></el-form-item
-      ><el-form-item
-        ><el-checkbox v-model="form.stateless">无状态应用</el-checkbox
-        ><el-checkbox v-model="form.auto_rollback" :disabled="!form.stateless"
-          >失败自动恢复</el-checkbox
-        ></el-form-item
-      ><el-form-item
-        ><el-switch
-          v-model="form.auto_deploy"
-          active-text="允许镜像提交后自动发布"
-          aria-label="允许镜像提交后自动发布" /></el-form-item
-      ><template v-if="form.auto_deploy"
-        ><el-alert
-          title="默认仅管理员推送可触发；普通用户需在下方明确授权。生产环境建议手动发布。"
-          type="warning"
-          :closable="false" /><el-form-item label="来源仓库"
-          ><el-select v-model="form.registry_id"
-            ><el-option
-              v-for="r in registries"
-              :key="r.id"
-              :value="r.id"
-              :label="r.name" /></el-select></el-form-item
-        ><el-form-item label="镜像名称（不含仓库域名）"
-          ><el-input
-            v-model="form.repository"
-            placeholder="team/gateway" /></el-form-item
-        ><el-form-item label="标签规则"
-          ><el-input
-            v-model="form.tag_pattern"
-            placeholder="* / test-*" /></el-form-item
-        ><el-form-item label="允许触发的普通用户"
-          ><el-select v-model="publishers" multiple
-            ><el-option
-              v-for="u in users.filter((u) => !u.is_admin)"
-              :key="u.id"
-              :value="u.id"
-              :label="
-                u.username
-              " /></el-select></el-form-item></template></el-form
-    ><template #footer
-      ><el-button @click="visible = false">取消</el-button
-      ><el-button type="primary" @click="save">保存环境</el-button></template
-    ></el-dialog
-  >
-  <el-dialog
-    :model-value="!!inspect"
-    title="不可变版本"
-    width="800px"
-    @close="inspect = null"
-  >
-    <pre class="code-block">{{ inspect }}</pre>
-  </el-dialog>
 </template>
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useRoute } from "vue-router";
-import request from "@/api/request";
-import { api, errorText } from "@/api/workspace";
-import StatusBadge from "@/components/StatusBadge.vue";
-const id = useRoute().params.id,
-  data = ref<any>({}),
-  error = ref(""),
-  visible = ref(false),
-  form = ref<any>({}),
-  params = ref("{}"),
-  publishers = ref<number[]>([]),
-  users = ref<any[]>([]),
-  registries = ref<any[]>([]),
-  hosts = ref<any[]>([]),
-  inspect = ref<any>(null),
-  targetIds = ref<number[]>([]);
-async function load() {
-  try {
-    data.value = await api("GET", `/applications/${id}`);
-  } catch (e) {
-    error.value = errorText(e);
-  }
-}
-function edit(row?: any) {
-  form.value = row
-    ? { ...row }
-    : {
-        name: "test",
-        target_id: 1,
-        stateless: false,
-        auto_rollback: false,
-        auto_deploy: false,
-        registry_id: 0,
-        repository: "",
-        tag_pattern: "*",
-      };
-  targetIds.value = JSON.parse(row?.target_ids || "[]");
-  params.value = JSON.stringify(row?.parameters || {}, null, 2);
-  publishers.value = JSON.parse(row?.allowed_publishers || "[]");
-  visible.value = true;
-}
-function clone(row: any) {
-  edit({ ...row, id: 0, name: row.name + "-copy", auto_deploy: false });
-}
-async function save() {
-  try {
-    form.value.target_ids = JSON.stringify(targetIds.value);
-    form.value.parameters = JSON.parse(params.value);
-    form.value.allowed_publishers = JSON.stringify(publishers.value);
-    await api("PUT", `/applications/${id}/environments`, form.value);
-    visible.value = false;
-    await load();
-  } catch (e) {
-    error.value = errorText(e);
-  }
-}
-async function publishBundle(row: any) {
-  try {
-    await request.post(
-      "/bundles/publish",
-      { release_id: row.id },
-      { timeout: 0 },
-    );
-    await load();
-  } catch (e) {
-    error.value = errorText(e);
-  }
-}
-onMounted(async () => {
-  await load();
-  const results = await Promise.allSettled([
-    api("GET", "/users"),
-    api("GET", "/registries"),
-    api("GET", "/targets"),
-  ]);
-  users.value = results[0].status === "fulfilled" ? results[0].value : [];
-  registries.value = results[1].status === "fulfilled" ? results[1].value : [];
-  hosts.value =
-    results[2].status === "fulfilled"
-      ? results[2].value
-      : [{ id: 1, name: "本机" }];
-});
+import { computed,onBeforeUnmount,onMounted,ref } from 'vue'
+import { useRoute,useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import request from '@/api/request'
+import { api,errorText } from '@/api/workspace'
+import { useResource } from '@/composables/useResource'
+import { formatDate,parseArray,parseObject,sourceLabel } from '@/utils/management'
+import WorkspaceHeading from '@/components/WorkspaceHeading.vue'
+import ResourceList from '@/components/ResourceList.vue'
+import FormDialog from '@/components/FormDialog.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+const route=useRoute(),router=useRouter(),id=route.params.id
+const {data,loading,error,load}=useResource<any>(`/applications/${id}`,{})
+const visible=ref(false),saving=ref(false),publishing=ref(0),actionError=ref(''),formError=ref(''),optionsError=ref(''),optionsLoading=ref(false)
+const users=ref<any[]>([]),registries=ref<any[]>([]),hosts=ref<any[]>([]),form=ref<any>({}),params=ref('{}'),targetIds=ref<number[]>([]),publishers=ref<number[]>([]),inspect=ref<any>(null)
+const busy=computed(()=>saving.value || !!publishing.value),controller=new AbortController();let disposed=false
+async function loadOptions(){if(optionsLoading.value)return;optionsLoading.value=true;optionsError.value='';const results=await Promise.allSettled(['/users','/registries','/targets'].map(path=>api<any[]>('GET',path,undefined,controller.signal)));if(disposed)return;const targets=[users,registries,hosts];results.forEach((result,index)=>{if(result.status==='fulfilled')targets[index].value=result.value || [];else optionsError.value='部分配置选项加载失败，请重试后配置环境。'});optionsLoading.value=false}
+function edit(row?:any){form.value=row?{...row}:{name:'',target_id:1,stateless:false,auto_rollback:false,auto_deploy:false,registry_id:0,repository:'',tag_pattern:'*'};targetIds.value=parseArray(row?.target_ids);publishers.value=parseArray(row?.allowed_publishers);params.value=JSON.stringify(row?.parameters || {},null,2);formError.value='';visible.value=true}
+function clone(row:any){edit({...row,id:0,name:`${row.name}-副本`,auto_deploy:false})}
+async function save(){if(saving.value)return;formError.value='';try{if(!form.value.name?.trim())throw new Error('请输入环境名称');if(!form.value.target_id)throw new Error('请选择目标主机');if(form.value.auto_deploy && (!form.value.registry_id || !form.value.repository?.trim()))throw new Error('自动发布需要选择来源仓库并填写镜像名称');const payload={id:form.value.id || 0,name:form.value.name.trim(),target_id:form.value.target_id,stateless:Boolean(form.value.stateless),auto_deploy:Boolean(form.value.auto_deploy),registry_id:form.value.registry_id || 0,repository:form.value.repository || '',tag_pattern:form.value.tag_pattern || '*',parameters:parseObject(params.value,'环境参数'),target_ids:JSON.stringify(targetIds.value),allowed_publishers:JSON.stringify(publishers.value),auto_rollback:Boolean(form.value.stateless && form.value.auto_rollback)};saving.value=true;await api('PUT',`/applications/${id}/environments`,payload);visible.value=false;ElMessage.success('环境配置已保存');await load()}catch(cause){formError.value=errorText(cause)}finally{saving.value=false}}
+async function publishBundle(row:any){if(busy.value)return;publishing.value=row.id;actionError.value='';try{await request.post('/bundles/publish',{release_id:row.id},{timeout:0,silentError:true});ElMessage.success('版本镜像已入库');await load()}catch(cause){actionError.value=errorText(cause)}finally{publishing.value=0}}
+onMounted(loadOptions);onBeforeUnmount(()=>{disposed=true;controller.abort()})
 </script>

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dockerun 前端样式与交互规范"
+  short_description: "统一 Dockerun 前端页面的深色样式、中文文案与资源管理交互规范"
+  default_prompt: "使用 $dockerun-frontend，按项目规范完成当前前端页面的样式与交互调整，所有用户可见文案使用简体中文。"

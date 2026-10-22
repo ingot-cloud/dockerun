@@ -1,7 +1,7 @@
 <template>
   <div class="registry-resource registry-detail-page">
     <header class="registry-heading">
-      <h1>{{ creating ? '添加 Registry' : '仓库详情' }}<span v-if="registry" class="registry-heading-name">{{ registry.name }}</span></h1>
+      <h1>{{ creating ? '添加仓库' : '仓库详情' }}<span v-if="registry" class="registry-heading-name">{{ registry.name }}</span></h1>
       <div class="registry-heading-actions"><el-button v-if="registry" :disabled="busy || loading" @click="router.push({ name: 'RegistryImages', params: { id: registry.id }, query: route.query })"><PortainerIcon name="box" />浏览镜像</el-button><el-button link :disabled="busy" @click="goBack">返回仓库列表</el-button></div>
     </header>
     <div v-if="loadError" class="registry-error" role="alert"><span>{{ loadError }}</span><el-button link @click="loadRegistry">重试</el-button></div>
@@ -16,12 +16,12 @@
         <section class="registry-card" aria-labelledby="registry-details-title">
           <header class="registry-card-header"><h2 id="registry-details-title"><span class="registry-section-icon"><PortainerIcon name="registry" /></span>{{ activeProvider.label }} 配置</h2></header>
           <el-form ref="formRef" :model="form" :rules="rules" label-width="140px" class="registry-config-form" :disabled="busy" @submit.prevent="save">
-            <el-form-item label="名称" prop="name"><el-input v-model="form.name" placeholder="例如 Production registry" maxlength="200" /></el-form-item>
+            <el-form-item label="名称" prop="name"><el-input v-model="form.name" placeholder="例如：生产镜像仓库" maxlength="200" /></el-form-item>
             <el-form-item label="仓库地址" prop="url"><el-input v-model="form.url" :placeholder="selectedProvider === 'azure' ? 'https://myregistry.azurecr.io' : 'https://registry.example.com'" /><p class="registry-form-help">填写仓库域名和端口；未指定协议时默认使用 HTTPS，不包含镜像名称。</p></el-form-item>
             <el-form-item label="身份认证"><el-switch v-model="form.authentication" aria-label="启用身份认证" /><p class="registry-form-help">{{ form.authentication ? '使用用户名和密码或访问令牌连接仓库。' : '使用匿名访问连接仓库。' }}</p></el-form-item>
             <template v-if="form.authentication">
               <el-form-item label="用户名" prop="username"><el-input v-model="form.username" autocomplete="off" placeholder="仓库用户名" maxlength="100" /></el-form-item>
-              <el-form-item :label="selectedProvider === 'github' ? '访问令牌' : '密码 / 访问令牌'" prop="password"><el-input v-model="form.password" type="password" show-password autocomplete="new-password" :placeholder="registry?.username ? '留空保留已有密码' : '输入密码或访问令牌'" /><p class="registry-form-help">{{ selectedProvider === 'github' ? '使用具有所需包访问权限的 Personal Access Token。' : '密码在服务器加密保存。' }}</p></el-form-item>
+              <el-form-item :label="selectedProvider === 'github' ? '访问令牌' : '密码 / 访问令牌'" prop="password"><el-input v-model="form.password" type="password" show-password autocomplete="new-password" :placeholder="registry?.username ? '留空保留已有密码' : '输入密码或访问令牌'" /><p class="registry-form-help">{{ selectedProvider === 'github' ? '使用具有所需包访问权限的个人访问令牌。' : '密码在服务器加密保存。' }}</p></el-form-item>
               <el-form-item label="邮箱" prop="email"><el-input v-model="form.email" placeholder="可选" maxlength="200" /></el-form-item>
             </template>
             <div class="registry-form-section registry-options">
@@ -30,9 +30,9 @@
               <el-form-item label="跳过 TLS 验证"><el-switch v-model="form.insecure" aria-label="跳过 TLS 证书验证" /><p class="registry-form-help">适用于使用自签名证书的 HTTPS 仓库；使用 HTTP 时请在地址中明确填写 http://。</p></el-form-item>
             </div>
             <div class="registry-form-section">
-              <h3>Agent 专用拉取账号</h3>
-              <p class="registry-form-help">在外部仓库创建只读账号后填写，Agent 使用该账号拉取镜像。</p>
-              <el-form-item label="拉取用户名" class="registry-pull-username"><el-input v-model="form.pull_username" placeholder="可选，仅用于 Agent 拉取镜像" maxlength="100" /></el-form-item>
+              <h3>代理专用拉取账号</h3>
+              <p class="registry-form-help">在外部仓库创建只读账号后填写，代理使用该账号拉取镜像。</p>
+              <el-form-item label="拉取用户名" class="registry-pull-username"><el-input v-model="form.pull_username" placeholder="可选，仅用于代理拉取镜像" maxlength="100" /></el-form-item>
               <el-form-item label="拉取密码"><el-input v-model="form.pull_password" type="password" show-password autocomplete="new-password" :placeholder="registry?.pull_username ? '留空保留已有拉取密码' : '输入拉取密码或访问令牌'" /></el-form-item>
               <el-form-item label="只读权限"><el-checkbox v-model="form.pull_only_confirmed">已在外部仓库将该账号限制为只读</el-checkbox></el-form-item>
             </div>
@@ -42,10 +42,10 @@
       </template>
     </div>
     <div v-if="actionError" class="registry-error" role="alert"><span>{{ actionError }}</span><el-button link @click="actionError = ''">关闭</el-button></div>
-    <div v-if="testSuccess" class="registry-test-success" role="status">Registry API 连接成功；目录和镜像标签的读取结果请在“浏览镜像”中查看。</div>
+    <div v-if="testSuccess" class="registry-test-success" role="status">仓库接口连接成功；目录和镜像标签的读取结果请在“浏览镜像”中查看。</div>
     <footer v-if="creating || registry" class="registry-card registry-form-footer">
       <el-button v-if="registry" class="registry-remove" :disabled="busy || loading" @click="deleteVisible = true"><PortainerIcon name="trash" />删除仓库</el-button><span v-else />
-      <div><el-button :disabled="busy || loading" :loading="testing" @click="testConnection">测试连接</el-button><el-button :disabled="busy" @click="goBack">取消</el-button><el-button class="registry-primary" :loading="saving" :disabled="busy || loading" @click="save">{{ creating ? '添加 Registry' : '保存更改' }}</el-button></div>
+      <div><el-button :disabled="busy || loading" :loading="testing" @click="testConnection">测试连接</el-button><el-button :disabled="busy" @click="goBack">取消</el-button><el-button class="registry-primary" :loading="saving" :disabled="busy || loading" @click="save">{{ creating ? '添加仓库' : '保存更改' }}</el-button></div>
     </footer>
     <RegistryDeleteDialog v-model="deleteVisible" :registries="registry ? [registry] : []" @removed="onRemoved" />
   </div>

@@ -14,7 +14,13 @@
     "preview": "vite preview",
     "test:images": "node --test tests/localImages.test.mjs",
     "test:containers": "node --test tests/containers.test.mjs",
+    "test:networks": "node --test tests/networks.test.mjs",
+    "test:volumes": "node --test tests/volumes.test.mjs",
     "test:registries": "node --test tests/registries.test.mjs",
+    "test:builtin": "node --test tests/builtin.test.mjs",
+    "test:maintenance": "node --test tests/maintenance.test.mjs",
+    "test:users": "node --test tests/users.test.mjs",
+    "test:management": "node --test tests/management.test.mjs",
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {

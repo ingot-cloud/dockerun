@@ -3,6 +3,10 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import router from '@/router'
 
+declare module 'axios' {
+  interface AxiosRequestConfig { silentError?: boolean }
+}
+
 const request = axios.create({
   baseURL: '/api',
   timeout: 30000
@@ -32,15 +36,15 @@ request.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response
       
-      if (status === 401) {
+      if (status === 401 && error.config?.url !== '/auth/login') {
         const authStore = useAuthStore()
         authStore.logout()
         router.push('/login')
         ElMessage.error('认证失败，请重新登录')
-      } else {
+      } else if (!error.config?.silentError) {
         ElMessage.error(data.error || '请求失败')
       }
-    } else {
+    } else if (!error.config?.silentError) {
       ElMessage.error('网络错误')
     }
     

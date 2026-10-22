@@ -1,12 +1,8 @@
 <template>
-  <div class="form-page">
-    <div class="page-heading">
-      <div>
-        <h1>发布 {{ data.application?.name }}</h1>
-        <p>选择交付材料，确认部署环境和版本差异。</p>
-      </div>
-    </div>
-    <el-steps :active="step" finish-status="success" style="margin-bottom: 28px"
+  <div v-loading="loading" class="workspace-page form-page">
+    <WorkspaceHeading :title="`发布 ${data.application?.name || '应用'}`" :loading="loading" :busy="busy" @refresh="loadOptions"><router-link :to="{path:`/applications/${id}`,query:route.query}">返回应用详情</router-link></WorkspaceHeading>
+    <p class="management-description">选择交付材料，确认部署环境和版本差异后再执行部署。</p>
+    <el-steps :active="step" finish-status="success" style="margin: 4px 0 8px"
       ><el-step title="选择来源" /><el-step title="应用与环境" /><el-step
         title="参数配置" /><el-step title="预检查与差异" /></el-steps
     ><el-alert
@@ -21,7 +17,7 @@
         <button
           v-for="s in sources"
           :key="s.value"
-          class="source-card"
+          class="source-card" :disabled="busy || loading"
           :aria-pressed="form.source === s.value"
           @click="selectSource(s.value)"
         >
@@ -40,11 +36,11 @@
             v-for="r in data.releases || []"
             :key="r.id"
             :value="r.id"
-            :label="`${r.version} · ${r.source}`"
+            :label="`${r.version} · ${sourceLabel(r.source)}`"
         /></el-select></section
     ></template>
     <section v-if="step === 1" class="panel">
-      <el-form label-position="top"
+      <el-form label-position="top" :disabled="busy || loading"
         ><el-form-item label="部署环境"
           ><el-select v-model="environment" style="width: 100%"
             ><el-option
@@ -94,12 +90,12 @@
           selectedEnv?.parameters || {}
         }}</pre></template
       ><template v-else
-        ><el-form label-position="top"
+        ><el-form label-position="top" :disabled="busy || loading"
           ><el-form-item label="定义方式"
             ><el-radio-group v-model="definitionMode"
               ><el-radio-button value="simple">简单容器</el-radio-button
               ><el-radio-button value="compose"
-                >Compose 栈</el-radio-button
+                >应用栈（Compose）</el-radio-button
               ></el-radio-group
             ></el-form-item
           ><template v-if="definitionMode === 'simple'"
@@ -145,7 +141,7 @@
           :title="
             form.source === 'local'
               ? '仅使用目标 Docker 已有镜像；缺失直接失败。'
-              : '创建版本时锁定 Registry digest，部署时拉取这一身份的镜像。'
+              : '创建版本时锁定仓库镜像摘要，部署时拉取同一身份的镜像。'
           "
           type="info"
           :closable="false"
@@ -168,22 +164,22 @@
       <h2>新版本镜像</h2>
       <pre class="code-block">{{ preview?.images }}</pre>
       <el-collapse
-        ><el-collapse-item title="新 Compose" name="new">
+        ><el-collapse-item title="新应用栈定义" name="new">
           <pre class="code-block">{{ preview?.compose }}</pre></el-collapse-item
-        ><el-collapse-item title="当前 Compose" name="old">
+        ><el-collapse-item title="当前应用栈定义" name="old">
           <pre class="code-block">{{
             preview?.previous_compose || "首次部署"
           }}</pre>
         </el-collapse-item></el-collapse
       >
     </section>
-    <div class="toolbar">
+    <div class="management-form-actions">
       <el-button :disabled="step === 0 || busy" @click="step--"
         >上一步</el-button
       ><el-button
         v-if="step < 2"
         type="primary"
-        :disabled="step === 1 && !environment"
+        :disabled="loading || busy || !data.application || (step === 1 && !environment)"
         @click="step++"
         >下一步</el-button
       ><el-button
@@ -203,9 +199,16 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted, defineAsyncComponent } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from "vue";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { api, errorText } from "@/api/workspace";
+import WorkspaceHeading from '@/components/WorkspaceHeading.vue';
+import { parseObject, sourceLabel } from '@/utils/management';
+const loading = ref(false);
+let preparedSignature = '';
+let executionKey = '';
+const optionsController=new AbortController();
+let disposed=false;
 const CodeEditor = defineAsyncComponent(
   () => import("@/components/CodeEditor.vue"),
 );
@@ -248,7 +251,7 @@ const sources = [
   {
     value: "registry",
     title: "仓库镜像",
-    description: "内置或外部 Registry，在线交付。",
+    description: "内置或外部镜像仓库，在线交付。",
   },
   {
     value: "local",
@@ -265,10 +268,16 @@ const selectedEnv = computed(() =>
   data.value.environments?.find((e: any) => e.id === environment.value),
 );
 async function preflight() {
+  if (busy.value || loading.value) return;
   busy.value = true;
   error.value = "";
   try {
-    if (existing.value) {
+    if (!environment.value) throw new Error('请选择部署环境');
+    if(!existing.value && form.value.source!=='bundle')parseObject(form.value.configs, '非敏感配置文件');
+    const signature = JSON.stringify({existing:existing.value,bundle:bundleId.value,environment:environment.value,form:form.value,definitionMode:definitionMode.value,simple:simple.value});
+    if (preparedSignature === signature && releaseId.value) {
+      // 预检查失败重试复用已准备版本，避免重复创建不可变版本。
+    } else if (existing.value) {
       releaseId.value = existing.value;
     } else if (form.value.source === "bundle") {
       if (!bundleId.value) throw new Error("请选择发布包");
@@ -283,7 +292,7 @@ async function preflight() {
         const service: any = {
           image: simple.value.image,
           restart: "unless-stopped",
-          environment: JSON.parse(simple.value.environment),
+          environment: parseObject(simple.value.environment, '容器环境变量'),
         };
         if (simple.value.port) service.ports = [simple.value.port];
         definition = JSON.stringify({ services: { app: service } }, null, 2);
@@ -295,11 +304,13 @@ async function preflight() {
       );
       releaseId.value = r.id;
     }
+    preparedSignature = signature;
     preview.value = await api("POST", "/deployments/preflight", {
       environment_id: environment.value,
       release_id: releaseId.value,
       restore_configuration: restoreConfiguration.value,
     });
+    executionKey = crypto.randomUUID();
     step.value = 3;
   } catch (e) {
     error.value = errorText(e);
@@ -308,36 +319,39 @@ async function preflight() {
   }
 }
 async function deploy() {
+  if (busy.value || !preview.value || !releaseId.value) return;
   busy.value = true;
+  error.value = "";
   try {
     const d = await api("POST", "/deployments", {
       environment_id: environment.value,
       release_id: releaseId.value,
       restore_configuration: restoreConfiguration.value,
-      idempotency_key: crypto.randomUUID(),
+      idempotency_key: executionKey,
     });
-    router.push(`/deployments/${d.id}`);
+    busy.value = false;
+    await router.push(`/deployments/${d.id}`);
   } catch (e) {
     error.value = errorText(e);
   } finally {
     busy.value = false;
   }
 }
-onMounted(async () => {
+async function loadOptions() {
+  if (loading.value || busy.value) return;
+  loading.value = true; error.value = '';
   try {
-    templates.value = await api("GET", "/managed-templates");
-    [data.value, registries.value, bundles.value] = await Promise.all([
-      api("GET", `/applications/${id}`),
-      api("GET", "/registries"),
-      api("GET", "/bundles"),
+    const results = await Promise.all([
+      api('GET', `/applications/${id}`,undefined,optionsController.signal), api<any[]>('GET','/registries',undefined,optionsController.signal), api<any[]>('GET','/bundles',undefined,optionsController.signal), api<any[]>('GET','/managed-templates',undefined,optionsController.signal),
     ]);
-    environment.value = data.value.environments?.[0]?.id;
-    form.value.registry_id =
-      registries.value.find((r) => r.is_default)?.id ||
-      registries.value[0]?.id ||
-      0;
-  } catch (e) {
-    error.value = errorText(e);
-  }
-});
+    if(disposed)return;
+    data.value = results[0]; registries.value = results[1] || []; bundles.value = results[2] || []; templates.value = results[3] || [];
+    if (!data.value.environments?.some((item:any)=>item.id===environment.value)) environment.value=data.value.environments?.[0]?.id;
+    if (!form.value.registry_id) form.value.registry_id=registries.value.find(item=>item.is_default)?.id || registries.value[0]?.id || 0;
+  } catch(cause) { if(!disposed)error.value=errorText(cause) }
+  finally { loading.value=false }
+}
+onBeforeRouteLeave(()=>!busy.value);
+onMounted(loadOptions);
+onBeforeUnmount(()=>{disposed=true;optionsController.abort()});
 </script>

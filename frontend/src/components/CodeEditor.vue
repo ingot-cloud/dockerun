@@ -13,6 +13,7 @@
 </template>
 
 <script setup lang="ts">
+import "monaco-editor/esm/nls.messages.zh-cn.js";
 import { ref, watch, computed, getCurrentInstance } from "vue";
 import {
   VueMonacoEditor,
@@ -75,7 +76,7 @@ const editorOptions = computed(() => ({
     enabled: props.minimap,
   },
   scrollBeyondLastLine: false,
-  fontSize: 14,
+  fontSize: 12,
   lineNumbers: "on",
   roundedSelection: false,
   scrollbar: {

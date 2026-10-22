@@ -65,8 +65,10 @@
     <template v-else-if="name === 'link'">
       <path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
     </template>
+    <template v-else-if="name === 'volume'"><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" /></template>
     <template v-else-if="name === 'registry'"><rect x="3" y="3" width="18" height="7" rx="2" /><rect x="3" y="14" width="18" height="7" rx="2" /><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6" /></template>
     <path v-else-if="name === 'plus'" d="M12 5v14M5 12h14" />
+    <template v-else-if="name === 'network'"><rect x="9" y="2" width="6" height="6" rx="1" /><rect x="2" y="16" width="6" height="6" rx="1" /><rect x="16" y="16" width="6" height="6" rx="1" /><path d="M12 8v4M5 16v-4h14v4" /></template>
     <path v-else-if="name === 'chevron-down'" d="m6 9 6 6 6-6" />
     <template v-else-if="name === 'sort'">
       <path fill="currentColor" stroke="none" d="M4.473.727a.593.593 0 1 0-1.186 0h1.186ZM3.88 11.274l-.406.432c.233.22.599.214.826-.013l-.42-.42Zm3.056-2.218a.593.593 0 1 0-.839-.839l.84.84Zm-5.45-.851a.593.593 0 1 0-.814.864l.813-.864Zm1.8-7.478v10.547h1.187V.727H3.287Zm2.811 7.49-2.636 2.637.839.84 2.636-2.638-.839-.839Zm-1.81 2.625L1.485 8.205l-.813.864 2.802 2.637.813-.864Z" />
@@ -78,7 +80,7 @@
 <script setup lang="ts">
 // 资源页面共用的 Lucide 风格线性图标。
 defineProps<{
-  name: 'list' | 'trash' | 'upload' | 'download' | 'refresh' | 'search' | 'chevron-down' | 'sort' | 'tag' | 'box' | 'play' | 'stop' | 'kill' | 'pause' | 'info' | 'terminal' | 'attach' | 'logs' | 'inspect' | 'chart' | 'link' | 'plus' | 'registry'
+  name: 'list' | 'trash' | 'upload' | 'download' | 'refresh' | 'search' | 'chevron-down' | 'sort' | 'tag' | 'box' | 'play' | 'stop' | 'kill' | 'pause' | 'info' | 'terminal' | 'attach' | 'logs' | 'inspect' | 'chart' | 'link' | 'plus' | 'network' | 'volume' | 'registry'
 }>()
 </script>
 

@@ -17,9 +17,9 @@
             :key="item.path"
             :to="item.path"
             class="nav-item"
-            :class="{ 'router-link-active': (item.path === '/images' && route.name === 'ImageDetail') || (item.path === '/containers' && route.path.startsWith('/containers/')) || (item.path === '/registry' && route.path.startsWith('/registry/')) }"
+            :class="{ 'router-link-active': (item.path === '/images' && route.name === 'ImageDetail') || (item.path === '/containers' && route.path.startsWith('/containers/')) || (item.path === '/networks' && route.path.startsWith('/networks/')) || (item.path === '/volumes' && route.path.startsWith('/volumes/')) || (item.path === '/registry' && route.path.startsWith('/registry/')) }"
             :title="item.title"
-            ><el-icon><PortainerIcon v-if="item.path === '/images'" name="list" /><PortainerIcon v-else-if="item.path === '/registry'" name="registry" /><component v-else :is="item.icon" /></el-icon
+            ><el-icon><PortainerIcon v-if="item.path === '/images'" name="list" /><PortainerIcon v-else-if="item.path === '/networks'" name="network" /><PortainerIcon v-else-if="item.path === '/volumes'" name="volume" /><PortainerIcon v-else-if="item.path === '/registry'" name="registry" /><component v-else :is="item.icon" /></el-icon
             ><span v-if="!collapsed">{{ item.title }}</span></router-link
           ></template
         >
@@ -44,6 +44,8 @@
           ><el-breadcrumb-item>Dockerun</el-breadcrumb-item
           ><el-breadcrumb-item v-if="route.name === 'ImageDetail'" :to="{ name: 'Images', query: route.query }">本地镜像</el-breadcrumb-item
           ><el-breadcrumb-item v-if="route.path.startsWith('/containers/')" :to="{ name: 'Containers', query: route.query }">容器</el-breadcrumb-item
+          ><el-breadcrumb-item v-if="route.path.startsWith('/networks/')" :to="{ name: 'Networks', query: route.query }">网络</el-breadcrumb-item
+          ><el-breadcrumb-item v-if="route.path.startsWith('/volumes/')" :to="{ name: 'Volumes', query: route.query }">卷</el-breadcrumb-item
           ><el-breadcrumb-item v-if="route.path.startsWith('/registry/')" :to="{ name: 'Registry', query: route.query }">外部仓库</el-breadcrumb-item
           ><el-breadcrumb-item>{{
             route.meta.title || route.name
@@ -58,7 +60,7 @@
           ><el-button text @click="logout">退出</el-button>
         </div>
       </header>
-      <main class="workspace-main" :class="{ 'workspace-main--registries': route.path === '/registry' || route.path.startsWith('/registry/'), 'workspace-main--images': route.name === 'Images', 'workspace-main--containers': route.name === 'Containers', 'workspace-main--image-detail': route.name === 'ImageDetail', 'workspace-main--container-detail': route.path.startsWith('/containers/') }"><router-view /></main>
+      <main class="workspace-main" :class="{ 'workspace-main--maintenance': route.name === 'Settings', 'workspace-main--registries': route.path === '/builtin' || route.path === '/registry' || route.path.startsWith('/registry/'), 'workspace-main--images': route.name === 'Images', 'workspace-main--containers': route.name === 'Containers', 'workspace-main--users': route.name === 'Users', 'workspace-main--management-list': ['Applications', 'Deployments', 'Hosts', 'DeployScripts', 'WebhookConfigs'].includes(String(route.name)), 'workspace-main--networks': route.name === 'Networks', 'workspace-main--network-detail': route.path.startsWith('/networks/'), 'workspace-main--volumes': route.name === 'Volumes', 'workspace-main--volume-detail': route.path.startsWith('/volumes/'), 'workspace-main--image-detail': route.name === 'ImageDetail', 'workspace-main--container-detail': route.path.startsWith('/containers/') }"><router-view :key="route.path" /></main>
     </div>
   </div>
 </template>
@@ -100,8 +102,8 @@ const groups = computed(() =>
             { path: "/users", title: "用户管理", icon: "User" },
             { path: "/hosts", title: "目标主机", icon: "Monitor" },
             { path: "/settings", title: "仓库与维护", icon: "Tools" },
-            { path: "/webhooks", title: "外部 Webhook", icon: "Link" },
-            { path: "/system", title: "系统设置", icon: "Setting" },
+            { path: "/webhooks", title: "外部回调", icon: "Link" },
+            { path: "/system", title: "系统信息", icon: "Setting" },
             { path: "/deploy-scripts", title: "历史脚本", icon: "Document" },
             { path: "/account", title: "个人账号", icon: "UserFilled" },
           ],
@@ -124,7 +126,10 @@ function logout() {
 </script>
 
 <style scoped>
-.workspace-main--registries, .workspace-main--images, .workspace-main--containers, .workspace-main--image-detail, .workspace-main--container-detail {
+.workspace-main { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 18px 20px; background: #151515; }
+.workspace-main--management-list { overflow: hidden; }
+@media(max-width:760px) { .workspace-main { padding: 12px; } }
+.workspace-main--maintenance, .workspace-main--registries, .workspace-main--images, .workspace-main--users, .workspace-main--containers, .workspace-main--networks, .workspace-main--network-detail, .workspace-main--volumes, .workspace-main--volume-detail, .workspace-main--image-detail, .workspace-main--container-detail {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -133,8 +138,8 @@ function logout() {
   padding: 18px 20px;
   background: #151515;
 }
-.workspace-main--image-detail, .workspace-main--container-detail { overflow: auto; }
+.workspace-main--maintenance, .workspace-main--image-detail, .workspace-main--container-detail, .workspace-main--network-detail, .workspace-main--volume-detail { overflow: auto; }
 @media (max-width: 760px) {
-  .workspace-main--registries, .workspace-main--images, .workspace-main--containers, .workspace-main--image-detail, .workspace-main--container-detail { padding: 12px; }
+  .workspace-main--maintenance, .workspace-main--registries, .workspace-main--images, .workspace-main--users, .workspace-main--containers, .workspace-main--networks, .workspace-main--network-detail, .workspace-main--volumes, .workspace-main--volume-detail, .workspace-main--image-detail, .workspace-main--container-detail { padding: 12px; }
 }
 </style>

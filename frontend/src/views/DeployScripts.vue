@@ -1,383 +1,49 @@
 <template>
-  <PageContainer title="Deploy Scripts">
-    <ContentCard title="Scripts" :icon="Document" :no-padding="true">
-      <template #actions>
-        <el-input
-          v-model="searchText"
-          placeholder="Search..."
-          :prefix-icon="Search"
-          style="width: 240px"
-          clearable
-        />
-        <el-button
-          type="danger"
-          :icon="Delete"
-          @click="handleBatchDelete"
-          :disabled="selectedScripts.length === 0"
-        >
-          Remove
-        </el-button>
-        <el-button
-          type="success"
-          :icon="DocumentCopy"
-          @click="showTemplates"
-        >
-          From Template
-        </el-button>
-        <el-button
-          type="primary"
-          :icon="Plus"
-          @click="handleCreate"
-        >
-          Add Script
-        </el-button>
-      </template>
-      
-      <DataTable
-        :data="filteredScripts"
-        v-loading="loading"
-        :total="filteredScripts.length"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="45" fixed="left"/>
-        
-        <el-table-column prop="name" label="Name" width="200">
-          <template #default="{ row }">
-            <span class="script-name">{{ row.name }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column prop="description" label="Description" min-width="250" />
-        
-        <el-table-column label="Files" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag type="info" size="small">
-              {{ row.files?.length || 0 }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="Container" width="200">
-          <template #default="{ row }">
-            <div v-if="row.container_id" class="container-info">
-              <div class="container-name">{{ row.container_name || 'Unknown' }}</div>
-              <div class="container-id">{{ row.container_id.substring(0, 12) }}</div>
-            </div>
-            <span v-else class="no-container">-</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column prop="status" label="Status" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small" class="status-tag">
-              {{ row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="Created" width="180">
-          <template #default="{ row }">
-            <span class="date-text">{{ formatDate(row.created_at) }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="Quick Actions" width="200" fixed="right">
-          <template #default="{ row }">
-            <div class="actions-cell">
-              <el-button
-                type="success"
-                size="small"
-                :icon="VideoPlay"
-                @click="handleExecute(row)"
-              >
-                Execute
-              </el-button>
-              <el-button
-                type="primary"
-                size="small"
-                :icon="Edit"
-                @click="handleEdit(row)"
-              >
-                Edit
-              </el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </DataTable>
-    </ContentCard>
-    
-    <!-- 编辑脚本对话框 -->
-    <FormDialog
-      v-model="dialogVisible"
-      :title="isEdit ? 'Edit Script' : 'Add Script'"
-      :icon="Document"
-      @confirm="handleSave"
-      @cancel="dialogVisible = false"
-      extra-wide
-    >
-      <el-form :model="form" label-width="120px" class="script-form">
-        <!-- 基本信息 -->
-        <div class="form-section">
-          <h3>Basic Information</h3>
-          <el-form-item label="Name">
-            <el-input v-model="form.name" placeholder="e.g. deploy-nginx" />
-          </el-form-item>
-          
-          <el-form-item label="Description">
-            <el-input v-model="form.description" placeholder="Script description" />
-          </el-form-item>
-          
-          <el-form-item label="Work Directory">
-            <el-input v-model="form.work_dir" placeholder="/ingot-data/dockerun/my-app" />
-            <div class="form-tip">Directory where files will be saved and script will be executed. If not exists, it will be created automatically.</div>
-          </el-form-item>
-        </div>
-        
-        <!-- Webhook 自动部署 -->
-        <div class="form-section">
-          <h3>Webhook Auto Deploy</h3>
-          <el-form-item label="Enable">
-            <el-switch v-model="form.auto_deploy" />
-            <div class="form-tip">
-              When enabled, this script will be triggered automatically when the configured image is pushed
-            </div>
-          </el-form-item>
-          
-          <template v-if="form.auto_deploy">
-            <el-form-item label="Image Name">
-              <el-input 
-                v-model="form.image_name" 
-                placeholder="e.g. myapp or */myapp (supports wildcard)"
-              />
-              <div class="form-tip">
-                Supports wildcard *, e.g. namespace/* or */app
-              </div>
-            </el-form-item>
-            
-            <el-form-item label="Image Tag">
-              <el-input 
-                v-model="form.image_tag" 
-                placeholder="e.g. latest or v1.* (leave empty for any tag)"
-              />
-              <div class="form-tip">
-                Leave empty to match any tag, or use wildcard for pattern matching
-              </div>
-            </el-form-item>
-          </template>
-        </div>
-        
-        <!-- 主脚本 -->
-        <div class="form-section">
-          <h3>Main Script</h3>
-          <CodeEditor
-            v-model="form.main_script"
-            language="shell"
-            height="500px"
-            :minimap="true"
-          />
-          <div class="form-tip">This is the main script that will be executed. It should handle directory creation, file copying, and service startup.</div>
-        </div>
-        
-        <!-- 文件管理 -->
-        <div class="form-section">
-          <div class="section-header">
-            <h3>Files</h3>
-            <el-button 
-              :icon="Plus" 
-              type="primary" 
-              size="small"
-              @click="addFile"
-            >
-              Add
-            </el-button>
-          </div>
-          
-          <el-table :data="form.files" class="files-table" max-height="400">
-            <el-table-column label="File Name" width="200">
-              <template #default="{ row }">
-                <el-input v-model="row.file_name" placeholder="e.g. docker-compose.yml" size="small" />
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="File Path" width="250">
-              <template #default="{ row }">
-                <el-input v-model="row.file_path" placeholder="e.g. ./docker-compose.yml" size="small" />
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="Type" width="150">
-              <template #default="{ row }">
-                <el-select v-model="row.file_type" size="small">
-                  <el-option label="Docker Compose" value="compose" />
-                  <el-option label="Config" value="config" />
-                  <el-option label="Script" value="script" />
-                  <el-option label="Other" value="other" />
-                </el-select>
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="Description" min-width="200">
-              <template #default="{ row }">
-                <el-input v-model="row.description" placeholder="File description" size="small" />
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="Actions" width="120" fixed="right">
-              <template #default="{ row, $index }">
-                <el-button 
-                  :icon="Edit" 
-                  size="small"
-                  @click="editFileContent(row)"
-                >
-                </el-button>
-                <el-button 
-                  :icon="Delete" 
-                  type="danger" 
-                  size="small"
-                  @click="form.files?.splice($index, 1)"
-                />
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-        
-        <!-- 环境变量 -->
-        <div class="form-section">
-          <div class="section-header">
-            <h3>Environment Variables</h3>
-            <el-button 
-              :icon="Plus" 
-              type="primary" 
-              size="small"
-              @click="addEnvVar"
-            >
-              Add
-            </el-button>
-          </div>
-          
-          <div class="env-vars-list">
-            <div 
-              v-for="(_, key, index) in form.env_vars" 
-              :key="index" 
-              class="env-var-item"
-            >
-              <el-input 
-                :model-value="key"
-                @update:model-value="updateEnvKey(key, $event)"
-                placeholder="VARIABLE_NAME" 
-                class="env-key" 
-              />
-              <span class="env-equals">=</span>
-              <el-input 
-                v-model="form.env_vars![key]"
-                placeholder="value" 
-                class="env-value" 
-              />
-              <el-button 
-                :icon="Delete" 
-                type="danger" 
-                circle 
-                size="small"
-                @click="deleteEnvVar(key)"
-              />
-            </div>
-            <div v-if="Object.keys(form.env_vars || {}).length === 0" class="empty-tip">
-              No environment variables defined
-            </div>
-          </div>
-        </div>
+  <div class="workspace-page">
+    <WorkspaceHeading title="历史脚本" :loading="loading" :busy="busy" @refresh="loadScripts" />
+    <ResourceList title="脚本列表" icon="Document" :items="scripts" :loading="loading" :error="listError" :busy="busy" :search-keys="['name','description','container_name']" :sorts="[{key:'name',label:'名称'},{key:'created_at',label:'创建时间'}]" :filter-options="[{value:'idle',label:'空闲'},{value:'running',label:'执行中'},{value:'failed',label:'失败'},{value:'stopped',label:'已停止'}]" filter-key="status" empty-text="暂无历史脚本" @refresh="loadScripts" @selection-change="selectedScripts=$event">
+      <template #actions><el-button type="danger" :disabled="!selectedScripts.length || busy || loading" @click="deleteVisible=true">删除</el-button><el-button :disabled="busy" @click="showTemplates">从模板创建</el-button><el-button type="primary" :disabled="busy" @click="handleCreate">添加脚本</el-button></template>
+      <el-table-column type="selection" width="48" :selectable="(row:DeployScript)=>row.status!=='running' && !busy && !loading" /><el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip /><el-table-column prop="description" label="说明" min-width="200" show-overflow-tooltip /><el-table-column label="文件数量" width="100"><template #default="{row}">{{row.files?.length || 0}}</template></el-table-column><el-table-column label="关联容器" min-width="180"><template #default="{row}"><router-link v-if="row.container_id" :to="`/containers/${row.container_id}`">{{row.container_name || row.container_id.slice(0,12)}}</router-link><span v-else class="management-muted">—</span></template></el-table-column><el-table-column label="状态" width="140"><template #default="{row}"><StatusBadge :value="row.status || 'idle'" /></template></el-table-column><el-table-column label="创建时间" width="180"><template #default="{row}">{{formatDate(row.created_at)}}</template></el-table-column><el-table-column label="操作" width="170"><template #default="{row}"><div class="management-row-actions"><el-button link type="primary" :disabled="busy || row.status==='running'" @click="handleExecute(row)">执行</el-button><el-button link :disabled="busy || row.status==='running'" @click="handleEdit(row)">编辑</el-button></div></template></el-table-column>
+      <template #feedback><div v-if="actionError" class="management-error" role="alert"><span>{{actionError}}</span><el-button link @click="actionError=''">关闭</el-button></div></template><template #count><span v-if="selectedScripts.length">已选 {{selectedScripts.length}} 项</span></template>
+    </ResourceList>
+    <p class="management-description">历史脚本继续可用。新应用建议使用应用发布流程；执行中的脚本暂不可编辑或删除。</p>
+    <FormDialog v-model="dialogVisible" :title="isEdit?'编辑脚本':'添加脚本'" :icon="Document" :loading="saving" @confirm="handleSave" @cancel="dialogVisible=false" extra-wide>
+      <div v-if="formError" class="management-error management-feedback" role="alert">{{formError}}</div>
+      <el-form :model="form" label-position="top" :disabled="saving" @submit.prevent="handleSave">
+        <div class="form-section"><h3>基本信息</h3><el-form-item label="脚本名称" required><el-input v-model="form.name" placeholder="例如：部署网关服务" maxlength="100" /></el-form-item><el-form-item label="说明"><el-input v-model="form.description" placeholder="填写脚本用途（可选）" /></el-form-item><el-form-item label="工作目录"><el-input v-model="form.work_dir" placeholder="例如：/ingot-data/dockerun/my-app" /><p class="management-form-help">脚本及文件保存在该目录；目录不存在时由服务端按执行规则创建。</p></el-form-item></div>
+        <div class="form-section"><h3>镜像事件匹配</h3><el-switch v-model="form.auto_deploy" active-text="允许镜像提交后自动执行" aria-label="允许镜像提交后自动执行" /><template v-if="form.auto_deploy"><el-form-item label="镜像名称"><el-input v-model="form.image_name" placeholder="例如：namespace/* 或 */app" /></el-form-item><el-form-item label="标签规则"><el-input v-model="form.image_tag" placeholder="例如：latest、v1.*，留空匹配全部" /></el-form-item></template></div>
+        <div class="form-section"><h3>主执行脚本</h3><CodeEditor v-model="form.main_script" language="shell" height="360px" :readonly="saving" /><p class="management-form-help">负责准备目录、复制配置和启动服务；请确认脚本实际执行的操作。</p></div>
+        <div class="form-section"><div class="script-section-heading"><h3>附加文件</h3><el-button :icon="Plus" @click="addFile">添加文件</el-button></div><div class="script-files-scroll"><el-table :data="form.files" empty-text="暂无附加文件" max-height="360"><el-table-column label="文件名称" min-width="180"><template #default="{row}"><el-input v-model="row.file_name" placeholder="例如：docker-compose.yml" aria-label="文件名称" /></template></el-table-column><el-table-column label="相对路径" min-width="190"><template #default="{row}"><el-input v-model="row.file_path" placeholder="例如：./docker-compose.yml" aria-label="文件相对路径" /></template></el-table-column><el-table-column label="类型" width="140"><template #default="{row}"><el-select v-model="row.file_type" aria-label="文件类型"><el-option label="应用栈定义" value="compose" /><el-option label="配置文件" value="config" /><el-option label="执行脚本" value="script" /><el-option label="其他文件" value="other" /></el-select></template></el-table-column><el-table-column label="说明" min-width="170"><template #default="{row}"><el-input v-model="row.description" placeholder="文件用途（可选）" aria-label="文件说明" /></template></el-table-column><el-table-column label="操作" width="130" fixed="right"><template #default="{row,$index}"><el-button link :aria-label="`编辑 ${row.file_name || '文件'} 内容`" @click="editFileContent(row)">编辑</el-button><el-button link type="danger" :aria-label="`移除 ${row.file_name || '文件'}`" @click="form.files?.splice($index,1)">移除</el-button></template></el-table-column></el-table></div></div>
+        <div class="form-section"><div class="script-section-heading"><h3>环境变量</h3><el-button :icon="Plus" @click="addEnvVar">添加变量</el-button></div><div v-for="(_,key) in form.env_vars" :key="key" class="script-env-row"><el-input :model-value="key" @change="updateEnvKey(key,$event)" placeholder="变量名称" aria-label="环境变量名称" /><el-input v-model="form.env_vars![key]" type="password" show-password placeholder="变量值" aria-label="环境变量值" /><el-button :icon="Delete" :aria-label="`移除变量 ${key}`" @click="deleteEnvVar(key)" /></div><p v-if="!Object.keys(form.env_vars || {}).length" class="management-description">暂无环境变量</p></div><button type="submit" hidden>保存脚本</button>
       </el-form>
     </FormDialog>
-    
-    <!-- 编辑文件内容对话框 -->
-    <!-- 文件内容编辑对话框 -->
-    <el-dialog 
-      v-model="fileDialogVisible" 
-      :title="`Edit File: ${currentFile?.file_name}`" 
-      width="80%"
-      class="file-dialog"
-    >
-      <CodeEditor
-        v-model="currentFile.content"
-        :language="getFileLanguage(currentFile)"
-        height="600px"
-        :minimap="true"
-      />
-      <template #footer>
-        <el-button @click="fileDialogVisible = false">Close</el-button>
-        <el-button type="primary" @click="fileDialogVisible = false">Save</el-button>
-      </template>
-    </el-dialog>
-    
-    <!-- 执行输出对话框 -->
-    <el-dialog 
-      v-model="outputVisible" 
-      title="Execution output" 
-      width="70%"
-      class="output-dialog"
-    >
-      <el-input
-        ref="outputTextarea"
-        v-model="output"
-        type="textarea"
-        :rows="20"
-        readonly
-        class="output-textarea"
-      />
-    </el-dialog>
-    
-    <!-- 模版选择对话框 -->
-    <FormDialog
-      v-model="templatesVisible"
-      title="Choose a Template"
-      :icon="DocumentCopy"
-      :show-footer="false"
-      extra-wide
-    >
-      <div v-loading="templatesLoading" class="templates-container">
-        <div 
-          v-for="template in templates" 
-          :key="template.id" 
-          class="template-card"
-          @click="useTemplate(template)"
-        >
-          <div class="template-icon">{{ template.icon }}</div>
-          <div class="template-content">
-            <h3>{{ template.name }}</h3>
-            <p class="template-category">{{ template.category }}</p>
-            <p class="template-description">{{ template.description }}</p>
-          </div>
-        </div>
-        <div v-if="templates.length === 0 && !templatesLoading" class="no-templates">
-          No templates available
-        </div>
-      </div>
-    </FormDialog>
-  </PageContainer>
+    <FormDialog v-model="fileDialogVisible" :title="`编辑文件：${currentFile.file_name || '未命名文件'}`" extra-wide confirm-text="应用到脚本" @confirm="applyFile" @cancel="fileDialogVisible=false"><CodeEditor v-model="currentFile.content" :language="getFileLanguage(currentFile)" height="400px" /><p class="management-form-help">应用后仍需保存整个脚本，文件内容才会提交到服务端。</p></FormDialog>
+    <FormDialog v-model="outputVisible" title="脚本执行输出" extra-wide :show-footer="false"><el-input ref="outputTextarea" v-model="output" type="textarea" :rows="18" readonly aria-label="脚本执行日志" class="script-output" /><p class="management-form-help">关闭输出不会停止服务端任务，可在部署记录中继续查看。</p><template #footer><router-link v-if="executionTask" :to="`/deployments/${executionTask}`">查看持久化部署记录</router-link><el-button @click="outputVisible=false">关闭输出</el-button></template></FormDialog>
+    <FormDialog v-model="templatesVisible" title="选择脚本模板" :show-footer="false" extra-wide><div v-if="templatesError" class="management-error management-feedback" role="alert"><span>{{templatesError}}</span><el-button link @click="showTemplates">重试</el-button></div><div v-loading="templatesLoading" class="script-template-grid"><button v-for="template in templates" :key="template.id" class="script-template" @click="useTemplate(template)"><el-icon><DocumentCopy /></el-icon><span><strong>{{template.name}}</strong><small>{{template.description}}</small></span></button><p v-if="!templates.length && !templatesLoading && !templatesError" class="management-description">暂无可用模板</p></div></FormDialog>
+    <ManagementDeleteDialog v-model="deleteVisible" :items="selectedScripts.map(script=>({id:script.id!,name:script.name}))" kind="脚本" endpoint="/deploy-scripts" warning="将删除脚本配置及附加文件记录，此操作无法撤销。" @removed="onRemoved" />
+  </div>
 </template>
-
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, defineAsyncComponent } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  Search,
-  Document,
-  Delete,
-  Plus,
-  VideoPlay,
-  Edit,
-  DocumentCopy
-} from '@element-plus/icons-vue'
+import { Document, Delete, Plus, DocumentCopy } from '@element-plus/icons-vue'
 import { deployApi, type DeployScript, type DeployScriptFile, type ScriptTemplate } from '@/api/deploy'
-import PageContainer from '@/components/PageContainer.vue'
-import ContentCard from '@/components/ContentCard.vue'
-import DataTable from '@/components/DataTable.vue'
+import WorkspaceHeading from '@/components/WorkspaceHeading.vue'
+import ResourceList from '@/components/ResourceList.vue'
+import ManagementDeleteDialog from '@/components/ManagementDeleteDialog.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import { errorText } from '@/api/workspace'
+import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 import FormDialog from '@/components/FormDialog.vue'
-import CodeEditor from '@/components/CodeEditor.vue'
+const CodeEditor=defineAsyncComponent(()=>import('@/components/CodeEditor.vue'))
 
+const auth=useAuthStore(),router=useRouter()
 const scripts = ref<DeployScript[]>([])
 const loading = ref(false)
-const searchText = ref('')
+const listError=ref(''), actionError=ref(''), formError=ref(''), saving=ref(false), editing=ref(false), executing=ref(false), confirming=ref(false), deleteVisible=ref(false), executionTask=ref(0), templatesError=ref('')
+const busy=computed(()=>saving.value || editing.value || executing.value || confirming.value || deleteVisible.value)
+let disposed=false, executionController:AbortController|undefined, currentFileIndex=-1
 const selectedScripts = ref<DeployScript[]>([])
 const dialogVisible = ref(false)
 const fileDialogVisible = ref(false)
@@ -1031,50 +697,14 @@ echo "  删除容器和镜像: bash docker-manager.sh app.env rmi"
 echo ""
 `
 
-const filteredScripts = computed(() => {
-  if (!searchText.value) return scripts.value
-  const search = searchText.value.toLowerCase()
-  return scripts.value.filter(s => 
-    s.name?.toLowerCase().includes(search) ||
-    s.description?.toLowerCase().includes(search)
-  )
-})
-
 const loadScripts = async () => {
-  loading.value = true
-  try {
-    scripts.value = await deployApi.list() as any
-  } catch (error) {
-    ElMessage.error('Failed to load scripts')
-  } finally {
-    loading.value = false
-  }
+  if(loading.value || disposed)return;
+  loading.value=true;listError.value='';
+  try {const result=await deployApi.list() as any;if(!disposed){scripts.value=result || [];selectedScripts.value=[]}}
+  catch(cause){if(!disposed)listError.value=errorText(cause)}
+  finally{if(!disposed)loading.value=false}
 }
-
-// 滚动到输出底部
-const scrollToBottom = () => {
-  setTimeout(() => {
-    if (outputTextarea.value && outputTextarea.value.textarea) {
-      const textarea = outputTextarea.value.textarea
-      textarea.scrollTop = textarea.scrollHeight
-    }
-  }, 0)
-}
-
-const handleSelectionChange = (selection: DeployScript[]) => {
-  selectedScripts.value = selection
-}
-
-const getStatusType = (status: string) => {
-  const map: Record<string, any> = {
-    idle: 'info',
-    running: 'warning',
-    stopped: 'success',
-    failed: 'danger'
-  }
-  return map[status] || 'info'
-}
-
+const scrollToBottom = async () => { await nextTick(); const textarea=outputTextarea.value?.textarea;if(textarea)textarea.scrollTop=textarea.scrollHeight }
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '-'
   const date = new Date(dateStr)
@@ -1088,6 +718,7 @@ const formatDate = (dateStr: string) => {
 }
 
 const handleCreate = () => {
+  if(busy.value)return;formError.value='';
   isEdit.value = false
   form.name = ''
   form.description = ''
@@ -1128,13 +759,15 @@ const handleCreate = () => {
 }
 
 const handleEdit = async (script: DeployScript) => {
+  if(busy.value)return;formError.value='';
+  editing.value=true
   isEdit.value = true
   currentId.value = script.id!
   
   try {
     const data = await deployApi.get(script.id!) as any
+    if(disposed)return
     
-    console.log('Loaded script data:', data)
     
     // 重置表单
     form.name = data.name || ''
@@ -1150,151 +783,35 @@ const handleEdit = async (script: DeployScript) => {
 
     dialogVisible.value = true
   } catch (error: any) {
-    console.error('Failed to load script:', error)
-    ElMessage.error(error.response?.data?.error || error.message || 'Failed to load script')
-  }
+    if(!disposed)actionError.value=errorText(error)
+  } finally { editing.value=false }
 }
 
 const handleSave = async () => {
-  if (!form.name || !form.main_script) {
-    ElMessage.warning('Please fill in required fields')
-    return
-  }
-  
+  if(saving.value)return;formError.value='';
+  if(!form.name.trim() || !form.main_script.trim()){formError.value='请填写脚本名称和主执行脚本';return}
+  saving.value=true;
+  try {const payload={...form,name:form.name.trim()};if(isEdit.value)await deployApi.update(currentId.value,payload);else await deployApi.create(payload);ElMessage.success('脚本已保存');dialogVisible.value=false;await loadScripts()}
+  catch(cause){formError.value=errorText(cause)}finally{saving.value=false}
+}
+const handleExecute = async (script:DeployScript) => {
+  if(busy.value)return;confirming.value=true;
+  try {await ElMessageBox.confirm(`确定执行「${script.name}」？脚本可能修改目标主机上的文件和容器。`,'执行部署脚本',{confirmButtonText:'确认执行',cancelButtonText:'取消',type:'warning'})}
+  catch{return}finally{confirming.value=false}
+  if(disposed)return;executing.value=true;output.value='=== 正在启动执行 ===\n';executionTask.value=0;outputVisible.value=true;executionController=new AbortController();
   try {
-    if (isEdit.value) {
-      await deployApi.update(currentId.value, form)
-      ElMessage.success('Script updated successfully')
-    } else {
-      await deployApi.create(form)
-      ElMessage.success('Script created successfully')
-    }
-    dialogVisible.value = false
-    loadScripts()
-  } catch (error) {
-    ElMessage.error('Failed to save script')
-  }
+    const response=await fetch(`/api/deploy-scripts/${script.id}/execute`,{method:'POST',headers:{Authorization:`Bearer ${localStorage.getItem('token') || ''}`,Accept:'text/event-stream'},signal:executionController.signal});
+    if(response.status===401){auth.logout();await router.replace('/login');throw new Error('登录已过期，请重新登录')}
+    if(!response.ok){const failure=await response.json().catch(()=>null);throw new Error(failure?.error || `执行请求失败（${response.status}）`)}
+    const reader=response.body?.getReader();if(!reader)throw new Error('服务端未返回执行日志');
+    const decoder=new TextDecoder();let buffer='',terminal=false;
+    const process=(message:string)=>{for(const line of message.split('\n')){if(!line.startsWith('data:'))continue;let event:any;try{event=JSON.parse(line.slice(5).trim())}catch{continue}if(event.task_id)executionTask.value=event.task_id;if(event.type==='log')output.value+=`${event.data}\n`;else if(event.type==='error'){terminal=true;output.value+=`\n=== 执行失败 ===\n${event.message || ''}\n`;ElMessage.error('脚本执行失败，请查看日志')}else if(event.type==='complete'){terminal=true;output.value+='\n=== 执行完成 ===\n';ElMessage.success('脚本执行完成')}void scrollToBottom()}};
+    while(!disposed){const {done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});buffer=buffer.replace(/\r\n/g,'\n');const messages=buffer.split('\n\n');buffer=messages.pop() || '';for(const message of messages)process(message)}
+    if(buffer.trim())process(buffer);if(!terminal && !disposed)output.value+='\n日志连接已结束，任务结果请在部署记录中核对。\n';
+  }catch(cause){if(!disposed){output.value+=`\n=== 日志连接失败 ===\n${errorText(cause)}\n服务端任务可能仍在运行，请查看部署记录。`;ElMessage.error('日志连接失败，请查看部署记录')}}
+  finally{executing.value=false;if(!disposed)await loadScripts()}
 }
-
-const handleExecute = async (script: DeployScript) => {
-  ElMessageBox.confirm(
-    'Are you sure you want to execute this script?',
-    'Confirm',
-    {
-      confirmButtonText: 'Execute',
-      cancelButtonText: 'Cancel',
-      type: 'warning'
-    }
-  ).then(async () => {
-    // 清空输出并打开输出对话框
-    output.value = '=== Starting execution ===\n'
-    outputVisible.value = true
-    
-    const token = localStorage.getItem('token')
-    const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || '/api'
-    const url = `${window.location.origin}${baseURL}/deploy-scripts/${script.id}/execute`
-    
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'text/event-stream'
-        }
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      
-      if (reader) {
-        let buffer = ''
-        
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          
-          const chunk = decoder.decode(value, { stream: true })
-          buffer += chunk
-          console.log('Received chunk:', chunk)
-          
-          // 处理完整的消息（以 \n\n 分隔）
-          const messages = buffer.split('\n\n')
-          buffer = messages.pop() || '' // 保留最后一个不完整的消息
-          
-          for (const message of messages) {
-            if (message.trim() === '') continue
-            
-            const lines = message.split('\n')
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.substring(6))
-                  console.log('Parsed SSE data:', data)
-                  
-                  if (data.type === 'log') {
-                    output.value += data.data + '\n'
-                    scrollToBottom()
-                  } else if (data.type === 'error') {
-                    output.value += '\n=== Execution failed ===\n'
-                    output.value += data.message + '\n'
-                    scrollToBottom()
-                    ElMessage.error('Script execution failed')
-                  } else if (data.type === 'complete') {
-                    output.value += '\n=== Execution completed successfully ===\n'
-                    if (data.container_id) {
-                      output.value += `Container ID: ${data.container_id}\n`
-                    }
-                    scrollToBottom()
-                    ElMessage.success('Script executed successfully')
-                  }
-                } catch (e) {
-                  console.error('Failed to parse SSE data:', line, e)
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      loadScripts()
-    } catch (error: any) {
-      output.value += '\n=== Error ===\n' + error.message
-      ElMessage.error('Failed to execute script')
-    }
-  })
-}
-
-const handleBatchDelete = async () => {
-  if (selectedScripts.value.length === 0) {
-    ElMessage.warning('Please select at least one script')
-    return
-  }
-  
-  ElMessageBox.confirm(
-    `Are you sure you want to remove ${selectedScripts.value.length} script(s)?`,
-    'Confirm',
-    {
-      confirmButtonText: 'Remove',
-      cancelButtonText: 'Cancel',
-      type: 'warning'
-    }
-  ).then(async () => {
-    for (const script of selectedScripts.value) {
-      try {
-        await deployApi.delete(script.id!)
-      } catch (error) {
-        console.error('Failed to delete script:', script.id)
-      }
-    }
-    ElMessage.success('Scripts removed')
-    loadScripts()
-  })
-}
-
+const onRemoved=(ids:number[])=>{scripts.value=scripts.value.filter(script=>!ids.includes(script.id!));selectedScripts.value=[]}
 const addFile = () => {
   form.files!.push({
     file_name: '',
@@ -1306,19 +823,19 @@ const addFile = () => {
 }
 
 const editFileContent = (file: DeployScriptFile) => {
-  currentFile.value = file
+  currentFileIndex=(form.files || []).indexOf(file)
+  currentFile.value = {...file}
   fileDialogVisible.value = true
 }
 
-const addEnvVar = () => {
-  const key = `ENV_VAR_${Object.keys(form.env_vars!).length + 1}`
-  form.env_vars![key] = ''
-}
+const applyFile=()=>{if(currentFileIndex>=0 && form.files?.[currentFileIndex])form.files[currentFileIndex]={...currentFile.value};fileDialogVisible.value=false}
+const addEnvVar = () => { let index=1;while(`ENV_VAR_${index}` in form.env_vars!)index++;form.env_vars![`ENV_VAR_${index}`]='' }
 
 const updateEnvKey = (oldKey: string, newKey: string) => {
   if (oldKey === newKey) return
+  if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newKey)){ElMessage.warning('变量名称须以字母或下划线开头，仅包含字母、数字及下划线');return}
   if (newKey in form.env_vars!) {
-    ElMessage.warning('Variable name already exists')
+    ElMessage.warning('环境变量名称已存在')
     return
   }
   const val = form.env_vars![oldKey]
@@ -1402,15 +919,14 @@ const getFileLanguage = (file: DeployScriptFile) => {
 
 // 显示模版选择
 const showTemplates = async () => {
+  if(templatesLoading.value)return;templatesError.value='';
   templatesVisible.value = true
   templatesLoading.value = true
   try {
     const data = await deployApi.getTemplates() as any
     templates.value = data || []
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.error || 'Failed to load templates')
-    templatesVisible.value = false // 加载失败时关闭对话框
-    templates.value = [] // 确保是空数组而不是 undefined
+    templatesError.value=errorText(error)
   } finally {
     templatesLoading.value = false
   }
@@ -1423,7 +939,7 @@ const useTemplate = (template: ScriptTemplate) => {
   form.script_type = 'shell'
   form.main_script = template.main_script
   form.work_dir = template.work_dir || '/ingot-data/dockerun'
-  form.env_vars = template.env_vars || {}
+  form.env_vars = {...template.env_vars}
   form.files = (template.files || []).map(f => ({
     file_name: f.file_name || '',
     file_path: f.file_path || '',
@@ -1435,504 +951,15 @@ const useTemplate = (template: ScriptTemplate) => {
   templatesVisible.value = false
   dialogVisible.value = true
   isEdit.value = false
+  formError.value='';form.auto_deploy=false;form.image_name='';form.image_tag=''
 }
 
+onBeforeUnmount(()=>{disposed=true;executionController?.abort()})
 onMounted(() => {
   loadScripts()
 })
 </script>
 
 <style scoped>
-.deploy-scripts-view {
-  width: 100%;
-  height: 100%;
-}
-
-.page-header {
-  margin-bottom: 20px;
-}
-
-.page-header h1 {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 400;
-  color: #fff;
-}
-
-.content-card {
-  background-color: #23252a;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 15px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 16px;
-  font-weight: 400;
-  color: #fff;
-}
-
-.header-icon {
-  font-size: 18px;
-  color: #8a929c;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.search-input {
-  width: 250px;
-}
-
-.search-input :deep(.el-input__wrapper) {
-  background-color: #2a2d31;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: none;
-}
-
-.search-input :deep(.el-input__inner) {
-  color: #fff;
-}
-
-.header-right :deep(.el-button) {
-  height: 32px;
-  padding: 0 15px;
-  font-size: 13px;
-}
-
-.data-table {
-  width: 100%;
-  background-color: #23252a;
-}
-
-.data-table :deep(.el-table__inner-wrapper) {
-  background-color: #23252a;
-}
-
-.data-table :deep(thead) {
-  color: #8a929c;
-}
-
-.data-table :deep(.el-table__header th) {
-  background-color: #23252a !important;
-  color: #8a929c;
-  font-weight: 400;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.data-table :deep(.el-table tr) {
-  background-color: #23252a;
-  color: #fff;
-}
-
-.data-table :deep(.el-table__row) {
-  background-color: #23252a !important;
-}
-
-.data-table :deep(.el-table__row:hover > td) {
-  background-color: rgba(74, 158, 255, 0.08) !important;
-}
-
-.data-table :deep(.el-table td) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background-color: transparent !important;
-}
-
-.data-table :deep(.el-checkbox__inner) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.data-table :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-  background-color: #4a9eff;
-  border-color: #4a9eff;
-}
-
-.script-name {
-  color: #4a9eff;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.script-name:hover {
-  text-decoration: underline;
-}
-
-.type-tag {
-  background-color: #4a9eff;
-  border: none;
-  color: #fff;
-}
-
-.status-tag {
-  border: none;
-}
-
-.date-text {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
-}
-
-.actions-cell {
-  display: flex;
-  gap: 8px;
-}
-
-.table-footer {
-  padding: 12px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: #23252a;
-}
-
-.total-items {
-  font-size: 13px;
-  color: #8a929c;
-}
-
-.script-dialog :deep(.el-dialog) {
-  background-color: #2a2d31;
-}
-
-.script-dialog :deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: #2a2d31;
-}
-
-.script-dialog :deep(.el-dialog__title) {
-  color: #fff;
-}
-
-.script-dialog :deep(.el-dialog__body) {
-  background-color: #2a2d31;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.script-dialog :deep(.el-dialog__footer) {
-  background-color: #2a2d31;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.form-section {
-  margin-bottom: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.form-section:last-child {
-  border-bottom: none;
-}
-
-.form-section h3 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: #fff;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 0 20px 0 0;
-}
-
-.section-header h3 {
-  margin: 0;
-}
-
-.script-form :deep(.el-form-item__label) {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.script-form :deep(.el-input__wrapper),
-.script-form :deep(.el-select__wrapper),
-.script-form :deep(.el-textarea__inner) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: none;
-}
-
-.script-form :deep(.el-input__inner),
-.script-form :deep(.el-textarea__inner) {
-  color: #fff;
-}
-
-.script-form :deep(.el-radio__label) {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.script-form :deep(.el-radio__input.is-checked .el-radio__inner) {
-  background-color: #4a9eff;
-  border-color: #4a9eff;
-}
-
-.form-tip {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #8a929c;
-}
-
-.code-input :deep(.el-textarea__inner) {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 13px;
-  background-color: #1e1e1e !important;
-  line-height: 1.6;
-}
-
-.files-table {
-  background-color: transparent;
-}
-
-.files-table :deep(.el-table__inner-wrapper) {
-  background-color: rgba(255, 255, 255, 0.02);
-}
-
-.files-table :deep(.el-table__header th) {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  color: #8a929c;
-}
-
-.files-table :deep(.el-table tr) {
-  background-color: transparent;
-  color: #fff;
-}
-
-.files-table :deep(.el-table__row) {
-  background-color: transparent !important;
-}
-
-.files-table :deep(.el-table__row:hover > td) {
-  background-color: rgba(74, 158, 255, 0.08) !important;
-}
-
-.files-table :deep(.el-table td) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background-color: transparent !important;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.files-table :deep(.el-input__wrapper) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: none;
-}
-
-.files-table :deep(.el-input__inner) {
-  color: #fff;
-}
-
-.files-table :deep(.el-select__wrapper) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: none;
-}
-
-.files-table :deep(.el-select__placeholder) {
-  color: #8a929c;
-}
-
-.files-table :deep(.el-select__input) {
-  color: #fff;
-}
-
-.env-vars-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.env-var-item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.env-key {
-  flex: 1;
-}
-
-.env-equals {
-  color: #8a929c;
-  font-weight: bold;
-}
-
-.env-value {
-  flex: 2;
-}
-
-.empty-tip {
-  padding: 20px;
-  text-align: center;
-  color: #8a929c;
-  font-size: 14px;
-}
-
-.file-dialog :deep(.el-dialog) {
-  background-color: #2a2d31;
-}
-
-.file-dialog :deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.file-dialog :deep(.el-dialog__title) {
-  color: #fff;
-}
-
-.output-dialog :deep(.el-dialog) {
-  background-color: #2a2d31;
-}
-
-.output-dialog :deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.output-dialog :deep(.el-dialog__title) {
-  color: #fff;
-}
-
-.output-textarea :deep(.el-textarea__inner) {
-  background-color: #1e1e1e;
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 12px;
-}
-</style>
-
-<style>
-/* 全局样式：Select 下拉菜单 dark 模式 */
-.el-select-dropdown {
-  background-color: #2a2d31 !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-}
-
-.el-select-dropdown__item {
-  color: rgba(255, 255, 255, 0.85) !important;
-}
-
-.el-select-dropdown__item:hover {
-  background-color: rgba(74, 158, 255, 0.15) !important;
-}
-
-.el-select-dropdown__item.is-selected {
-  color: #4a9eff !important;
-  font-weight: 500;
-}
-
-.el-popper {
-  background-color: #2a2d31 !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-}
-
-.el-popper__arrow::before {
-  background-color: #2a2d31 !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-}
-
-/* 模版对话框样式 */
-.templates-dialog :deep(.el-dialog__body) {
-  padding: 20px;
-}
-
-.templates-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  padding-bottom: var(--spacing-xl);
-}
-
-.template-card {
-  display: flex;
-  gap: 15px;
-  padding: 20px;
-  background-color: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.template-card:hover {
-  background-color: rgba(74, 158, 255, 0.08);
-  border-color: #4a9eff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(74, 158, 255, 0.15);
-}
-
-.template-icon {
-  font-size: 36px;
-  flex-shrink: 0;
-}
-
-.template-content {
-  flex: 1;
-}
-
-.template-content h3 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: #fff;
-}
-
-.template-category {
-  margin: 0 0 8px 0;
-  font-size: 12px;
-  color: #8a929c;
-}
-
-.template-description {
-  margin: 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-  line-height: 1.5;
-}
-
-.no-templates {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: #8a929c;
-  font-size: 14px;
-}
-
-.no-container {
-  color: #8a929c;
-  font-size: 13px;
-}
-
-.container-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.container-name {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.container-id {
-  color: #8a929c;
-  font-size: 12px;
-  font-family: monospace;
-}
+.script-section-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px; }.script-section-heading h3 { margin:0; }.script-files-scroll { overflow:auto; }.script-files-scroll .el-table { min-width:820px; }.script-env-row { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px;gap:10px;margin-bottom:12px; }.script-env-row .el-button { margin:0;padding:0; }.script-template-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-height:100px; }.script-template { display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid #414141;border-radius:6px;background:#242424;color:#ddd;text-align:left;cursor:pointer; }.script-template:hover { border-color:#35acd7;background:#22343c; }.script-template .el-icon { font-size:22px;color:#9cbac7; }.script-template strong { display:block;font-size:14px;font-weight:500; }.script-template small { display:block;margin-top:8px;font-size:12px;color:#999;line-height:20px; }.script-output :deep(textarea) { font:12px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace; }@media(max-width:600px){.script-template-grid { grid-template-columns:minmax(0,1fr); }.script-env-row { grid-template-columns:minmax(0,1fr) 32px; }.script-env-row > .el-input:nth-child(2) { grid-column:1;grid-row:2; }.script-env-row > .el-button { grid-column:2;grid-row:1 / 3; }}
 </style>

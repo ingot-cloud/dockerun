@@ -16,6 +16,8 @@ import PortainerIcon from '@/components/PortainerIcon.vue'
 import { dockerApi } from '@/api/docker'
 import { parseContainerCommand, type ContainerDetails } from '@/utils/containers'
 import { containerError } from '@/utils/containerFeedback'
+Terminal.strings.promptLabel='终端输入'
+Terminal.strings.tooMuchOutput='输出内容过多，已暂停朗读。请逐行查看终端内容。'
 const props = defineProps<{ id: string; details: ContainerDetails; mode: 'exec' | 'attach' }>()
 const command = ref('/bin/bash'), customCommand = ref(''), custom = ref(false), user = ref('root')
 const connecting = ref(false), connected = ref(false), terminalVisible = ref(false), error = ref(''), terminalElement = ref<HTMLElement>()

@@ -1,196 +1,33 @@
 <template>
-  <div class="page-heading">
-    <div>
-      <h1>发布包</h1>
-      <p>完整材料导入后成为待发布版本，随后选择环境部署。</p>
-    </div>
+  <div class="workspace-page">
+    <WorkspaceHeading title="发布包" :loading="loading" :busy="busy" @refresh="load()" />
+    <section class="management-card"><header class="management-toolbar"><h2><span class="management-section-icon"><el-icon><Upload /></el-icon></span>导入交付材料</h2></header><div class="management-card-body" style="padding-top:0"><el-radio-group v-model="kind" :disabled="busy"><el-radio-button value="bundle">完整发布包</el-radio-button><el-radio-button value="image">普通镜像归档</el-radio-button></el-radio-group><p class="management-form-help">支持 .tar、.tar.gz、.tgz；按 SHA-256 校验，重新选择同一文件可从服务器记录的偏移继续上传。</p><div class="management-row-actions" style="margin-top:16px"><label class="bundle-file">选择文件<input type="file" accept=".tar,.tar.gz,.tgz" :aria-label="kind==='bundle'?'选择完整发布包':'选择镜像归档'" :disabled="busy" @change="select" /></label><span class="bundle-file-name">{{file?.name || '未选择文件'}}</span><el-button type="primary" :disabled="!file || busy" :loading="uploading" @click="upload">校验并导入</el-button></div><el-progress v-if="progress!==null" :percentage="progress" style="margin-top:16px" /><p v-if="stage" class="management-form-help" role="status">{{stage}}</p><div v-if="operationError" class="management-error management-feedback" role="alert">{{operationError}}</div><el-divider /><el-form label-position="top" class="management-form" @submit.prevent="importDirectory"><el-form-item label="服务器导入目录中的文件"><el-input v-model="serverFile" placeholder="例如：application-release.tar.gz" :disabled="busy" /></el-form-item><el-button native-type="submit" :disabled="!serverFile.trim() || busy" :loading="importing">导入服务器文件</el-button></el-form></div></section>
+    <ResourceList title="导入记录" icon="Files" :items="rows" :loading="loading" :error="error" :busy="busy" :search-keys="['name','sha256','id','error']" :sorts="[{key:'created_at',label:'导入时间'},{key:'name',label:'名称'}]" :filter-options="statuses" filter-key="status" empty-text="暂无导入记录" style="flex:none;height:480px" @refresh="load()"><el-table-column prop="id" label="编号" width="80" /><el-table-column prop="name" label="交付材料" min-width="190" show-overflow-tooltip /><el-table-column label="状态" width="150"><template #default="{row}"><StatusBadge :value="row.status" /></template></el-table-column><el-table-column label="本机镜像" min-width="190"><template #default="{row}"><span>{{row.local_loaded?'已加载':'由目标节点确认'}}</span><p v-if="row.local_load_note" class="management-description">{{row.local_load_note}}</p></template></el-table-column><el-table-column prop="sha256" label="校验摘要（SHA-256）" min-width="190" show-overflow-tooltip /><el-table-column prop="error" label="错误信息" min-width="180" show-overflow-tooltip /><el-table-column label="操作" min-width="250"><template #default="{row}"><div class="management-row-actions"><el-button link type="primary" :disabled="busy || row.status!=='ready' || row.kind==='image'" @click="createVersion(row)">创建待发布版本</el-button><el-button v-if="row.status==='failed'" link :disabled="busy" @click="retry(row)">重试导入</el-button><el-button link :disabled="busy" @click="downloadBundle(row)">下载</el-button></div></template></el-table-column></ResourceList>
   </div>
-  <section class="panel">
-    <h2>上传交付材料</h2>
-    <el-radio-group v-model="kind" style="margin-bottom: 16px"
-      ><el-radio-button value="bundle">完整发布包</el-radio-button
-      ><el-radio-button value="image"
-        >普通镜像归档</el-radio-button
-      ></el-radio-group
-    >
-    <p class="muted">
-      支持 .tar.gz；按 SHA-256 标识上传，重复选择同一文件可从已上传偏移继续。
-    </p>
-    <div class="toolbar" style="margin-top: 16px">
-      <input
-        type="file"
-        accept=".tar,.tar.gz,.tgz"
-        aria-label="选择完整发布包"
-        :disabled="busy"
-        @change="select"
-      /><el-button
-        type="primary"
-        :disabled="!file"
-        :loading="busy"
-        @click="upload"
-        >{{ busy ? "正在上传" : "校验并导入" }}</el-button
-      >
-    </div>
-    <el-progress v-if="progress !== null" :percentage="progress" />
-    <p class="muted">{{ stage }}</p>
-    <el-alert
-      v-if="error"
-      :title="error"
-      type="error"
-      class="inline-error"
-      :closable="false"
-    /><el-divider /><el-form inline @submit.prevent="importDirectory"
-      ><el-form-item label="服务器导入目录中的文件"
-        ><el-input
-          v-model="serverFile"
-          placeholder="application-release.tar.gz"
-          style="width: 300px" /></el-form-item
-      ><el-button native-type="submit" :disabled="!serverFile"
-        >导入服务器文件</el-button
-      ></el-form
-    >
-  </section>
-  <section class="panel">
-    <h2>导入记录</h2>
-    <el-table :data="rows"
-      ><el-table-column prop="id" label="#" width="65" /><el-table-column
-        prop="name"
-        label="发布包"
-      /><el-table-column label="状态"
-        ><template #default="{ row }"
-          ><StatusBadge :value="row.status" /></template></el-table-column
-      ><el-table-column label="本机镜像" min-width="160"
-        ><template #default="{ row }"
-          ><span>{{ row.local_loaded ? "已加载" : "由目标节点确认" }}</span>
-          <p v-if="row.local_load_note" class="muted">
-            {{ row.local_load_note }}
-          </p></template
-        ></el-table-column
-      ><el-table-column
-        prop="sha256"
-        label="SHA-256"
-        show-overflow-tooltip
-        class-name="mono"
-      /><el-table-column
-        prop="error"
-        label="错误"
-        show-overflow-tooltip
-      /><el-table-column label="操作" width="210"
-        ><template #default="{ row }"
-          ><el-button
-            link
-            type="primary"
-            :disabled="row.status !== 'ready' || row.kind === 'image'"
-            @click="createVersion(row)"
-            >创建待发布版本</el-button
-          ><el-button v-if="row.status === 'failed'" link @click="retry(row)"
-            >重试导入</el-button
-          ><el-button
-            link
-            @click="download(`/bundles/${row.id}/download`, row.name)"
-            >下载</el-button
-          ></template
-        ></el-table-column
-      ></el-table
-    >
-  </section>
 </template>
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
-import { api, errorText, download } from "@/api/workspace";
-import request from "@/api/request";
-import CryptoJS from "crypto-js";
-import StatusBadge from "@/components/StatusBadge.vue";
-const rows = ref<any[]>([]),
-  file = ref<File>(),
-  busy = ref(false),
-  progress = ref<number | null>(null),
-  stage = ref(""),
-  error = ref(""),
-  serverFile = ref(""),
-  kind = ref("bundle"),
-  router = useRouter();
-let timer: ReturnType<typeof setInterval>;
-function select(e: Event) {
-  file.value = (e.target as HTMLInputElement).files?.[0];
-  progress.value = null;
-}
-async function load() {
-  try {
-    rows.value = await api("GET", "/bundles");
-  } catch (e) {
-    error.value = errorText(e);
-  }
-}
-async function upload() {
-  if (!file.value) return;
-  busy.value = true;
-  error.value = "";
-  try {
-    stage.value = "计算文件校验值…";
-    const hasher = CryptoJS.algo.SHA256.create();
-    for (let start = 0; start < file.value.size; start += 8 * 1024 * 1024) {
-      const bytes = new Uint8Array(
-        await file.value.slice(start, start + 8 * 1024 * 1024).arrayBuffer(),
-      );
-      hasher.update(CryptoJS.lib.WordArray.create(bytes as any));
-    }
-    const hash = hasher.finalize().toString();
-    let { offset } = await api("GET", `/bundles/uploads/${hash}`);
-    while (offset < file.value.size) {
-      stage.value = "上传材料（可续传）";
-      const end = Math.min(offset + 8 * 1024 * 1024, file.value.size);
-      const chunk = file.value.slice(offset, end);
-      const r: any = await request.put(`/bundles/uploads/${hash}`, chunk, {
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "Content-Range": `bytes ${offset}-${end - 1}/${file.value.size}`,
-        },
-        timeout: 120000,
-      });
-      offset = r.offset;
-      progress.value = Math.floor((offset / file.value.size) * 100);
-    }
-    await api("POST", `/bundles/uploads/${hash}/complete`, {
-      kind: kind.value,
-      name: file.value.name,
-    });
-    stage.value = "上传完成，服务器正在校验和加载镜像；在下方查看导入结果。";
-    await load();
-  } catch (e) {
-    error.value = errorText(e);
-  } finally {
-    busy.value = false;
-  }
-}
-async function importDirectory() {
-  try {
-    await api("POST", "/bundles/import-directory", { file: serverFile.value, kind: kind.value });
-    await load();
-  } catch (e) {
-    error.value = errorText(e);
-  }
-}
-async function retry(row: any) {
-  try {
-    await api("POST", `/bundles/${row.id}/retry`);
-    await load();
-  } catch (e) {
-    error.value = errorText(e);
-  }
-}
-async function createVersion(b: any) {
-  try {
-    const r = await api("POST", `/bundles/${b.id}/version`, {});
-    router.push(`/applications/${r.release.application_id}`);
-  } catch (e) {
-    error.value = errorText(e);
-  }
-}
-onMounted(() => {
-  load();
-  timer = setInterval(load, 3000);
-});
-onUnmounted(() => clearInterval(timer));
+import { computed,ref } from 'vue'
+import { onBeforeRouteLeave,useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import CryptoJS from 'crypto-js'
+import { api,download,errorText } from '@/api/workspace'
+import request from '@/api/request'
+import { useResource } from '@/composables/useResource'
+import { statusLabel } from '@/utils/management'
+import WorkspaceHeading from '@/components/WorkspaceHeading.vue'
+import ResourceList from '@/components/ResourceList.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+const router=useRouter(),{data:rows,loading,error,load}=useResource<any[]>('/bundles',[],{interval:3000,active:rows=>rows.some(row=>['queued','validating','loading'].includes(row.status))})
+const file=ref<File>(),uploading=ref(false),importing=ref(false),rowBusy=ref(false),progress=ref<number|null>(null),stage=ref(''),operationError=ref(''),serverFile=ref(''),kind=ref('bundle')
+const busy=computed(()=>uploading.value || importing.value || rowBusy.value),statuses=['ready','validating','loading','failed'].map(value=>({value,label:statusLabel(value)}))
+onBeforeRouteLeave(()=>!busy.value)
+function select(event:Event){file.value=(event.target as HTMLInputElement).files?.[0];progress.value=null;operationError.value='';stage.value=''}
+async function upload(){if(!file.value || busy.value)return;const selected=file.value,selectedKind=kind.value;uploading.value=true;operationError.value='';try{if(!selected.size)throw new Error('文件为空，请选择有效的交付材料');stage.value='正在计算文件校验值…';const hasher=CryptoJS.algo.SHA256.create(),chunkSize=8*1024*1024;for(let start=0;start<selected.size;start+=chunkSize){const bytes=new Uint8Array(await selected.slice(start,start+chunkSize).arrayBuffer());hasher.update(CryptoJS.lib.WordArray.create(bytes as any))}const hash=hasher.finalize().toString();let {offset}=await api('GET',`/bundles/uploads/${hash}`);if(!Number.isSafeInteger(offset) || offset<0 || offset>selected.size)throw new Error('服务器返回的上传偏移无效，请重试');progress.value=Math.floor(offset/selected.size*100);while(offset<selected.size){stage.value='正在上传材料，可断点续传…';const end=Math.min(offset+chunkSize,selected.size);const result:any=await request.put(`/bundles/uploads/${hash}`,selected.slice(offset,end),{headers:{'Content-Type':'application/octet-stream','Content-Range':`bytes ${offset}-${end-1}/${selected.size}`},timeout:120000,silentError:true});if(!Number.isSafeInteger(result.offset) || result.offset<=offset || result.offset>selected.size)throw new Error('上传进度未推进，请重新选择同一文件重试');offset=result.offset;progress.value=Math.floor(offset/selected.size*100)}await api('POST',`/bundles/uploads/${hash}/complete`,{kind:selectedKind,name:selected.name});stage.value='上传完成，服务器正在校验和加载镜像，请在下方查看导入结果。';ElMessage.success('材料已上传');await load()}catch(cause){operationError.value=errorText(cause)}finally{uploading.value=false}}
+async function importDirectory(){if(busy.value || !serverFile.value.trim())return;importing.value=true;operationError.value='';try{await api('POST','/bundles/import-directory',{file:serverFile.value.trim(),kind:kind.value});ElMessage.success('服务器文件已提交导入');await load()}catch(cause){operationError.value=errorText(cause)}finally{importing.value=false}}
+async function retry(row:any){if(busy.value)return;rowBusy.value=true;operationError.value='';try{await api('POST',`/bundles/${row.id}/retry`);ElMessage.success('已重新提交导入');await load()}catch(cause){operationError.value=errorText(cause)}finally{rowBusy.value=false}}
+async function createVersion(row:any){if(busy.value)return;rowBusy.value=true;operationError.value='';try{const result=await api('POST',`/bundles/${row.id}/version`,{});rowBusy.value=false;await router.push(`/applications/${result.release.application_id}`)}catch(cause){operationError.value=errorText(cause)}finally{rowBusy.value=false}}
+async function downloadBundle(row:any){try{await download(`/bundles/${row.id}/download`,row.name)}catch(cause){operationError.value=errorText(cause)}}
 </script>
+<style scoped>
+.bundle-file { position:relative; flex-shrink:0; border:1px solid #414141; border-radius:4px; background:#282828; padding:7px 12px; color:#ddd; font-size:12px; cursor:pointer; }.bundle-file:focus-within { outline:2px solid #33a7d5;outline-offset:2px; }.bundle-file input { position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer; }.bundle-file-name { min-width:0; max-width:300px; overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#999;font-size:12px; }
+</style>

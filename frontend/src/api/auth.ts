@@ -19,16 +19,16 @@ export interface ChangePasswordParams {
 
 export const authApi = {
   // 登录
-  login: (data: LoginParams) => request.post('/auth/login', data),
+  login: (data: LoginParams) => request.post('/auth/login', data, {silentError:true}),
   
   // 检查初始设置
   checkSetup: () => request.get('/auth/check-setup'),
   
   // 设置初始密码
-  setInitialPassword: (data: SetPasswordParams) => request.post('/auth/setup', data),
+  setInitialPassword: (data: SetPasswordParams) => request.post('/auth/setup', data, {silentError:true}),
   
   // 修改密码
-  changePassword: (data: ChangePasswordParams) => request.post('/auth/change-password', data),
+  changePassword: (data: ChangePasswordParams) => request.post('/auth/change-password', data, {silentError:true}),
   
   // 获取当前用户信息
   getCurrentUser: () => request.get('/auth/me')

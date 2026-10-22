@@ -1,174 +1,29 @@
 <template>
   <div class="data-table-wrapper">
-    <el-table
-      v-bind="$attrs"
-      class="data-table"
-      :row-class-name="rowClassName"
-      :header-cell-style="headerCellStyle"
-      stripe
-    >
-      <slot></slot>
-    </el-table>
-    
-    <div class="table-footer" v-if="showFooter">
-      <slot name="footer">
-        <span class="total-count">{{ total }} {{ totalText }}</span>
-      </slot>
+    <div class="data-table-scroll" tabindex="0" aria-label="数据列表滚动区域">
+      <el-table ref="table" v-bind="tableAttrs" :data="pageRows" class="data-table" height="100%" :row-key="String($attrs['row-key'] || 'id')" :row-class-name="rowClassName" empty-text="暂无数据" @sort-change="sortChange" @selection-change="emit('selection-change',$event)"><slot /></el-table>
     </div>
+    <footer v-if="showFooter" class="management-pagination"><slot name="footer"><span role="status">共 {{ total ?? rows.length }} {{ totalText }}</span><el-pagination v-model:current-page="state.page" v-model:page-size="state.size" :page-sizes="[10,25,50,100]" :total="rows.length" :pager-count="5" layout="sizes, prev, pager, next" /></slot></footer>
   </div>
 </template>
-
 <script setup lang="ts">
-import type { CSSProperties } from 'vue'
-
-withDefaults(defineProps<{
-  total?: number
-  totalText?: string
-  showFooter?: boolean
-  rowClassName?: (row: any, rowIndex: number) => string
-}>(), {
-  totalText: 'items',
-  showFooter: true,
-  rowClassName: () => ''
-})
-
-const headerCellStyle: CSSProperties = {
-  background: 'rgba(0, 0, 0, 0.2)',
-  color: 'rgba(255, 255, 255, 0.85)',
-  fontWeight: '600',
-  fontSize: '13px',
-  padding: '12px 0',
-  height: '48px'
-}
+import { computed, reactive, ref, useAttrs, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import type { TableInstance } from 'element-plus'
+import { filterAndSort, readListState } from '@/utils/management'
+defineOptions({inheritAttrs:false})
+const props=withDefaults(defineProps<{total?:number; totalText?:string; showFooter?:boolean; rowClassName?: (row:any,rowIndex:number)=>string}>(), {totalText:'项',showFooter:true})
+const emit=defineEmits<{'selection-change':[rows:any[]]}>()
+const attrs=useAttrs(), route=useRoute(), router=useRouter(), table=ref<TableInstance>()
+const tableAttrs=computed(()=>{const {data, 'onSelectionChange': _selection, ...rest}=attrs; return rest})
+const state=reactive(readListState(route.query,'table_',['name','created_at','status','id']))
+const rows=computed(()=>filterAndSort((attrs.data as any[]) || [],'', ['name'],state.sort,state.descending))
+const pageRows=computed(()=>props.showFooter?rows.value.slice((state.page-1)*state.size,state.page*state.size):rows.value)
+watch(()=>[attrs.data,state.size,state.sort,state.descending],()=>{state.page=1;table.value?.clearSelection();emit('selection-change',[])})
+watch(()=>state.page,()=>{table.value?.clearSelection();table.value?.setScrollTop(0)})
+watch(state,()=>{void router.replace({query:{...route.query,table_page:String(state.page),table_size:String(state.size),table_sort:state.sort,table_direction:state.descending?'desc':'asc'}})},{flush:'post'})
+function sortChange(value:{prop:string;order:string|null}){if(value.order){state.sort=value.prop;state.descending=value.order==='descending'}}
 </script>
-
-<style>
-/* ========== 全局表格样式（不使用 scoped） ========== */
-.data-table-wrapper {
-  width: 100%;
-}
-
-.data-table {
-  width: 100%;
-  font-size: var(--font-size-sm);
-}
-
-/* 单元格样式 */
-.data-table .el-table__cell {
-  padding: 12px 0;
-  height: auto;
-}
-
-.data-table .el-table__body-wrapper .el-table__cell {
-  color: var(--color-text-regular);
-}
-
-/* 表头样式 */
-.data-table .el-table__header-wrapper {
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-}
-
-/* 斑马纹 */
-.data-table .el-table__row--striped {
-  background-color: rgba(255, 255, 255, 0.02);
-}
-
-/* 悬停效果 */
-.data-table .el-table__body tr:hover > td {
-  background-color: var(--color-bg-hover) !important;
-}
-
-/* 选中行 */
-.data-table .el-table__body tr.current-row > td {
-  background-color: rgba(64, 158, 255, 0.15) !important;
-}
-
-/* 边框 */
-.data-table .el-table__inner-wrapper::before {
-  display: none;
-}
-
-.data-table td.el-table__cell,
-.data-table th.el-table__cell.is-leaf {
-  border-bottom: 1px solid var(--color-border-lighter);
-}
-
-/* 空状态 */
-.data-table .el-table__empty-block {
-  padding: var(--spacing-3xl) 0;
-}
-
-.data-table .el-table__empty-text {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-/* 加载状态 */
-.data-table .el-loading-mask {
-  background-color: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(2px);
-}
-
-/* ========== 表格底部 ========== */
-.table-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-md) var(--spacing-xl);
-  border-top: 1px solid var(--color-border-lighter);
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.total-count {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-medium);
-}
-
-/* ========== 快速操作按钮 ========== */
-.quick-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.quick-actions .el-button {
-  margin: 0;
-  padding: 6px;
-  font-size: 16px;
-}
-
-.quick-actions .el-button.is-link {
-  color: var(--color-text-secondary);
-  transition: color var(--transition-fast);
-}
-
-.quick-actions .el-button.is-link:hover {
-  color: var(--color-primary);
-}
-
-.quick-actions .el-button.danger-btn:hover {
-  color: var(--color-danger);
-}
-
-/* ========== 通用单元格样式 ========== */
-.text-normal {
-  color: var(--color-text-regular);
-  font-size: var(--font-size-sm);
-}
-
-.text-muted {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.code-text {
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-regular);
-  background: var(--color-bg-hover);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-}
+<style scoped>
+.data-table-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; }.data-table-scroll { flex: 1; min-height: 160px; overflow: auto; }.data-table { min-width: 900px; }.data-table-scroll:focus-visible { outline: 2px solid #33a7d5; outline-offset: -2px; }
 </style>

@@ -1,43 +1,9 @@
-<template>
-  <div class="page-container">
-    <div class="page-header" v-if="$slots.header || title">
-      <slot name="header">
-        <h1 class="page-title">{{ title }}</h1>
-      </slot>
-    </div>
-    <div class="page-content">
-      <slot></slot>
-    </div>
-  </div>
-</template>
-
+<template><div class="workspace-page page-container"><WorkspaceHeading v-if="title || $slots.header" :title="title || ''" :loading="loading" :refreshable="refreshable" @refresh="emit('refresh')"><slot name="header" /></WorkspaceHeading><div class="page-content"><slot /></div></div></template>
 <script setup lang="ts">
-defineProps<{
-  title?: string
-}>()
+import WorkspaceHeading from '@/components/WorkspaceHeading.vue'
+withDefaults(defineProps<{title?: string; loading?: boolean; refreshable?: boolean}>(), {refreshable:false})
+const emit = defineEmits<{refresh: []}>()
 </script>
-
 <style scoped>
-.page-container {
-  min-height: 100vh;
-  /* padding: var(--spacing-2xl); */
-  background: var(--color-bg-page);
-}
-
-.page-header {
-  padding: var(--spacing-xl);
-  /* margin-bottom: var(--spacing-xl); */
-}
-
-.page-title {
-  font-size: var(--font-size-3xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-  margin: 0;
-  line-height: var(--line-height-tight);
-}
-
-.page-content {
-  /* Content area */
-}
+.page-content { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; gap: 16px; }
 </style>

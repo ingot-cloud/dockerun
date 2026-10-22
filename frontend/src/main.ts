@@ -12,6 +12,7 @@ import router from "./router";
 // 导入设计系统
 import "./styles/design-system.css";
 import "./styles/workspace.css";
+import "./styles/management.css";
 
 const app = createApp(App);
 

@@ -64,17 +64,17 @@
       <section class="detail-card" aria-labelledby="dockerfile-title">
         <h2 id="dockerfile-title"><span class="detail-icon"><PortainerIcon name="list" /></span>Dockerfile 配置</h2>
         <table class="metadata-table" aria-label="Dockerfile 配置"><tbody>
-          <tr><th scope="row">CMD</th><td><code>{{ config.Cmd?.join(' ') || '—' }}</code></td></tr>
-          <tr><th scope="row">ENTRYPOINT</th><td><code>{{ config.Entrypoint?.join(' ') || '—' }}</code></td></tr>
-          <tr><th scope="row">EXPOSE</th><td><div v-if="ports.length" class="exposed-ports"><code v-for="port in ports" :key="port">{{ port }}</code></div><span v-else class="detail-muted">未声明端口</span></td></tr>
-          <tr><th scope="row">ENV</th><td>
+          <tr><th scope="row">启动命令（CMD）</th><td><code>{{ config.Cmd?.join(' ') || '—' }}</code></td></tr>
+          <tr><th scope="row">入口命令（ENTRYPOINT）</th><td><code>{{ config.Entrypoint?.join(' ') || '—' }}</code></td></tr>
+          <tr><th scope="row">声明端口（EXPOSE）</th><td><div v-if="ports.length" class="exposed-ports"><code v-for="port in ports" :key="port">{{ port }}</code></div><span v-else class="detail-muted">未声明端口</span></td></tr>
+          <tr><th scope="row">环境变量（ENV）</th><td>
             <table v-if="environment.length" class="key-value-table" aria-label="镜像环境变量"><tbody><tr v-for="(variable, index) in environment" :key="index"><th scope="row">{{ variable.name }}</th><td>{{ variable.value }}</td></tr></tbody></table>
             <span v-else class="detail-muted">未设置环境变量</span>
           </td></tr>
-          <tr v-if="config.User"><th scope="row">USER</th><td><code>{{ config.User }}</code></td></tr>
-          <tr v-if="config.WorkingDir"><th scope="row">WORKDIR</th><td><code>{{ config.WorkingDir }}</code></td></tr>
-          <tr v-if="volumes.length"><th scope="row">VOLUME</th><td><div v-for="volume in volumes" :key="volume"><code>{{ volume }}</code></div></td></tr>
-          <tr v-if="config.Healthcheck?.Test?.length"><th scope="row">HEALTHCHECK</th><td><code>{{ config.Healthcheck.Test.join(' ') }}</code></td></tr>
+          <tr v-if="config.User"><th scope="row">运行用户（USER）</th><td><code>{{ config.User }}</code></td></tr>
+          <tr v-if="config.WorkingDir"><th scope="row">工作目录（WORKDIR）</th><td><code>{{ config.WorkingDir }}</code></td></tr>
+          <tr v-if="volumes.length"><th scope="row">数据卷（VOLUME）</th><td><div v-for="volume in volumes" :key="volume"><code>{{ volume }}</code></div></td></tr>
+          <tr v-if="config.Healthcheck?.Test?.length"><th scope="row">健康检查（HEALTHCHECK）</th><td><code>{{ config.Healthcheck.Test.join(' ') }}</code></td></tr>
         </tbody></table>
       </section>
 

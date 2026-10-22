@@ -6,11 +6,11 @@
     </header>
     <section class="registry-card registry-list" aria-labelledby="registries-title">
       <header class="registries-toolbar">
-        <h2 id="registries-title"><span class="registry-section-icon"><PortainerIcon name="registry" /></span>Registries</h2>
+        <h2 id="registries-title"><span class="registry-section-icon"><PortainerIcon name="registry" /></span>外部仓库列表</h2>
         <div class="registries-actions">
           <el-input v-model="search" class="registry-search" placeholder="搜索名称、URL 或用户名…" aria-label="搜索外部仓库" clearable :disabled="busy"><template #prefix><PortainerIcon name="search" /></template></el-input>
           <el-button class="registry-remove" :disabled="!selectedRegistries.length || busy || loading" @click="deleteVisible = true"><PortainerIcon name="trash" />删除</el-button>
-          <el-button class="registry-primary" :disabled="busy || loading" @click="router.push({ name: 'RegistryCreate', query: listQuery })"><PortainerIcon name="plus" />添加 Registry</el-button>
+          <el-button class="registry-primary" :disabled="busy || loading" @click="router.push({ name: 'RegistryCreate', query: listQuery })"><PortainerIcon name="plus" />添加仓库</el-button>
         </div>
       </header>
       <form class="registry-filters" @submit.prevent>
@@ -38,7 +38,7 @@
             <td><router-link class="registry-browse" :to="{ name: 'RegistryImages', params: { id: registry.id }, query: listQuery }"><PortainerIcon name="box" />浏览镜像</router-link></td>
           </tr></tbody>
         </table>
-        <div v-if="!pageRegistries.length && !loading" class="registry-empty" role="status"><PortainerIcon :name="hasFilters ? 'search' : 'registry'" /><p>{{ listError ? '暂时无法加载仓库列表' : hasFilters ? '没有找到匹配的仓库' : '暂无外部仓库' }}</p><el-button v-if="hasFilters" link @click="resetFilters">重置筛选</el-button><span v-else-if="!listError">添加 Registry 后，可在这里管理连接并浏览镜像</span></div>
+        <div v-if="!pageRegistries.length && !loading" class="registry-empty" role="status"><PortainerIcon :name="hasFilters ? 'search' : 'registry'" /><p>{{ listError ? '暂时无法加载仓库列表' : hasFilters ? '没有找到匹配的仓库' : '暂无外部仓库' }}</p><el-button v-if="hasFilters" link @click="resetFilters">重置筛选</el-button><span v-else-if="!listError">添加仓库 后，可在这里管理连接并浏览镜像</span></div>
       </div>
       <footer class="registries-pagination">
         <div class="registry-count" role="status"><span>共 {{ filteredRegistries.length }} 个仓库</span><template v-if="selectedRegistries.length"><span class="registry-selected-count">已选 {{ selectedRegistries.length }} 项</span><el-button link :disabled="busy" @click="selectedIds = new Set()">清除选择</el-button></template></div>
