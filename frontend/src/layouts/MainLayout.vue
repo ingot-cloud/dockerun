@@ -17,9 +17,9 @@
             :key="item.path"
             :to="item.path"
             class="nav-item"
-            :class="{ 'router-link-active': (item.path === '/images' && route.name === 'ImageDetail') || (item.path === '/containers' && route.path.startsWith('/containers/')) }"
+            :class="{ 'router-link-active': (item.path === '/images' && route.name === 'ImageDetail') || (item.path === '/containers' && route.path.startsWith('/containers/')) || (item.path === '/registry' && route.path.startsWith('/registry/')) }"
             :title="item.title"
-            ><el-icon><PortainerIcon v-if="item.path === '/images'" name="list" /><component v-else :is="item.icon" /></el-icon
+            ><el-icon><PortainerIcon v-if="item.path === '/images'" name="list" /><PortainerIcon v-else-if="item.path === '/registry'" name="registry" /><component v-else :is="item.icon" /></el-icon
             ><span v-if="!collapsed">{{ item.title }}</span></router-link
           ></template
         >
@@ -44,6 +44,7 @@
           ><el-breadcrumb-item>Dockerun</el-breadcrumb-item
           ><el-breadcrumb-item v-if="route.name === 'ImageDetail'" :to="{ name: 'Images', query: route.query }">本地镜像</el-breadcrumb-item
           ><el-breadcrumb-item v-if="route.path.startsWith('/containers/')" :to="{ name: 'Containers', query: route.query }">容器</el-breadcrumb-item
+          ><el-breadcrumb-item v-if="route.path.startsWith('/registry/')" :to="{ name: 'Registry', query: route.query }">外部仓库</el-breadcrumb-item
           ><el-breadcrumb-item>{{
             route.meta.title || route.name
           }}</el-breadcrumb-item></el-breadcrumb
@@ -57,7 +58,7 @@
           ><el-button text @click="logout">退出</el-button>
         </div>
       </header>
-      <main class="workspace-main" :class="{ 'workspace-main--images': route.name === 'Images', 'workspace-main--containers': route.name === 'Containers', 'workspace-main--image-detail': route.name === 'ImageDetail', 'workspace-main--container-detail': route.path.startsWith('/containers/') }"><router-view /></main>
+      <main class="workspace-main" :class="{ 'workspace-main--registries': route.path === '/registry' || route.path.startsWith('/registry/'), 'workspace-main--images': route.name === 'Images', 'workspace-main--containers': route.name === 'Containers', 'workspace-main--image-detail': route.name === 'ImageDetail', 'workspace-main--container-detail': route.path.startsWith('/containers/') }"><router-view /></main>
     </div>
   </div>
 </template>
@@ -123,7 +124,7 @@ function logout() {
 </script>
 
 <style scoped>
-.workspace-main--images, .workspace-main--containers, .workspace-main--image-detail, .workspace-main--container-detail {
+.workspace-main--registries, .workspace-main--images, .workspace-main--containers, .workspace-main--image-detail, .workspace-main--container-detail {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -134,6 +135,6 @@ function logout() {
 }
 .workspace-main--image-detail, .workspace-main--container-detail { overflow: auto; }
 @media (max-width: 760px) {
-  .workspace-main--images, .workspace-main--containers, .workspace-main--image-detail, .workspace-main--container-detail { padding: 12px; }
+  .workspace-main--registries, .workspace-main--images, .workspace-main--containers, .workspace-main--image-detail, .workspace-main--container-detail { padding: 12px; }
 }
 </style>

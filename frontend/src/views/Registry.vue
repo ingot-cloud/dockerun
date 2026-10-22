@@ -1,434 +1,103 @@
 <template>
-  <PageContainer title="外部仓库管理">
-    <ContentCard title="外部仓库" :icon="DataBoard" :no-padding="true">
-      <template #actions>
-        <el-input
-          v-model="searchText"
-          placeholder="搜索…"
-          :prefix-icon="Search"
-          style="width: 240px"
-          clearable
-        />
-        <el-button
-          type="danger"
-          :icon="Delete"
-          @click="handleBatchRemove"
-          :disabled="selectedItems.length === 0"
-        >
-          删除
-        </el-button>
-        <el-button type="primary" :icon="Plus" @click="showAddDialog">
-          Add Registry
-        </el-button>
-      </template>
-
-      <DataTable
-        :data="filteredRegistries"
-        v-loading="loading"
-        :total="filteredRegistries.length"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="45" fixed="left" />
-
-        <el-table-column label="名称" min-width="180">
-          <template #default="{ row }">
-            <span class="registry-name" @click="viewImages(row)">
-              {{ row.name }}
-            </span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="URL" min-width="300">
-          <template #default="{ row }">
-            <code class="code-text">{{ row.url }}</code>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="用户名" width="150">
-          <template #default="{ row }">
-            <span class="text-normal">{{ row.username || "-" }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Default" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.is_default" type="success" size="small">
-              Yes
-            </el-tag>
-            <span v-else class="text-muted">-</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Insecure" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.insecure" type="warning" size="small">
-              Yes
-            </el-tag>
-            <span v-else class="text-muted">-</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="创建时间" width="180">
-          <template #default="{ row }">
-            <span class="text-normal">{{ formatDate(row.created_at) }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column
-          label="快捷操作"
-          width="150"
-          align="center"
-          fixed="right"
-        >
-          <template #default="{ row }">
-            <div class="quick-actions">
-              <el-tooltip content="View Images" placement="top">
-                <el-button
-                  link
-                  :icon="View"
-                  @click="viewImages(row)"
-                  class="action-btn"
-                />
-              </el-tooltip>
-              <el-tooltip content="Edit" placement="top">
-                <el-button
-                  link
-                  :icon="Edit"
-                  @click="editRegistry(row)"
-                  class="action-btn"
-                />
-              </el-tooltip>
-              <el-tooltip content="删除" placement="top">
-                <el-button
-                  link
-                  :icon="Delete"
-                  @click="deleteRegistry(row)"
-                  class="action-btn danger-btn"
-                />
-              </el-tooltip>
-            </div>
-          </template>
-        </el-table-column>
-      </DataTable>
-    </ContentCard>
-
-    <!-- 添加/编辑对话框 -->
-    <FormDialog
-      v-model="dialogVisible"
-      :title="dialogMode === 'add' ? 'Create Registry' : 'Edit Registry'"
-      :icon="DataBoard"
-      :loading="submitting"
-      @confirm="submitForm"
-      @cancel="dialogVisible = false"
-      wide
-    >
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="140px">
-        <div class="form-section">
-          <h3>Basic Information</h3>
-          <el-form-item label="名称" prop="name">
-            <el-input v-model="form.name" placeholder="e.g. My Registry" />
-          </el-form-item>
-          <el-form-item label="仓库地址" prop="url">
-            <el-input
-              v-model="form.url"
-              placeholder="https://registry.example.com"
-            />
-            <div class="form-tip">
-              Full URL of the Docker registry (e.g.,
-              https://registry-1.docker.io for Docker Hub)
-            </div>
-          </el-form-item>
+  <div class="registry-resource registries-page">
+    <header class="registry-heading">
+      <h1>外部仓库</h1>
+      <el-button text circle aria-label="刷新外部仓库列表" title="刷新外部仓库列表" :disabled="busy || loading" @click="loadRegistries"><PortainerIcon name="refresh" :class="{ spinning: loading }" /></el-button>
+    </header>
+    <section class="registry-card registry-list" aria-labelledby="registries-title">
+      <header class="registries-toolbar">
+        <h2 id="registries-title"><span class="registry-section-icon"><PortainerIcon name="registry" /></span>Registries</h2>
+        <div class="registries-actions">
+          <el-input v-model="search" class="registry-search" placeholder="搜索名称、URL 或用户名…" aria-label="搜索外部仓库" clearable :disabled="busy"><template #prefix><PortainerIcon name="search" /></template></el-input>
+          <el-button class="registry-remove" :disabled="!selectedRegistries.length || busy || loading" @click="deleteVisible = true"><PortainerIcon name="trash" />删除</el-button>
+          <el-button class="registry-primary" :disabled="busy || loading" @click="router.push({ name: 'RegistryCreate', query: listQuery })"><PortainerIcon name="plus" />添加 Registry</el-button>
         </div>
-
-        <div class="form-section">
-          <h3>Authentication</h3>
-          <el-form-item label="用户名">
-            <el-input v-model="form.username" placeholder="Optional" />
-          </el-form-item>
-          <el-form-item label="密码">
-            <el-input
-              v-model="form.password"
-              type="password"
-              placeholder="Optional"
-              show-password
-            />
-            <div class="form-tip">通过 HTTPS 传输，并在服务器加密保存</div>
-          </el-form-item>
-          <el-form-item label="Email">
-            <el-input v-model="form.email" placeholder="Optional" />
-          </el-form-item>
-        </div>
-
-        <div class="form-section">
-          <h3>Agent 专用拉取账号</h3>
-          <p class="form-tip">
-            在外部 Registry 创建只读账号后填写；Agent 不使用上面的管理凭据。
-          </p>
-          <el-form-item label="拉取用户名"
-            ><el-input v-model="form.pull_username" /></el-form-item
-          ><el-form-item label="拉取密码"
-            ><el-input
-              v-model="form.pull_password"
-              type="password"
-              show-password
-              placeholder="留空保留已有凭据" /></el-form-item
-          ><el-form-item label="权限确认"
-            ><el-checkbox v-model="form.pull_only_confirmed"
-              >已在外部 Registry 将该账号限制为只读</el-checkbox
-            ></el-form-item
-          >
-        </div>
-        <div class="form-section">
-          <h3>Options</h3>
-          <el-form-item label="Default Registry">
-            <el-switch v-model="form.is_default" />
-            <div class="form-tip">
-              Set as default registry for image operations
-            </div>
-          </el-form-item>
-          <el-form-item label="Insecure">
-            <el-switch v-model="form.insecure" />
-            <div class="form-tip">
-              Allow insecure HTTPS connections (not recommended for production)
-            </div>
-          </el-form-item>
-        </div>
-      </el-form>
-    </FormDialog>
-  </PageContainer>
+      </header>
+      <form class="registry-filters" @submit.prevent>
+        <el-select v-model="typeFilter" placeholder="全部类型" aria-label="筛选仓库类型" :disabled="busy"><el-option label="全部类型" value="" /><el-option v-for="provider in registryProviders" :key="provider.id" :label="provider.label" :value="provider.id" /></el-select>
+        <el-select v-model="authFilter" placeholder="身份认证：全部" aria-label="筛选身份认证" :disabled="busy"><el-option label="身份认证：全部" value="" /><el-option label="已启用认证" value="true" /><el-option label="匿名访问" value="false" /></el-select>
+        <el-select v-model="defaultFilter" placeholder="全部仓库" aria-label="筛选默认仓库" :disabled="busy"><el-option label="全部仓库" value="" /><el-option label="默认仓库" value="true" /><el-option label="非默认仓库" value="false" /></el-select>
+        <el-button v-if="hasFilters" link :disabled="busy" @click="resetFilters">重置筛选</el-button>
+        <span class="registry-summary">已启用认证 <strong>{{ registries.filter(item => item.username).length }}</strong><span>/</span>全部 <strong>{{ registries.length }}</strong></span>
+      </form>
+      <div v-if="listError" class="registry-error" role="alert"><span>{{ listError }}</span><el-button link :disabled="loading || busy" @click="loadRegistries">重试</el-button></div>
+      <div ref="tableScroll" v-loading="loading" class="registry-table-scroll" aria-label="外部仓库列表滚动区域" tabindex="0" :aria-busy="loading">
+        <table class="registry-table" aria-label="外部仓库列表">
+          <colgroup><col class="registry-selection-col" /><col class="registry-name-col" /><col class="registry-type-col" /><col /><col class="registry-auth-col" /><col class="registry-action-col" /></colgroup>
+          <thead><tr>
+            <th scope="col" class="registry-selection"><el-checkbox :model-value="allPageSelected" :indeterminate="somePageSelected && !allPageSelected" :disabled="!pageRegistries.length || busy || loading" aria-label="选择当前页全部仓库" @change="togglePageSelection(Boolean($event))" /></th>
+            <th v-for="column in registryColumns" :key="column.key" scope="col" :aria-sort="sortKey === column.key ? (descending ? 'descending' : 'ascending') : 'none'"><button class="registry-sort" :disabled="busy" @click="changeSort(column.key)">{{ column.label }}<PortainerIcon name="sort" :class="{ 'sort-active': sortKey === column.key }" /></button></th>
+            <th scope="col">操作</th>
+          </tr></thead>
+          <tbody><tr v-for="registry in pageRegistries" :key="registry.id" :class="{ selected: selectedIds.has(registry.id) }">
+            <td class="registry-selection"><el-checkbox :model-value="selectedIds.has(registry.id)" :disabled="busy || loading" :aria-label="`选择仓库 ${registry.name}`" @change="toggleSelection(registry.id, Boolean($event))" /></td>
+            <td><div class="registry-identity"><router-link :to="{ name: 'RegistryDetail', params: { id: registry.id }, query: listQuery }" :title="registry.name">{{ registry.name }}</router-link><span v-if="registry.is_default" class="registry-badge">默认</span></div></td>
+            <td>{{ registryType(registry.url) }}</td>
+            <td><span class="registry-url" :title="registry.url">{{ registry.url }}</span><span v-if="registry.insecure" class="registry-insecure">跳过 TLS 验证</span></td>
+            <td><span :class="registry.username ? 'registry-true' : 'registry-muted'">{{ registry.username ? '已启用' : '匿名访问' }}</span><span v-if="registry.username" class="registry-username" :title="registry.username">{{ registry.username }}</span></td>
+            <td><router-link class="registry-browse" :to="{ name: 'RegistryImages', params: { id: registry.id }, query: listQuery }"><PortainerIcon name="box" />浏览镜像</router-link></td>
+          </tr></tbody>
+        </table>
+        <div v-if="!pageRegistries.length && !loading" class="registry-empty" role="status"><PortainerIcon :name="hasFilters ? 'search' : 'registry'" /><p>{{ listError ? '暂时无法加载仓库列表' : hasFilters ? '没有找到匹配的仓库' : '暂无外部仓库' }}</p><el-button v-if="hasFilters" link @click="resetFilters">重置筛选</el-button><span v-else-if="!listError">添加 Registry 后，可在这里管理连接并浏览镜像</span></div>
+      </div>
+      <footer class="registries-pagination">
+        <div class="registry-count" role="status"><span>共 {{ filteredRegistries.length }} 个仓库</span><template v-if="selectedRegistries.length"><span class="registry-selected-count">已选 {{ selectedRegistries.length }} 项</span><el-button link :disabled="busy" @click="selectedIds = new Set()">清除选择</el-button></template></div>
+        <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 25, 50, 100]" :total="filteredRegistries.length" :pager-count="5" :disabled="busy || loading" layout="sizes, prev, pager, next" />
+      </footer>
+    </section>
+    <RegistryDeleteDialog v-model="deleteVisible" :registries="selectedRegistries" @removed="onRemoved" />
+  </div>
 </template>
-
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
-import { ElMessage, ElMessageBox } from "element-plus";
-import {
-  Plus,
-  View,
-  Edit,
-  Delete,
-  DataBoard,
-  Search,
-} from "@element-plus/icons-vue";
-import { registryApi, type Registry } from "@/api/registry";
-import PageContainer from "@/components/PageContainer.vue";
-import ContentCard from "@/components/ContentCard.vue";
-import DataTable from "@/components/DataTable.vue";
-import FormDialog from "@/components/FormDialog.vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { registryApi, type Registry } from '@/api/registry'
+import PortainerIcon from '@/components/PortainerIcon.vue'
+import RegistryDeleteDialog from '@/components/registries/RegistryDeleteDialog.vue'
+import { filterRegistries, readRegistryListState, registryColumns, registryError, registryListQuery, registryProviders, registryType, sortRegistries, type RegistrySortKey } from '@/utils/registries'
+import '@/styles/registries.css'
 
-const router = useRouter();
-const loading = ref(false);
-const registries = ref<Registry[]>([]);
-const searchText = ref("");
-const selectedItems = ref<Registry[]>([]);
-const dialogVisible = ref(false);
-const dialogMode = ref<"add" | "edit">("add");
-const submitting = ref(false);
-const formRef = ref();
-
-const form = ref({
-  id: 0,
-  name: "",
-  url: "",
-  pull_username: "",
-  pull_password: "",
-  pull_only_confirmed: false,
-  username: "",
-  password: "",
-  email: "",
-  is_default: false,
-  insecure: false,
-});
-
-const rules = {
-  name: [{ required: true, message: "Please enter a name", trigger: "blur" }],
-  url: [{ required: true, message: "Please enter a URL", trigger: "blur" }],
-};
-
-const filteredRegistries = computed(() => {
-  if (!searchText.value) {
-    return registries.value;
-  }
-  const search = searchText.value.toLowerCase();
-  return registries.value.filter(
-    (item) =>
-      item.name.toLowerCase().includes(search) ||
-      item.url.toLowerCase().includes(search) ||
-      (item.username && item.username.toLowerCase().includes(search)),
-  );
-});
-
-const fetchRegistries = async () => {
-  loading.value = true;
+const router = useRouter()
+const initial = readRegistryListState(useRoute().query)
+const registries = ref<Registry[]>([])
+const loading = ref(false), listError = ref(''), deleteVisible = ref(false)
+const search = ref(initial.search), typeFilter = ref(initial.type), authFilter = ref(initial.authentication), defaultFilter = ref(initial.defaults)
+const page = ref(initial.page), pageSize = ref(initial.size), sortKey = ref<RegistrySortKey>(initial.sort), descending = ref(initial.descending)
+const selectedIds = ref(new Set<number>())
+const tableScroll = ref<HTMLElement>()
+const busy = computed(() => deleteVisible.value)
+const hasFilters = computed(() => Boolean(search.value || typeFilter.value || authFilter.value || defaultFilter.value))
+const listQuery = computed(() => registryListQuery({ search: search.value, type: typeFilter.value, authentication: authFilter.value, defaults: defaultFilter.value, page: page.value, size: pageSize.value, sort: sortKey.value, descending: descending.value }))
+const filteredRegistries = computed(() => sortRegistries(filterRegistries(registries.value, search.value, typeFilter.value, authFilter.value, defaultFilter.value), sortKey.value, descending.value))
+const pageRegistries = computed(() => filteredRegistries.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
+const selectedRegistries = computed(() => registries.value.filter(item => selectedIds.value.has(item.id)))
+const allPageSelected = computed(() => pageRegistries.value.length > 0 && pageRegistries.value.every(item => selectedIds.value.has(item.id)))
+const somePageSelected = computed(() => pageRegistries.value.some(item => selectedIds.value.has(item.id)))
+const controller = new AbortController()
+let disposed = false
+watch([search, typeFilter, authFilter, defaultFilter], () => { page.value = 1; selectedIds.value = new Set() })
+watch(pageSize, () => { page.value = 1 })
+watch(() => filteredRegistries.value.length, () => { if (!loading.value) clampPage() })
+watch([page, pageSize, sortKey, descending, search, typeFilter, authFilter, defaultFilter], () => tableScroll.value?.scrollTo({ top: 0 }))
+function clampPage() { page.value = Math.min(page.value, Math.max(1, Math.ceil(filteredRegistries.value.length / pageSize.value))) }
+function resetFilters() { search.value = ''; typeFilter.value = ''; authFilter.value = ''; defaultFilter.value = '' }
+function toggleSelection(id: number, checked: boolean) { const next = new Set(selectedIds.value); if (checked) next.add(id); else next.delete(id); selectedIds.value = next }
+function togglePageSelection(checked: boolean) { for (const item of pageRegistries.value) toggleSelection(item.id, checked) }
+function changeSort(key: RegistrySortKey) { descending.value = sortKey.value === key ? !descending.value : false; sortKey.value = key; page.value = 1 }
+function onRemoved(ids: number[]) { const removed = new Set(ids); registries.value = registries.value.filter(item => !removed.has(item.id)); selectedIds.value = new Set([...selectedIds.value].filter(id => !removed.has(id))) }
+async function loadRegistries() {
+  if (loading.value || disposed) return
+  loading.value = true; listError.value = ''
   try {
-    const response = await registryApi.list();
-    registries.value = (response || []).filter(
-      (r: any) => r.kind !== "builtin",
-    );
-  } catch (error: any) {
-    console.error("Failed to fetch registries:", error);
-    ElMessage.error(
-      error.response?.data?.error || "Failed to fetch registry list",
-    );
-  } finally {
-    loading.value = false;
-  }
-};
-
-const handleSelectionChange = (val: Registry[]) => {
-  selectedItems.value = val;
-};
-
-const handleBatchRemove = async () => {
-  if (selectedItems.value.length === 0) {
-    ElMessage.warning("Please select registries to remove");
-    return;
-  }
-
-  try {
-    await ElMessageBox.confirm(
-      `Are you sure you want to remove ${selectedItems.value.length} registry(ies)?`,
-      "Confirm Removal",
-      {
-        type: "warning",
-        confirmButtonText: "Remove",
-        cancelButtonText: "Cancel",
-      },
-    );
-
-    for (const item of selectedItems.value) {
-      await registryApi.delete(item.id);
-    }
-
-    ElMessage.success("Registries removed successfully");
-    selectedItems.value = [];
-    fetchRegistries();
-  } catch (error: any) {
-    if (error !== "cancel") {
-      ElMessage.error(
-        error.response?.data?.error || "Failed to remove registries",
-      );
-    }
-  }
-};
-
-const showAddDialog = () => {
-  dialogMode.value = "add";
-  form.value = {
-    id: 0,
-    name: "",
-    url: "",
-    pull_username: "",
-    pull_password: "",
-    pull_only_confirmed: false,
-    username: "",
-    password: "",
-    email: "",
-    is_default: false,
-    insecure: false,
-  };
-  dialogVisible.value = true;
-};
-
-const editRegistry = (row: Registry) => {
-  dialogMode.value = "edit";
-  form.value = {
-    id: row.id,
-    name: row.name,
-    url: row.url,
-    pull_username: row.pull_username || "",
-    pull_password: "",
-    pull_only_confirmed: row.pull_only_confirmed || false,
-    username: row.username,
-    password: "",
-    email: row.email || "",
-    is_default: row.is_default,
-    insecure: row.insecure,
-  };
-  dialogVisible.value = true;
-};
-
-const submitForm = async () => {
-  if (!formRef.value) return;
-
-  try {
-    await formRef.value.validate();
-  } catch {
-    return;
-  }
-
-  submitting.value = true;
-  try {
-    if (dialogMode.value === "add") {
-      await registryApi.create(form.value);
-      ElMessage.success("Registry created successfully");
-    } else {
-      await registryApi.update(form.value.id, form.value);
-      ElMessage.success("Registry updated successfully");
-    }
-    dialogVisible.value = false;
-    await fetchRegistries();
-  } catch (error: any) {
-    console.error("Failed to submit form:", error);
-    ElMessage.error(error.response?.data?.error || "Operation failed");
-  } finally {
-    submitting.value = false;
-  }
-};
-
-const deleteRegistry = async (row: Registry) => {
-  try {
-    await ElMessageBox.confirm(
-      `Are you sure you want to remove registry "${row.name}"?`,
-      "Confirm Removal",
-      {
-        type: "warning",
-        confirmButtonText: "Remove",
-        cancelButtonText: "Cancel",
-      },
-    );
-    await registryApi.delete(row.id);
-    ElMessage.success("Registry removed successfully");
-    fetchRegistries();
-  } catch (error: any) {
-    if (error !== "cancel") {
-      ElMessage.error(
-        error.response?.data?.error || "Failed to remove registry",
-      );
-    }
-  }
-};
-
-const viewImages = (row: Registry) => {
-  router.push(`/registry/${row.id}/images`);
-};
-
-const formatDate = (date: string) => {
-  if (!date) return "-";
-  return new Date(date).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-onMounted(() => {
-  fetchRegistries();
-});
+    const result = await registryApi.list(controller.signal)
+    if (disposed) return
+    registries.value = (result || []).filter(item => item.kind !== 'builtin')
+    const existing = new Set(registries.value.map(item => item.id))
+    selectedIds.value = new Set([...selectedIds.value].filter(id => existing.has(id)))
+    clampPage()
+  } catch (error) { if (!disposed) listError.value = `仓库列表加载失败：${registryError(error)}` }
+  finally { loading.value = false }
+}
+onMounted(loadRegistries)
+onBeforeUnmount(() => { disposed = true; controller.abort() })
 </script>
-
-<style scoped>
-.registry-name {
-  color: var(--color-primary);
-  cursor: pointer;
-  font-weight: var(--font-weight-medium);
-  transition: all var(--transition-fast);
-}
-
-.registry-name:hover {
-  color: #79bbff;
-  text-decoration: underline;
-}
-</style>

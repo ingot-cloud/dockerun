@@ -83,12 +83,26 @@ const router = createRouter({
         {
           path: 'registry',
           name: 'Registry',
-          component: () => import('@/views/Registry.vue')
+          component: () => import('@/views/Registry.vue'),
+          meta: { title: '外部仓库', admin: true }
+        },
+        {
+          path: 'registry/new',
+          name: 'RegistryCreate',
+          component: () => import('@/views/RegistryDetail.vue'),
+          meta: { title: '添加 Registry', admin: true }
+        },
+        {
+          path: 'registry/:id',
+          name: 'RegistryDetail',
+          component: () => import('@/views/RegistryDetail.vue'),
+          meta: { title: '仓库详情', admin: true }
         },
         {
           path: 'registry/:id/images',
           name: 'RegistryImages',
-          component: () => import('@/views/RegistryImages.vue')
+          component: () => import('@/views/RegistryImages.vue'),
+          meta: { title: '仓库镜像', admin: true }
         },
         {
           path: 'webhooks',

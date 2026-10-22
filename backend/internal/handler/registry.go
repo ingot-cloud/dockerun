@@ -7,6 +7,7 @@ import (
 	"dockerun/internal/utils"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -115,16 +116,17 @@ func UpdateRegistry(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 
 	var req struct {
-		PullUsername      string `json:"pull_username"`
-		PullPassword      string `json:"pull_password"`
-		PullOnlyConfirmed bool   `json:"pull_only_confirmed"`
-		Name              string `json:"name"`
-		URL               string `json:"url"`
-		Username          string `json:"username"`
-		Password          string `json:"password"`
-		IsDefault         bool   `json:"is_default"`
-		Insecure          bool   `json:"insecure"`
-		Email             string `json:"email"`
+		Authentication    *bool   `json:"authentication"`
+		PullUsername      string  `json:"pull_username"`
+		PullPassword      string  `json:"pull_password"`
+		PullOnlyConfirmed bool    `json:"pull_only_confirmed"`
+		Name              string  `json:"name"`
+		URL               string  `json:"url"`
+		Username          string  `json:"username"`
+		Password          string  `json:"password"`
+		IsDefault         bool    `json:"is_default"`
+		Insecure          bool    `json:"insecure"`
+		Email             *string `json:"email"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -164,10 +166,13 @@ func UpdateRegistry(c *gin.Context) {
 	if req.URL != "" {
 		updates["url"] = req.URL
 	}
-	if req.Username != "" {
+	if req.Authentication != nil && !*req.Authentication {
+		updates["username"] = ""
+		updates["password"] = ""
+	} else if req.Username != "" {
 		updates["username"] = req.Username
 	}
-	if req.Password != "" {
+	if req.Password != "" && (req.Authentication == nil || *req.Authentication) {
 		// 加密密码
 		encrypted, err := utils.SealCredential(req.Password)
 		if err != nil {
@@ -178,8 +183,8 @@ func UpdateRegistry(c *gin.Context) {
 	}
 	updates["is_default"] = req.IsDefault
 	updates["insecure"] = req.Insecure
-	if req.Email != "" {
-		updates["email"] = req.Email
+	if req.Email != nil {
+		updates["email"] = *req.Email
 	}
 
 	if err := database.GetDB().Model(&registry).Updates(updates).Error; err != nil {
@@ -220,15 +225,34 @@ func DeleteRegistry(c *gin.Context) {
 // TestRegistry 测试 Registry 连接
 func TestRegistry(c *gin.Context) {
 	var req struct {
-		URL      string `json:"url" binding:"required"`
-		Username string `json:"username"`
-		Password string `json:"password"`
-		Insecure bool   `json:"insecure"`
+		ID             uint   `json:"id"`
+		Authentication *bool  `json:"authentication"`
+		URL            string `json:"url" binding:"required"`
+		Username       string `json:"username"`
+		Password       string `json:"password"`
+		Insecure       bool   `json:"insecure"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
 		return
+	}
+
+	// Reuse an existing secret only for the same registry address and account.
+	if req.Authentication != nil && !*req.Authentication {
+		req.Username = ""
+		req.Password = ""
+	} else if req.ID != 0 && req.Password == "" && req.Username != "" {
+		var registry models.Registry
+		if err := database.GetDB().First(&registry, req.ID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Registry 不存在"})
+			return
+		}
+		if registry.Kind == "builtin" || strings.TrimRight(registry.URL, "/") != strings.TrimRight(req.URL, "/") || registry.Username != req.Username {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "仓库地址或用户名已变更，请重新填写密码后测试连接"})
+			return
+		}
+		req.Password = registry.Password
 	}
 
 	if _, _, err := release.RegistryRequest(c.Request.Context(), models.Registry{URL: req.URL, Username: req.Username, Password: req.Password, Insecure: req.Insecure}, "GET", "/v2/"); err != nil {

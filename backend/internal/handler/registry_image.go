@@ -12,14 +12,17 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 // RegistryImage 镜像信息
 type RegistryImage struct {
-	Name string   `json:"name"`
-	Tags []string `json:"tags"`
+	Name      string   `json:"name"`
+	Tags      []string `json:"tags"`
+	TagsError string   `json:"tags_error,omitempty"`
 }
 
 // ListRegistryImages 获取 Registry 镜像列表（支持分页）
@@ -46,25 +49,27 @@ func ListRegistryImages(c *gin.Context) {
 	}
 
 	// 调用 Docker Registry API v2 获取镜像列表
-	images, err := fetchRegistryImages(registry, search)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
+	defer cancel()
+	names, err := fetchRegistryRepositories(ctx, registry, search)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取镜像列表失败: %v", err)})
 		return
 	}
 
 	// 计算分页
-	total := len(images)
-	start := (page - 1) * pageSize
+	total := len(names)
+	start := total
+	if page <= (total+pageSize-1)/pageSize {
+		start = (page - 1) * pageSize
+	}
 	end := start + pageSize
 
-	if start > total {
-		start = total
-	}
 	if end > total {
 		end = total
 	}
 
-	paginatedImages := images[start:end]
+	paginatedImages := fetchRegistryPageTags(ctx, registry, names[start:end])
 
 	c.JSON(http.StatusOK, gin.H{
 		"items":         paginatedImages,
@@ -93,7 +98,9 @@ func GetRegistryImageTags(c *gin.Context) {
 	}
 
 	// 获取镜像标签
-	tags, err := fetchImageTags(registry, imageName)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+	tags, err := fetchImageTags(ctx, registry, imageName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取镜像标签失败: %v", err)})
 		return
@@ -134,16 +141,19 @@ func DeleteRegistryImage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }
 
-// fetchRegistryImages 从 Registry 获取镜像列表
-func fetchRegistryImages(registry models.Registry, search string) ([]RegistryImage, error) {
-	var out []RegistryImage
-	last := ""
+// Discover repository names first; tags outside the requested page are never read.
+func fetchRegistryRepositories(ctx context.Context, registry models.Registry, search string) ([]string, error) {
+	out := []string{}
+	seen := map[string]bool{}
+	visited := map[string]bool{}
+	search = strings.ToLower(strings.TrimSpace(search))
+	path := "/v2/_catalog?n=1000"
 	for {
-		path := "/v2/_catalog?n=1000"
-		if last != "" {
-			path += "&last=" + url.QueryEscape(last)
+		if visited[path] {
+			return nil, fmt.Errorf("Registry 分页没有前进")
 		}
-		b, _, err := release.RegistryRequest(context.Background(), registry, "GET", path)
+		visited[path] = true
+		b, headers, err := release.RegistryRequest(ctx, registry, "GET", path)
 		if err != nil {
 			return nil, err
 		}
@@ -154,36 +164,130 @@ func fetchRegistryImages(registry models.Registry, search string) ([]RegistryIma
 			return nil, err
 		}
 		for _, repo := range page.Repositories {
-			if search != "" && !strings.Contains(strings.ToLower(repo), strings.ToLower(search)) {
+			if seen[repo] || (search != "" && !strings.Contains(strings.ToLower(repo), search)) {
 				continue
 			}
-			tags, err := fetchImageTags(registry, repo)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, RegistryImage{Name: repo, Tags: tags})
+			seen[repo] = true
+			out = append(out, repo)
 		}
-		if len(page.Repositories) < 1000 {
+		next, err := nextRegistryPage(registry, path, headers)
+		if err != nil {
+			return nil, err
+		}
+		if next == "" && len(page.Repositories) == 1000 {
+			next = "/v2/_catalog?n=1000&last=" + url.QueryEscape(page.Repositories[len(page.Repositories)-1])
+		}
+		if next == "" {
 			break
 		}
-		next := page.Repositories[len(page.Repositories)-1]
-		if next == last {
-			return nil, fmt.Errorf("Registry 分页没有前进")
-		}
-		last = next
+		path = next
 	}
 	return out, nil
 }
-func fetchImageTags(registry models.Registry, name string) ([]string, error) {
-	b, _, err := release.RegistryRequest(context.Background(), registry, "GET", "/v2/"+name+"/tags/list")
-	if err != nil {
-		return nil, err
+func fetchRegistryPageTags(ctx context.Context, registry models.Registry, names []string) []RegistryImage {
+	out := make([]RegistryImage, len(names))
+	jobs := make(chan int, len(names))
+	for i, name := range names {
+		out[i] = RegistryImage{Name: name, Tags: []string{}}
+		jobs <- i
 	}
-	var result struct {
-		Tags []string `json:"tags"`
+	close(jobs)
+	var workers sync.WaitGroup
+	for worker := 0; worker < 4 && worker < len(names); worker++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for i := range jobs {
+				itemCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+				tags, err := fetchImageTags(itemCtx, registry, names[i])
+				cancel()
+				if err != nil {
+					out[i].TagsError = err.Error()
+				} else {
+					out[i].Tags = tags
+				}
+			}
+		}()
 	}
-	err = json.Unmarshal(b, &result)
-	return result.Tags, err
+	workers.Wait()
+	return out
+}
+
+func fetchImageTags(ctx context.Context, registry models.Registry, name string) ([]string, error) {
+	tags := []string{}
+	path := "/v2/" + name + "/tags/list?n=1000"
+	visited := map[string]bool{}
+	seen := map[string]bool{}
+	for {
+		if visited[path] {
+			return nil, fmt.Errorf("Registry 标签分页没有前进")
+		}
+		visited[path] = true
+		b, headers, err := release.RegistryRequest(ctx, registry, "GET", path)
+		if err != nil {
+			return nil, err
+		}
+		var result struct {
+			Tags []string `json:"tags"`
+		}
+		if err := json.Unmarshal(b, &result); err != nil {
+			return nil, err
+		}
+		for _, tag := range result.Tags {
+			if !seen[tag] {
+				tags = append(tags, tag)
+				seen[tag] = true
+			}
+		}
+		next, err := nextRegistryPage(registry, path, headers)
+		if err != nil {
+			return nil, err
+		}
+		if next == "" {
+			return tags, nil
+		}
+		path = next
+	}
+}
+
+// Follow pagination only within the same registry and endpoint.
+func nextRegistryPage(registry models.Registry, path string, headers http.Header) (string, error) {
+	for _, header := range headers.Values("Link") {
+		for _, link := range strings.Split(header, ",") {
+			target, attributes, ok := strings.Cut(strings.TrimSpace(link), ">")
+			if !ok || !strings.HasPrefix(target, "<") {
+				continue
+			}
+			isNext := false
+			for _, attribute := range strings.Split(attributes, ";") {
+				key, value, _ := strings.Cut(strings.TrimSpace(attribute), "=")
+				if key == "rel" {
+					for _, relation := range strings.Fields(strings.Trim(value, "\"")) {
+						if relation == "next" {
+							isNext = true
+						}
+					}
+				}
+			}
+			if !isNext {
+				continue
+			}
+			base, err := url.Parse(strings.TrimRight(registry.URL, "/") + path)
+			if err != nil {
+				return "", err
+			}
+			reference, err := url.Parse(strings.TrimPrefix(target, "<"))
+			if err != nil {
+				return "", err
+			}
+			next := base.ResolveReference(reference)
+			if next.Scheme != base.Scheme || next.Host != base.Host || next.Path != base.Path || next.User != nil || next.Fragment != "" {
+				return "", fmt.Errorf("Registry 返回无效的分页地址")
+			}
+			return next.RequestURI(), nil
+		}
+	}
+	return "", nil
 }
 func deleteRegistryImage(registry models.Registry, name, tag string) error {
 	if registry.Kind == "builtin" {
