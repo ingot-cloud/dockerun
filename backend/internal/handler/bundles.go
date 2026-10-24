@@ -327,7 +327,7 @@ func BundleVersion(c *gin.Context) {
 	}
 	images, _ := json.Marshal(m.Images)
 	conf, _ := json.Marshal(configs)
-	r := models.Release{ApplicationID: q.ApplicationID, Version: m.Version, Source: "bundle", BundleID: b.ID, Platform: m.Platform, Compose: string(content), Images: string(images), Configs: string(conf), PublisherID: c.GetUint("user_id"), GitCommit: m.GitCommit, Retained: true}
+	r := models.Release{ApplicationID: q.ApplicationID, Version: m.Version, Source: "bundle", BundleID: b.ID, Platform: m.Platform, Compose: string(content), Images: string(images), Configs: string(conf), PublisherID: c.GetUint("user_id"), GitCommit: m.GitCommit, Retained: true, Scripts: a.Scripts}
 	if err := release.SaveRelease(&r); err != nil {
 		fail(c, err)
 		return

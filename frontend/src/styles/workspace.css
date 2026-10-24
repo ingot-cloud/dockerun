@@ -363,9 +363,6 @@ button:focus-visible {
   .brand {
     padding: 16px;
   }
-  .workspace-header .el-breadcrumb {
-    display: none;
-  }
   .workspace-main {
     padding: 14px;
   }

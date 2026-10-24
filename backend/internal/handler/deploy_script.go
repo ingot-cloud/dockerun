@@ -77,6 +77,7 @@ func CreateDeployScript(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	req.UserID = userID
 	req.Status = "idle"
+	req.AutoDeploy = false
 
 	// 如果没有设置工作目录，使用默认值
 	if req.WorkDir == "" {
@@ -140,7 +141,7 @@ func UpdateDeployScript(c *gin.Context) {
 	script.EnvVars = req.EnvVars
 	script.ImageName = req.ImageName
 	script.ImageTag = req.ImageTag
-	script.AutoDeploy = req.AutoDeploy
+	script.AutoDeploy = false
 
 	// 使用事务来确保数据一致性
 	err := db.Transaction(func(tx *gorm.DB) error {

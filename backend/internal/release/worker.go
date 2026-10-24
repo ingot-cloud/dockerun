@@ -20,9 +20,11 @@ import (
 )
 
 type Snapshot struct {
-	Release     models.Release     `json:"release"`
-	Environment models.Environment `json:"environment"`
-	Images      []Image            `json:"images"`
+	Release          models.Release           `json:"release"`
+	Environment      models.Environment       `json:"environment"`
+	Images           []Image                  `json:"images"`
+	Scripts          models.DeploymentScripts `json:"scripts"`
+	ScriptsCompleted bool                     `json:"scripts_completed"`
 }
 
 var ExecutionGate sync.RWMutex
@@ -112,7 +114,7 @@ func Enqueue(env models.Environment, r models.Release, uid uint, key string, aut
 			copyEnv := env
 			copyEnv.TargetID = target
 			copyEnv.CurrentReleaseID = previous
-			snap, _ := json.Marshal(Snapshot{Release: r, Environment: copyEnv})
+			snap, _ := json.Marshal(Snapshot{Release: r, Environment: copyEnv, Scripts: EffectiveScripts(r, copyEnv)})
 			status := "queued"
 			if i > 0 {
 				status = "blocked"
@@ -228,30 +230,25 @@ func execute(parent context.Context, d *models.Deployment) {
 		finish(d, "failed", err.Error())
 		return
 	}
-	p, err := Render(ctx, snap.Release, snap.Environment, dir, images)
-	if err == nil {
-		err = Preflight(ctx, p)
-	}
-	if err != nil {
-		finish(d, "failed", "预检查失败: "+err.Error())
-		return
-	}
-	Log(d, "deploy", "预检查通过，更新此应用的 Compose project")
-	err = Up(ctx, p, dir, func(s string) { Log(d, "deploy", s) })
-	health, actual := "", ""
-	if err == nil {
-		actual, health, err = Actual(ctx, p)
-	}
+	actual, health, updated, err := Apply(ctx, snap, dir, func(stage, m string) { Log(d, stage, m) }, nil)
 	if err != nil {
 		Log(d, "failed", err.Error())
-		RuntimeFailure(d)
-		if env.Stateless && env.AutoRollback && d.PreviousReleaseID > 0 {
+		if updated {
+			RuntimeFailure(d)
+		}
+		if updated && snap.Environment.Stateless && snap.Environment.AutoRollback && d.PreviousReleaseID > 0 {
 			recovery(parent, d)
 		}
 		if parent.Err() != nil {
 			return
 		} // Leave running for startup reconciliation after shutdown.
 		finish(d, "failed", err.Error())
+		return
+	}
+	snap.ScriptsCompleted = true
+	b, _ = json.Marshal(snap)
+	if err := database.DB.Model(d).Update("snapshot", string(b)).Error; err != nil {
+		finish(d, "needs_attention", "服务已更新但脚本完成状态保存失败，请核对发布结果")
 		return
 	}
 	success(d, actual, health)
@@ -280,7 +277,8 @@ func success(d *models.Deployment, actual, health string) {
 
 		var snap Snapshot
 		if json.Unmarshal([]byte(d.Snapshot), &snap) == nil && snap.Environment.RestoreConfiguration {
-			if err := tx.Model(&models.Environment{}).Where("id = ?", d.EnvironmentID).Update("parameters", snap.Environment.Parameters).Error; err != nil {
+			scripts, _ := json.Marshal(snap.Scripts)
+			if err := tx.Model(&models.Environment{}).Where("id = ?", d.EnvironmentID).Updates(map[string]any{"parameters": snap.Environment.Parameters, "script_mode": "override", "scripts": string(scripts)}).Error; err != nil {
 				return err
 			}
 		}
@@ -354,6 +352,10 @@ func reconcile(ctx context.Context) {
 		if s.Environment.TargetID > 1 {
 			continue
 		}
+		if HasScripts(s.Scripts) && !s.ScriptsCompleted {
+			finish(d, "needs_attention", "脚本执行被中断；不会自动重跑，请核对脚本和服务状态后重新发布")
+			continue
+		}
 		if len(s.Images) == 0 {
 			finish(d, "needs_attention", "进程中断；需核对目标状态后重新发布")
 			continue
@@ -405,13 +407,8 @@ func processEvents(ctx context.Context) {
 			if env.TagPattern != "" && !matched {
 				continue
 			}
-			var base models.Release
-			if database.DB.Where("application_id = ?", env.ApplicationID).Order("id DESC").First(&base).Error != nil {
-				continue
-			}
-			n, err := Parse(ctx, base.Compose, JobDir(0), ProjectName(env), env.Parameters)
+			base, err := AutomationBase(env)
 			if err != nil {
-				complete = false
 				continue
 			}
 			var imgs []Image
@@ -428,7 +425,6 @@ func processEvents(ctx context.Context) {
 			if !changed {
 				continue
 			}
-			_ = n
 			key := fmt.Sprintf("image-event-%d-env-%d", e.ID, env.ID)
 			var r models.Release
 			if database.DB.Where("application_id = ? AND version = ?", env.ApplicationID, key).First(&r).Error != nil {
@@ -442,6 +438,12 @@ func processEvents(ctx context.Context) {
 				r.BundleID = 0
 				r.Images = stringJSON(imgs)
 				r.Retained = true
+				var app models.Application
+				if database.DB.First(&app, env.ApplicationID).Error != nil {
+					complete = false
+					continue
+				}
+				r.Scripts = app.Scripts
 				if err := SaveRelease(&r); err != nil {
 					complete = false
 					continue

@@ -1,7 +1,9 @@
 <template>
-  <div class="volume-resource volume-create-page">
-    <header class="volume-heading"><h1>创建卷</h1><router-link :to="{ name: 'Volumes', query: listQuery }">返回卷列表</router-link></header>
-    <form class="volume-card volume-create-form" @submit.prevent="createVolume">
+  <WorkspaceEditor title="创建卷" :busy="creating" :refreshable="false">
+    <template #actions><el-button :disabled="creating" @click="router.push({ name: 'Volumes', query: listQuery })">取消</el-button><el-button native-type="submit" form="volume-create-form" type="primary" :disabled="creating" :loading="creating">{{ creating ? '创建中…' : '创建卷' }}</el-button></template>
+    <template v-if="createError" #feedback><div ref="errorElement" class="management-error" role="alert" tabindex="-1">{{ createError }}</div></template>
+    <div class="volume-resource volume-create-page workspace-page workspace-editor-page">
+    <form id="volume-create-form" class="volume-card volume-create-form" @submit.prevent="createVolume">
       <fieldset :disabled="creating">
         <div class="volume-form-row"><label for="volume-name">名称</label><el-input id="volume-name" v-model="form.name" placeholder="例如 my-volume；留空自动生成名称" autocomplete="off" :disabled="creating" /></div>
         <p class="volume-form-help volume-name-help">留空时由 Docker 生成随机名称。</p>
@@ -37,17 +39,18 @@
         </section>
         <section class="volume-form-section" aria-labelledby="volume-labels-title"><h2 id="volume-labels-title">标签</h2><VolumeKeyValues v-model="form.labels" label="标签" :disabled="creating" /></section>
       </fieldset>
-      <div v-if="createError" ref="errorElement" class="volume-error volume-form-error" role="alert" tabindex="-1">{{ createError }}</div>
-      <footer class="volume-form-actions"><el-button :disabled="creating" @click="router.push({ name: 'Volumes', query: listQuery })">取消</el-button><el-button native-type="submit" class="volume-primary" :loading="creating">{{ creating ? '创建中…' : '创建卷' }}</el-button></footer>
     </form>
-  </div>
+    </div>
+  </WorkspaceEditor>
 </template>
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { dockerApi } from '@/api/docker'
 import VolumeKeyValues from '@/components/volumes/VolumeKeyValues.vue'
+import WorkspaceEditor from '@/components/WorkspaceEditor.vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { buildVolumeRequest, emptyVolumeForm, volumeListQuery, readVolumeListState } from '@/utils/volumes'
 import { volumeError } from '@/utils/volumeFeedback'
 import '@/styles/volumes.css'
@@ -56,7 +59,7 @@ const form = ref(emptyVolumeForm()), drivers = ref(['local']), creating = ref(fa
 const controller = new AbortController()
 let disposed = false
 watch(() => form.value.driver, driver => { if (driver !== 'local') form.value.mode = 'custom' })
-onBeforeRouteLeave(() => !creating.value)
+const { markSaved } = useUnsavedChanges(() => form.value, { busy: () => creating.value })
 onMounted(async () => { try { const response = await dockerApi.volumes.list(controller.signal); if (!disposed) drivers.value = [...new Set(['local', ...(response.Volumes || []).map(volume => volume.Driver)])].sort() } catch { /* Manual driver entry remains available. */ } })
 onBeforeUnmount(() => { disposed = true; controller.abort() })
 async function createVolume() {
@@ -67,9 +70,9 @@ async function createVolume() {
     creating.value = true
     const result = await dockerApi.volumes.create(request)
     if (disposed) return
-    ElMessage.success('卷创建成功'); creating.value = false
-    await router.push({ name: 'VolumeDetail', params: { name: result.Name }, query: listQuery })
-  } catch (error) { if (!disposed) { createError.value = volumeError(error); await nextTick(); errorElement.value?.focus() } }
+    ElMessage.success('卷创建成功'); markSaved(); creating.value = false
+    await router.replace({ name: 'VolumeDetail', params: { name: result.Name }, query: listQuery })
+  } catch (error) { if (!disposed) { createError.value = volumeError(error); await nextTick(); errorElement.value?.focus({ preventScroll: true }) } }
   finally { creating.value = false }
 }
 </script>

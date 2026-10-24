@@ -1,9 +1,12 @@
 <template>
-  <div class="container-resource" v-loading="loading">
-    <header class="resource-heading"><h1>容器详情</h1><div class="resource-heading-actions"><router-link :to="{ name: 'Containers', query: listQuery }">返回容器列表</router-link><el-button text circle aria-label="刷新容器详情" :disabled="loading || busy" @click="load"><PortainerIcon name="refresh" /></el-button></div></header>
-    <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+  <WorkspaceEditor :title="details ? `容器详情 · ${displayName}` : '容器详情'" :loading="loading" :busy="busy" @refresh="load">
+    <template v-if="details && summary" #actions>
+      <span class="workspace-editor-status" role="status" aria-label="容器状态"><span class="container-detail-state" :class="details.State?.Status">{{ containerStateLabel(details.State?.Status || '') }}</span><span v-if="details.State?.Health">{{ healthLabels[details.State.Health.Status] || details.State.Health.Status }}</span></span>
+      <ContainerActionGroup class="container-detail-actions" :containers="[summary]" :busy="busy || loading" :loading="activeAction" @action="runAction" />
+    </template>
+    <template v-if="error" #feedback><div class="management-error" role="alert"><span>{{ error }}</span><el-button link :disabled="loading || busy" @click="load">重试</el-button></div></template>
+    <div class="container-resource workspace-page workspace-editor-page" v-loading="loading" :aria-busy="loading">
     <template v-if="details && summary">
-      <section class="resource-card"><div class="resource-card-header"><h2><span class="resource-icon"><PortainerIcon name="play" /></span>操作</h2></div><div class="detail-actions-scroll"><ContainerActionGroup :containers="[summary]" :busy="busy" :loading="activeAction" @action="runAction" /></div></section>
       <section class="resource-card"><div class="resource-card-header"><h2><span class="resource-icon"><PortainerIcon name="box" /></span>容器状态</h2></div>
         <table class="resource-table" aria-label="容器状态"><tbody>
           <tr><th>容器 ID</th><td><code>{{ details.Id }}</code><el-button link @click="copyContainerText(details.Id)">复制</el-button></td></tr>
@@ -28,14 +31,15 @@
       <section class="resource-card"><div class="resource-card-header"><h2><span class="resource-icon"><PortainerIcon name="list" /></span>数据卷与挂载</h2></div><div class="resource-table-scroll"><table class="resource-table" aria-label="容器挂载"><thead><tr><th>宿主机路径或数据卷</th><th>容器内路径</th><th>访问模式</th></tr></thead><tbody><tr v-for="(mount, index) in details.Mounts" :key="index"><td>{{ mount.Source }}</td><td>{{ mount.Destination }}</td><td>{{ mount.RW ? '可读写' : '只读' }}</td></tr><tr v-if="!details.Mounts?.length"><td colspan="3" class="resource-muted">暂无挂载</td></tr></tbody></table></div></section>
       <section class="resource-card"><div class="resource-card-header"><h2><span class="resource-icon"><PortainerIcon name="link" /></span>已连接网络</h2><el-input v-model="networkSearch" class="form-control" placeholder="搜索网络…" aria-label="搜索已连接网络" clearable /></div><div class="resource-inline network-connect"><label for="join-network">加入网络</label><el-select id="join-network" v-model="joinNetwork" class="form-control" placeholder="选择网络" :disabled="busy"><el-option v-for="network in availableNetworks" :key="network.Id" :label="network.Name" :value="network.Id" /></el-select><el-button :disabled="busy || !joinNetwork" @click="connectNetwork">加入网络</el-button></div><div class="resource-table-scroll"><table class="resource-table" aria-label="容器网络"><thead><tr><th>网络</th><th>IP 地址</th><th>网关</th><th>MAC 地址</th><th>操作</th></tr></thead><tbody><tr v-for="[name, network] in connectedNetworks" :key="name"><td>{{ name }}</td><td>{{ network.IPAddress || network.GlobalIPv6Address || '—' }}</td><td>{{ network.Gateway || '—' }}</td><td>{{ network.MacAddress || '—' }}</td><td><el-button link :disabled="busy" @click="disconnectNetwork(network.NetworkID || name, name)">离开网络</el-button></td></tr><tr v-if="!connectedNetworks.length"><td colspan="5" class="resource-muted">暂无匹配网络</td></tr></tbody></table></div></section>
     </template>
-    <div v-else-if="!loading && error" class="resource-empty"><el-button @click="load">重试</el-button></div>
-  </div>
+    </div>
+  </WorkspaceEditor>
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PortainerIcon from '@/components/PortainerIcon.vue'
+import WorkspaceEditor from '@/components/WorkspaceEditor.vue'
 import ContainerActionGroup from '@/components/containers/ContainerActionGroup.vue'
 import ContainerQuickActions from '@/components/containers/ContainerQuickActions.vue'
 import { dockerApi } from '@/api/docker'
@@ -96,5 +100,13 @@ watch(id, () => { details.value = undefined; editingName.value = false; void loa
 onBeforeUnmount(() => controller?.abort())
 </script>
 <style scoped>
-.detail-actions-scroll { overflow-x: auto; padding-bottom: 2px; }.commit-help { margin-bottom: 18px; }.network-connect { margin-bottom: 16px; }
+.container-detail-state { display: inline-flex; align-items: center; border-radius: 10px; padding: 0 8px; line-height: 20px; background: #414141; color: #ddd; font-size: 11px; }
+.container-detail-state.running { background: #145f3c; color: #d2f5e4; }
+.container-detail-state.paused { background: #665023; color: #f9e1b5; }
+.commit-help { margin-bottom: 18px; }.network-connect { margin-bottom: 16px; }
+@media (max-width: 760px) {
+  .container-detail-actions { flex-wrap: wrap; gap: 6px; max-width: 100%; min-width: 0; white-space: normal; }
+  .container-detail-actions :deep(.action-wrapper + .action-wrapper) { margin-left: 0; }
+  .container-detail-actions :deep(.el-button) { border-radius: 4px; }
+}
 </style>

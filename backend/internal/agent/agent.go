@@ -97,7 +97,7 @@ func Run(ctx context.Context, base, token, dir string) error {
 			return ctx.Err()
 		}
 		platform, _ := release.Platform(ctx)
-		resp, err := c.request(ctx, "GET", "/agent/poll?platform="+url.QueryEscape(platform), nil)
+		resp, err := c.request(ctx, "GET", "/agent/poll?platform="+url.QueryEscape(platform)+"&scripts=1", nil)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			select {
@@ -133,12 +133,13 @@ func Run(ctx context.Context, base, token, dir string) error {
 }
 
 type result struct {
-	RecoveryStatus string          `json:"recovery_status"`
-	Status         string          `json:"status"`
-	Result         string          `json:"result"`
-	ActualImages   string          `json:"actual_images"`
-	Health         string          `json:"health"`
-	Images         []release.Image `json:"images"`
+	ScriptsCompleted bool            `json:"scripts_completed"`
+	RecoveryStatus   string          `json:"recovery_status"`
+	Status           string          `json:"status"`
+	Result           string          `json:"result"`
+	ActualImages     string          `json:"actual_images"`
+	Health           string          `json:"health"`
+	Images           []release.Image `json:"images"`
 }
 type logEntry struct {
 	Sequence int    `json:"sequence"`
@@ -219,7 +220,7 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 	old, already := os.ReadFile(journal)
 	if already == nil {
 		// A started operation is reconciled, never blindly repeated after an Agent restart.
-		if json.Unmarshal(old, &s) == nil && len(s.Images) > 0 {
+		if json.Unmarshal(old, &s) == nil && len(s.Images) > 0 && (!release.HasScripts(s.Scripts) || s.ScriptsCompleted) {
 			p, err := release.Render(ctx, s.Release, s.Environment, dir, s.Images)
 			if err == nil {
 				r.ActualImages, r.Health, err = release.Actual(ctx, p)
@@ -267,30 +268,26 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 		if err == nil {
 			s.Images, err = release.PrepareWithAuth(ctx, &s.Release, auth, func(m string) { log("images", m) })
 		}
+		updated := false
 		if err == nil {
-			p, e := release.Render(ctx, s.Release, s.Environment, dir, s.Images)
-			err = e
-			if err == nil {
-				err = release.Preflight(ctx, p)
-			}
-			if err == nil {
+			r.ActualImages, r.Health, updated, err = release.Apply(ctx, s, dir, log, func() error {
 				b, _ := json.Marshal(s)
-				err = os.WriteFile(journal, b, 0600)
-				if err == nil {
-					log("deploy", "节点预检查通过，开始更新服务")
-					err = release.Up(ctx, p, dir, func(m string) { log("deploy", m) })
-				}
-				if err == nil {
-					r.ActualImages, r.Health, err = release.Actual(ctx, p)
-				}
-			}
+				return os.WriteFile(journal, b, 0600)
+			})
 		}
 		if err == nil {
-			r.Status = "success"
-			r.Result = "节点部署完成"
+			s.ScriptsCompleted = true
+			b, _ := json.Marshal(s)
+			if err = os.WriteFile(journal, b, 0600); err != nil {
+				r.Status = "needs_attention"
+				r.Result = "服务已更新但脚本完成状态保存失败，请核对发布结果"
+			} else {
+				r.Status = "success"
+				r.Result = "节点部署完成"
+			}
 		} else {
 			r.Result = err.Error()
-			if _, e := os.Stat(journal); e == nil && previous != nil && s.Environment.Stateless && s.Environment.AutoRollback {
+			if updated && previous != nil && s.Environment.Stateless && s.Environment.AutoRollback {
 				r.RecoveryStatus = "failed"
 				log("recovery", "恢复节点上次成功版本与配置")
 				restore := previous.Release
@@ -321,6 +318,7 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 		r.Images = s.Images
 	}
 	r.Images = s.Images
+	r.ScriptsCompleted = s.ScriptsCompleted
 	b, _ := json.Marshal(r)
 	if err := os.WriteFile(reportPath, b, 0600); err != nil {
 		return

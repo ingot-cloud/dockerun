@@ -15,47 +15,99 @@ type AuditEvent struct {
 	Resource  string    `json:"resource" gorm:"size:500"`
 }
 type Application struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Name        string    `json:"name" gorm:"size:100;uniqueIndex"`
-	Description string    `json:"description"`
-	Kind        string    `json:"kind" gorm:"size:20;default:compose"`
+	ID              uint                  `json:"id" gorm:"primaryKey"`
+	CreatedAt       time.Time             `json:"created_at"`
+	UpdatedAt       time.Time             `json:"updated_at"`
+	Name            string                `json:"name" gorm:"size:100;uniqueIndex"`
+	Description     string                `json:"description"`
+	Kind            string                `json:"kind" gorm:"size:20;default:compose"`
+	Scripts         DeploymentScripts     `json:"scripts" gorm:"serializer:json;type:mediumtext"`
+	Category        string                `json:"category" gorm:"size:30"`
+	TemplateID      string                `json:"template_id" gorm:"size:100"`
+	TemplateVersion string                `json:"template_version" gorm:"size:100"`
+	Definition      ApplicationDefinition `json:"definition" gorm:"serializer:json;type:mediumtext"`
 }
+
+type ApplicationParameter struct {
+	Key      string `json:"key"`
+	Label    string `json:"label"`
+	Type     string `json:"type"`
+	Default  string `json:"default"`
+	Required bool   `json:"required"`
+	Help     string `json:"help"`
+}
+type ApplicationEndpoint struct {
+	Name     string `json:"name"`
+	Port     string `json:"port"`
+	Protocol string `json:"protocol"`
+	Path     string `json:"path"`
+}
+type ApplicationDefinition struct {
+	Compose        string                 `json:"compose"`
+	Configs        StringMap              `json:"configs"`
+	Parameters     []ApplicationParameter `json:"parameters"`
+	Stateful       bool                   `json:"stateful"`
+	Topology       string                 `json:"topology"`
+	Instructions   string                 `json:"instructions"`
+	Storage        string                 `json:"storage"`
+	Initialization string                 `json:"initialization"`
+	Endpoints      []ApplicationEndpoint  `json:"endpoints"`
+}
+type ApplicationTemplate struct {
+	ID          uint                  `json:"id" gorm:"primaryKey"`
+	CreatedAt   time.Time             `json:"created_at"`
+	Name        string                `json:"name" gorm:"size:100;uniqueIndex:template_version"`
+	Version     string                `json:"version" gorm:"size:100;uniqueIndex:template_version"`
+	Description string                `json:"description"`
+	Category    string                `json:"category" gorm:"size:30"`
+	Definition  ApplicationDefinition `json:"definition" gorm:"serializer:json;type:mediumtext"`
+	Scripts     DeploymentScripts     `json:"scripts" gorm:"serializer:json;type:mediumtext"`
+}
+
+// DeploymentScripts 由管理员配置，创建发布版本时保存应用脚本快照。
+type DeploymentScripts struct {
+	Before string `json:"before"`
+	Deploy string `json:"deploy"`
+	After  string `json:"after"`
+}
+
 type Environment struct {
-	RestoreConfiguration bool      `json:"restore_configuration,omitempty" gorm:"-"`
-	ID                   uint      `json:"id" gorm:"primaryKey"`
-	ApplicationID        uint      `json:"application_id" gorm:"uniqueIndex:app_env"`
-	Name                 string    `json:"name" gorm:"size:100;uniqueIndex:app_env"`
-	TargetID             uint      `json:"target_id"`
-	TargetIDs            string    `json:"target_ids" gorm:"type:text"`
-	Parameters           StringMap `json:"parameters" gorm:"type:json"`
-	CurrentReleaseID     uint      `json:"current_release_id"`
-	Stateless            bool      `json:"stateless"`
-	AutoRollback         bool      `json:"auto_rollback"`
-	AutoDeploy           bool      `json:"auto_deploy"`
-	RegistryID           uint      `json:"registry_id"`
-	Repository           string    `json:"repository" gorm:"size:255"`
-	TagPattern           string    `json:"tag_pattern" gorm:"size:100"`
-	AllowedPublishers    string    `json:"allowed_publishers" gorm:"type:text"`
-	Health               string    `json:"health" gorm:"size:50"`
-	RuntimeState         string    `json:"runtime_state" gorm:"size:50"`
+	RestoreConfiguration bool              `json:"restore_configuration,omitempty" gorm:"-"`
+	ID                   uint              `json:"id" gorm:"primaryKey"`
+	ApplicationID        uint              `json:"application_id" gorm:"uniqueIndex:app_env"`
+	Name                 string            `json:"name" gorm:"size:100;uniqueIndex:app_env"`
+	TargetID             uint              `json:"target_id"`
+	TargetIDs            string            `json:"target_ids" gorm:"type:text"`
+	Parameters           StringMap         `json:"parameters" gorm:"type:json"`
+	CurrentReleaseID     uint              `json:"current_release_id"`
+	Stateless            bool              `json:"stateless"`
+	AutoRollback         bool              `json:"auto_rollback"`
+	AutoDeploy           bool              `json:"auto_deploy"`
+	RegistryID           uint              `json:"registry_id"`
+	Repository           string            `json:"repository" gorm:"size:255"`
+	TagPattern           string            `json:"tag_pattern" gorm:"size:100"`
+	AllowedPublishers    string            `json:"allowed_publishers" gorm:"type:text"`
+	ScriptMode           string            `json:"script_mode" gorm:"size:20"`
+	Scripts              DeploymentScripts `json:"scripts" gorm:"serializer:json;type:mediumtext"`
+	Health               string            `json:"health" gorm:"size:50"`
+	RuntimeState         string            `json:"runtime_state" gorm:"size:50"`
 }
 type Release struct {
-	ID            uint      `json:"id" gorm:"primaryKey"`
-	CreatedAt     time.Time `json:"created_at"`
-	ApplicationID uint      `json:"application_id" gorm:"index"`
-	Version       string    `json:"version" gorm:"size:200"`
-	Source        string    `json:"source" gorm:"size:20"`
-	RegistryID    uint      `json:"registry_id"`
-	BundleID      uint      `json:"bundle_id"`
-	Platform      string    `json:"platform" gorm:"size:50"`
-	Compose       string    `json:"compose" gorm:"type:mediumtext"`
-	Images        string    `json:"images" gorm:"type:mediumtext"`
-	Configs       string    `json:"configs" gorm:"type:mediumtext"`
-	GitCommit     string    `json:"git_commit" gorm:"size:100"`
-	PublisherID   uint      `json:"publisher_id"`
-	Retained      bool      `json:"retained" gorm:"default:true"`
+	ID            uint              `json:"id" gorm:"primaryKey"`
+	CreatedAt     time.Time         `json:"created_at"`
+	ApplicationID uint              `json:"application_id" gorm:"index"`
+	Version       string            `json:"version" gorm:"size:200"`
+	Source        string            `json:"source" gorm:"size:20"`
+	RegistryID    uint              `json:"registry_id"`
+	BundleID      uint              `json:"bundle_id"`
+	Platform      string            `json:"platform" gorm:"size:50"`
+	Compose       string            `json:"compose" gorm:"type:mediumtext"`
+	Images        string            `json:"images" gorm:"type:mediumtext"`
+	Configs       string            `json:"configs" gorm:"type:mediumtext"`
+	GitCommit     string            `json:"git_commit" gorm:"size:100"`
+	PublisherID   uint              `json:"publisher_id"`
+	Retained      bool              `json:"retained" gorm:"default:true"`
+	Scripts       DeploymentScripts `json:"scripts" gorm:"serializer:json;type:mediumtext"`
 }
 type Deployment struct {
 	LegacyScriptID    uint       `json:"legacy_script_id"`

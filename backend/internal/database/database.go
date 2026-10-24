@@ -67,6 +67,7 @@ func Init(dbPath string) error {
 		&models.User{},
 		&models.DeployScript{},
 		&models.DeployScriptFile{},
+		&models.ApplicationTemplate{},
 		&models.Registry{},
 		&models.SystemConfig{},
 		&models.WebhookConfig{},

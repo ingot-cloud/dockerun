@@ -1,7 +1,8 @@
 <template>
-  <div class="container-resource container-workspace">
-    <header class="resource-heading"><h1>{{ route.meta.title }}<small v-if="details">{{ details.Name?.replace(/^\//, '') }}</small></h1><div class="resource-heading-actions"><router-link :to="{ name: 'ContainerDetail', params: { id }, query: listQuery }">返回容器详情</router-link><router-link :to="{ name: 'Containers', query: listQuery }">返回容器列表</router-link></div></header>
-    <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+  <WorkspaceEditor :title="`${route.meta.title}${details ? ` · ${name}` : ''}`" :refreshable="false">
+    <template v-if="details" #actions><span class="workspace-editor-status" role="status" aria-label="容器状态">{{ containerStateLabel(details.State?.Status || '') }}</span></template>
+    <template v-if="error" #feedback><div class="management-error" role="alert"><span>{{ error }}</span><el-button link :disabled="loading" @click="load">重试</el-button></div></template>
+    <div class="container-resource container-workspace workspace-page workspace-editor-page">
     <div v-if="loading" class="resource-empty" v-loading="true">正在加载容器信息…</div>
     <template v-else-if="details">
       <ContainerLogs v-if="view === 'logs'" :key="id + view" :id="id" :name="name" />
@@ -9,23 +10,23 @@
       <ContainerStatistics v-else-if="view === 'stats'" :key="id + view" :id="id" :name="name" :running="details.State?.Status === 'running'" />
       <ContainerConsole v-else-if="view === 'exec' || view === 'attach'" :key="id + view" :id="id" :details="details" :mode="view" />
     </template>
-    <el-button v-else-if="error" @click="load">重试</el-button>
-  </div>
+    </div>
+  </WorkspaceEditor>
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { dockerApi } from '@/api/docker'
-import { containerListQuery, readContainerListState, type ContainerDetails } from '@/utils/containers'
+import { containerStateLabel, type ContainerDetails } from '@/utils/containers'
 import { containerError } from '@/utils/containerFeedback'
 import ContainerLogs from '@/components/containers/ContainerLogs.vue'
 import ContainerInspect from '@/components/containers/ContainerInspect.vue'
 import ContainerStatistics from '@/components/containers/ContainerStatistics.vue'
 import ContainerConsole from '@/components/containers/ContainerConsole.vue'
+import WorkspaceEditor from '@/components/WorkspaceEditor.vue'
 import '@/styles/containers.css'
 const route = useRoute()
 const id = computed(() => String(route.params.id)), view = computed(() => String(route.meta.containerView))
-const listQuery = computed(() => containerListQuery(readContainerListState(route.query)))
 const details = ref<ContainerDetails>(), loading = ref(false), error = ref('')
 const name = computed(() => details.value?.Name?.replace(/^\//, '') || id.value.slice(0, 12))
 let controller: AbortController | undefined
@@ -38,6 +39,3 @@ async function load() {
 watch(id, load, { immediate: true })
 onBeforeUnmount(() => controller?.abort())
 </script>
-<style scoped>
-h1 small { margin-left: 12px; font-size: 12px; font-weight: 400; color: #999; }
-</style>

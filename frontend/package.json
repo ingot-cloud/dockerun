@@ -21,6 +21,11 @@
     "test:maintenance": "node --test tests/maintenance.test.mjs",
     "test:users": "node --test tests/users.test.mjs",
     "test:management": "node --test tests/management.test.mjs",
+    "test:navigation": "node --test tests/navigation.test.mjs",
+    "test:unsaved-changes": "node --test tests/unsavedChanges.test.mjs",
+    "test:releases": "node --test tests/releases.test.mjs",
+    "test:deployments": "node --test tests/deployments.test.mjs",
+    "test:templates": "node --test tests/applicationTemplates.test.mjs",
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {

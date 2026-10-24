@@ -282,7 +282,7 @@ func Preflight(ctx context.Context, p *types.Project) error {
 type logWriter struct{ log func(string) }
 
 func (w logWriter) Write(b []byte) (int, error) { w.log(string(b)); return len(b), nil }
-func Up(ctx context.Context, p *types.Project, dir string, log func(string)) error {
+func WriteExecution(p *types.Project, dir string) error {
 	content, err := EncodeExecution(p)
 	if err != nil {
 		return err
@@ -295,14 +295,17 @@ func Up(ctx context.Context, p *types.Project, dir string, log func(string)) err
 	if err = os.WriteFile(envFile, nil, 0600); err != nil {
 		return err
 	}
+	return nil
+}
+func Up(ctx context.Context, p *types.Project, dir string, log func(string)) error {
+	if err := WriteExecution(p, dir); err != nil {
+		return err
+	}
+	file := filepath.Join(dir, "resolved.json")
+	envFile := filepath.Join(dir, "empty.env")
 	cmd := exec.CommandContext(ctx, "docker", "compose", "--env-file", envFile, "--project-name", p.Name, "--project-directory", dir, "-f", file, "up", "--detach", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "120")
 	cmd.Dir = dir
-	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}
-	for _, key := range []string{"DOCKER_CONFIG", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"} {
-		if v := os.Getenv(key); v != "" {
-			cmd.Env = append(cmd.Env, key+"="+v)
-		}
-	}
+	cmd.Env = commandEnvironment()
 	cmd.Stdout = logWriter{log}
 	cmd.Stderr = logWriter{log}
 	return cmd.Run()

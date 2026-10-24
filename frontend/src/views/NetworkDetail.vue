@@ -1,10 +1,14 @@
 <template>
-  <div class="network-resource network-detail-page" v-loading="loading">
-    <header class="network-heading"><h1>网络详情<span v-if="network" class="network-heading-name">{{ network.Name }}</span></h1><div class="network-heading-actions"><router-link :to="{ name: 'Networks', query: listQuery }">返回网络列表</router-link><el-button text circle aria-label="刷新网络详情" title="刷新网络详情" :disabled="busy || loading" @click="loadNetwork"><PortainerIcon name="refresh" :class="{ spinning: loading }" /></el-button></div></header>
-    <div v-if="detailError" class="network-error" role="alert"><span>{{ detailError }}</span><el-button link :disabled="loading" @click="loadNetwork">重试</el-button></div>
+  <WorkspaceEditor :title="network ? `网络详情 · ${network.Name}` : '网络详情'" :loading="loading" :busy="busy" @refresh="loadNetwork">
+    <template v-if="network" #actions>
+      <span class="workspace-editor-status" role="status" aria-label="网络连接状态">已连接 {{ endpoints.length }} 个容器</span>
+      <el-tooltip :content="deleteReason" :disabled="!deleteReason"><span><el-button type="danger" :disabled="!!deleteReason || busy || loading || !!detailError" @click="deleteVisible = true"><PortainerIcon name="trash" />删除此网络</el-button></span></el-tooltip>
+    </template>
+    <template v-if="detailError" #feedback><div class="management-error" role="alert"><span>{{ detailError }}</span><el-button link :disabled="loading || busy" @click="loadNetwork">重试</el-button></div></template>
+    <div class="network-resource network-detail-page workspace-page workspace-editor-page" v-loading="loading" :aria-busy="loading">
     <template v-if="network">
       <section class="network-card" aria-labelledby="network-details-title">
-        <header class="network-card-header"><h2 id="network-details-title"><span class="network-section-icon"><PortainerIcon name="network" /></span>网络详情</h2><el-tooltip :content="deleteReason" :disabled="!deleteReason"><span><el-button class="network-remove" :disabled="!!deleteReason || busy || loading || !!detailError" @click="deleteVisible = true"><PortainerIcon name="trash" />删除此网络</el-button></span></el-tooltip></header>
+        <header class="network-card-header"><h2 id="network-details-title"><span class="network-section-icon"><PortainerIcon name="network" /></span>网络详情</h2></header>
         <dl class="network-details">
           <div><dt>名称</dt><dd>{{ network.Name }}<span v-if="isSystemNetwork(network)" class="network-badge">系统</span><span v-else-if="network.Ingress" class="network-badge">入口网络</span></dd></div>
           <div><dt>ID</dt><dd class="network-mono">{{ network.Id }}</dd></div>
@@ -31,14 +35,16 @@
         </form>
       </section>
     </template>
+    </div>
     <NetworkDeleteDialog v-model="deleteVisible" :networks="network ? [network] : []" @removed="onRemoved" />
-  </div>
+  </WorkspaceEditor>
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PortainerIcon from '@/components/PortainerIcon.vue'
+import WorkspaceEditor from '@/components/WorkspaceEditor.vue'
 import NetworkDeleteDialog from '@/components/networks/NetworkDeleteDialog.vue'
 import { dockerApi } from '@/api/docker'
 import { isSystemNetwork, networkListQuery, networkStack, readNetworkListState, type DockerNetwork } from '@/utils/networks'

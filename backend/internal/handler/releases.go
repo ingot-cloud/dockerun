@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"dockerun/internal/apptemplate"
 	"dockerun/internal/builtin"
 	"dockerun/internal/config"
 	"dockerun/internal/database"
@@ -11,17 +12,20 @@ import (
 	"dockerun/internal/release"
 	"encoding/json"
 	"fmt"
+	"github.com/distribution/reference"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
 func fail(c *gin.Context, err error) { c.JSON(400, gin.H{"error": err.Error()}) }
 func ListApplications(c *gin.Context) {
 	var rows []models.Application
-	database.DB.Order("id DESC").Find(&rows)
+	database.DB.Select("id", "created_at", "updated_at", "name", "description", "kind", "category", "template_id", "template_version").Order("id DESC").Find(&rows)
 	c.JSON(200, rows)
 }
 func CreateApplication(c *gin.Context) {
@@ -54,6 +58,31 @@ func ApplicationDetail(c *gin.Context) {
 	database.DB.Where("environment_id IN (?)", database.DB.Model(&models.Environment{}).Select("id").Where("application_id = ?", a.ID)).Find(&states)
 	c.JSON(200, gin.H{"application": a, "environments": envs, "releases": versions, "targets": states})
 }
+func SaveApplicationScripts(c *gin.Context) {
+	var q struct {
+		Scripts models.DeploymentScripts `json:"scripts"`
+	}
+	if err := c.ShouldBindJSON(&q); err != nil {
+		fail(c, err)
+		return
+	}
+	if err := release.ValidateScripts(q.Scripts); err != nil {
+		fail(c, err)
+		return
+	}
+	var app models.Application
+	if database.DB.First(&app, c.Param("id")).Error != nil {
+		c.JSON(404, gin.H{"error": "应用不存在"})
+		return
+	}
+	app.Scripts = q.Scripts
+	if err := database.DB.Save(&app).Error; err != nil {
+		fail(c, err)
+		return
+	}
+	identity.Audit(c.GetUint("user_id"), "application.scripts.update", fmt.Sprint(app.ID))
+	c.JSON(200, app)
+}
 func SaveEnvironment(c *gin.Context) {
 	var q models.Environment
 	if err := c.ShouldBindJSON(&q); err != nil {
@@ -70,6 +99,65 @@ func SaveEnvironment(c *gin.Context) {
 		return
 	}
 	q.ApplicationID = a.ID
+	if a.Definition.Topology == "single_host" && q.TargetIDs != "" && q.TargetIDs != "[]" {
+		fail(c, fmt.Errorf("此模板仅支持单台目标主机，固定主机组会重复部署整套服务，不能用于集群编排"))
+		return
+	}
+	if a.Definition.Stateful && (q.Stateless || q.AutoRollback) {
+		fail(c, fmt.Errorf("此应用包含持久数据，不能启用无状态自动恢复"))
+		return
+	}
+	if q.ID > 0 {
+		var old models.Environment
+		if database.DB.Where("id = ? AND application_id = ?", q.ID, a.ID).First(&old).Error != nil {
+			c.JSON(404, gin.H{"error": "环境不存在"})
+			return
+		}
+		q.CurrentReleaseID = old.CurrentReleaseID
+	} else {
+		q.CurrentReleaseID = 0
+	}
+	if q.ScriptMode == "" {
+		q.ScriptMode = "inherit"
+	}
+	if q.ScriptMode != "inherit" && q.ScriptMode != "override" && q.ScriptMode != "disabled" {
+		fail(c, fmt.Errorf("请选择有效的脚本配置方式"))
+		return
+	}
+	if q.ScriptMode != "override" {
+		q.Scripts = models.DeploymentScripts{}
+	}
+	if err := release.ValidateScripts(q.Scripts); err != nil {
+		fail(c, err)
+		return
+	}
+	reg, err := release.DefaultRegistry(q.RegistryID)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	q.RegistryID = reg.ID
+	if len(a.Definition.Parameters) > 0 {
+		values, err := apptemplate.Values(apptemplate.Template{Definition: a.Definition}, q.Parameters, reg.URL)
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		if q.Parameters == nil {
+			q.Parameters = models.StringMap{}
+		}
+		for key, value := range values {
+			q.Parameters[key] = value
+		}
+	}
+	q.Repository = strings.TrimSpace(q.Repository)
+	if q.TagPattern == "" {
+		q.TagPattern = "*"
+	}
+	if _, err := filepath.Match(q.TagPattern, "test"); err != nil {
+		fail(c, fmt.Errorf("标签规则格式无效，请使用 latest、test-* 或 * 等规则"))
+		return
+	}
 	if q.Name == "" || len(q.Name) > 100 {
 		fail(c, fmt.Errorf("请填写环境名称"))
 		return
@@ -96,9 +184,16 @@ func SaveEnvironment(c *gin.Context) {
 			}
 		}
 	}
-	if q.AutoDeploy && (q.Repository == "" || q.RegistryID == 0) {
-		fail(c, fmt.Errorf("自动部署须明确仓库与镜像"))
-		return
+	if q.AutoDeploy {
+		name, err := reference.WithName("registry.invalid/" + q.Repository)
+		if err != nil || reference.Path(name) != q.Repository {
+			fail(c, fmt.Errorf("请填写镜像名称，不含仓库域名和标签，例如 team/gateway"))
+			return
+		}
+		if _, err := release.AutomationBase(q); err != nil {
+			fail(c, err)
+			return
+		}
 	}
 	if q.AutoRollback && !q.Stateless {
 		fail(c, fmt.Errorf("仅无状态应用可启用自动恢复"))
@@ -113,7 +208,8 @@ func SaveEnvironment(c *gin.Context) {
 			return
 		}
 	} else {
-		updates := map[string]any{"name": q.Name, "target_id": q.TargetID, "target_ids": q.TargetIDs, "parameters": q.Parameters, "stateless": q.Stateless, "auto_rollback": q.AutoRollback, "auto_deploy": q.AutoDeploy, "registry_id": q.RegistryID, "repository": q.Repository, "tag_pattern": q.TagPattern, "allowed_publishers": q.AllowedPublishers}
+		scripts, _ := json.Marshal(q.Scripts)
+		updates := map[string]any{"name": q.Name, "target_id": q.TargetID, "target_ids": q.TargetIDs, "parameters": q.Parameters, "stateless": q.Stateless, "auto_rollback": q.AutoRollback, "auto_deploy": q.AutoDeploy, "registry_id": q.RegistryID, "repository": q.Repository, "tag_pattern": q.TagPattern, "allowed_publishers": q.AllowedPublishers, "script_mode": q.ScriptMode, "scripts": string(scripts)}
 		res := database.DB.Model(&models.Environment{}).Where("id = ? AND application_id = ?", q.ID, a.ID).Updates(updates)
 		if res.Error != nil {
 			fail(c, res.Error)
@@ -131,11 +227,16 @@ func SaveEnvironment(c *gin.Context) {
 func CreateRelease(c *gin.Context) {
 	builtin.ReferenceGate.RLock()
 	defer builtin.ReferenceGate.RUnlock()
-	var q models.Release
-	if err := c.ShouldBindJSON(&q); err != nil {
+	var request struct {
+		models.Release
+		SaveDefinition bool `json:"save_definition"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
 		fail(c, err)
 		return
 	}
+	q := request.Release
+	definitionCompose := q.Compose
 	var a models.Application
 	if err := database.DB.First(&a, c.Param("id")).Error; err != nil {
 		fail(c, err)
@@ -148,6 +249,7 @@ func CreateRelease(c *gin.Context) {
 	q.ApplicationID = a.ID
 	q.PublisherID = c.GetUint("user_id")
 	q.Retained = true
+	q.Scripts = a.Scripts
 	if q.Source != "registry" && q.Source != "local" {
 		fail(c, fmt.Errorf("请选择仓库、本机镜像，或通过发布包创建版本"))
 		return
@@ -194,10 +296,12 @@ func CreateRelease(c *gin.Context) {
 	defer cancel()
 	var reg models.Registry
 	if q.Source == "registry" {
-		if database.DB.First(&reg, q.RegistryID).Error != nil {
-			fail(c, fmt.Errorf("请选择镜像仓库"))
+		reg, err = release.DefaultRegistry(q.RegistryID)
+		if err != nil {
+			fail(c, err)
 			return
 		}
+		q.RegistryID = reg.ID
 	}
 	for _, ref := range release.References(p) {
 		var im release.Image
@@ -217,7 +321,21 @@ func CreateRelease(c *gin.Context) {
 	b, _ := json.Marshal(images)
 	q.Images = string(b)
 	q.BundleID = 0
-	if err := database.DB.Create(&q).Error; err != nil {
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&q).Error; err != nil {
+			return err
+		}
+		if request.SaveDefinition || a.Definition.Compose == "" {
+			a.Definition.Compose = definitionCompose
+			a.Definition.Configs = configs
+			a.Definition.Parameters = apptemplate.Parameters(definitionCompose, a.Definition.Parameters)
+			if a.Category == "" {
+				a.Category = "business"
+			}
+			return tx.Save(&a).Error
+		}
+		return nil
+	}); err != nil {
 		fail(c, err)
 		return
 	}
@@ -288,34 +406,56 @@ func PreflightDeployment(c *gin.Context) {
 		fail(c, err)
 		return
 	}
+	var app models.Application
+	if database.DB.First(&app, r.ApplicationID).Error != nil {
+		fail(c, fmt.Errorf("应用不存在"))
+		return
+	}
+	p, err = release.Parse(c.Request.Context(), r.Compose, dir, release.ProjectName(env), apptemplate.RedactParameters(env.Parameters, app.Definition.Parameters))
+	if err != nil {
+		fail(c, err)
+		return
+	}
 	content, _ := release.Encode(p)
 	var current models.Release
 	database.DB.First(&current, env.CurrentReleaseID)
-	c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "images": images, "compose": content, "previous_compose": current.Compose, "message": "定义检查通过；执行前还将检查全部镜像、平台、端口、挂载和网络"})
+	c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "images": images, "compose": content, "previous_compose": current.Compose, "scripts": release.EffectiveScripts(r, env), "message": "定义检查通过；脚本只在确认部署后执行，执行前还将检查全部镜像、平台、端口、挂载和网络"})
 }
 func ListDeployments(c *gin.Context) {
-	var rows []models.Deployment
-	q := database.DB.Order("id DESC").Limit(200)
+	rows := []deploymentSummary{}
+	q := deploymentSummaries().Order("deployments.id DESC").Limit(200)
 	if v := c.Query("environment_id"); v != "" {
-		q = q.Where("environment_id = ?", v)
+		q = q.Where("deployments.environment_id = ?", v)
 	}
-	q.Find(&rows)
+	if err := q.Find(&rows).Error; err != nil {
+		fail(c, err)
+		return
+	}
+	for i := range rows {
+		describeDeployment(&rows[i])
+	}
 	c.JSON(200, rows)
 }
 func DeploymentDetail(c *gin.Context) {
-	var d models.Deployment
-	if database.DB.First(&d, c.Param("id")).Error != nil {
+	var d deploymentSummary
+	if deploymentSummaries().Where("deployments.id = ?", c.Param("id")).First(&d).Error != nil {
 		c.JSON(404, gin.H{"error": "任务不存在"})
 		return
 	}
+	describeDeployment(&d)
 	var logs []models.TaskLog
 	after, _ := strconv.Atoi(c.DefaultQuery("after", "0"))
 	database.DB.Where("deployment_id = ? AND id > ?", d.ID, after).Order("id").Find(&logs)
-	var nodes []models.Deployment
+	nodes := []deploymentSummary{}
 	if d.Batch != "" {
-		database.DB.Where("batch = ?", d.Batch).Order("sequence").Find(&nodes)
+		deploymentSummaries().Where("deployments.batch = ?", d.Batch).Order("deployments.sequence").Find(&nodes)
+		for i := range nodes {
+			describeDeployment(&nodes[i])
+		}
 	}
-	c.JSON(200, gin.H{"deployment": d, "logs": logs, "nodes": nodes})
+	var snap release.Snapshot
+	json.Unmarshal([]byte(d.Snapshot), &snap)
+	c.JSON(200, gin.H{"deployment": d, "logs": logs, "nodes": nodes, "scripts": snap.Scripts})
 }
 func DeploymentEvents(c *gin.Context) {
 	var d models.Deployment
@@ -424,6 +564,8 @@ func restoreParameters(env *models.Environment, r models.Release, restore bool) 
 		return err
 	}
 	env.Parameters = snap.Environment.Parameters
+	env.ScriptMode = "override"
+	env.Scripts = snap.Scripts
 	env.RestoreConfiguration = true
 	return nil
 }

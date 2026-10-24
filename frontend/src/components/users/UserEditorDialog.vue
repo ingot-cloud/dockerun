@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="modelValue" :title="title" width="580px" class="user-editor user-resource"
     append-to-body align-center destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving"
-    @update:model-value="close" @closed="reset"
+    :before-close="beforeClose" @update:model-value="emit('update:modelValue', $event)" @closed="reset"
   >
     <div v-if="user" class="user-editor-identity">
       <span class="user-avatar"><el-icon><User /></el-icon></span>
@@ -53,7 +53,7 @@
       <button type="submit" class="user-hidden-submit" tabindex="-1" aria-hidden="true" :disabled="saving || !canSave">提交</button>
     </el-form>
     <template #footer>
-      <el-button :disabled="saving" @click="close(false)">取消</el-button>
+      <el-button :disabled="saving" @click="close">取消</el-button>
       <el-button class="user-primary" :loading="saving" :disabled="!canSave" @click="save">{{ mode === 'create' ? '创建用户' : mode === 'password' ? '重设密码' : '保存更改' }}</el-button>
     </template>
   </el-dialog>
@@ -63,6 +63,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { usersApi } from '@/api/users'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import PortainerIcon from '@/components/PortainerIcon.vue'
 import { authorizationChanged, buildUserRequest, emptyUserForm, isLastEnabledAdmin, registryAccessDescriptions, registryAccessLabels, userError, validatePassword, validateUsername, type ManagedUser, type UserEditorMode, type UserForm } from '@/utils/users'
 
@@ -71,6 +72,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean]; saved: [user: 
 const formRef = ref<FormInstance>()
 const form = ref(emptyUserForm())
 const saving = ref(false), submitError = ref('')
+const { markSaved, confirmDiscard } = useUnsavedChanges(() => form.value, { enabled: () => props.modelValue, busy: () => saving.value })
 let disposed = false
 const title = computed(() => ({ create: '创建用户', authorization: '修改授权', password: '重设密码' })[props.mode])
 const description = computed(() => ({ create: '创建可用于网页登录和 docker login 的账号。', authorization: '管理用户角色、内置仓库权限和账号状态。', password: '设置新密码后，用户需要使用新密码重新登录。' })[props.mode])
@@ -82,9 +84,10 @@ const rules: FormRules<UserForm> = {
   password: [{ validator: (_rule, value: string, callback) => { const error = validatePassword(value); callback(error ? new Error(error) : undefined) }, trigger: ['blur', 'change'] }],
   confirmPassword: [{ validator: (_rule, value: string, callback) => callback(!value ? new Error('请再次输入密码') : value !== form.value.password ? new Error('两次输入的密码不一致') : undefined), trigger: ['blur', 'change'] }],
 }
-watch(() => props.modelValue, open => { if (open) { form.value = emptyUserForm(props.user); submitError.value = ''; formRef.value?.clearValidate() } })
+watch(() => props.modelValue, open => { if (open) { form.value = emptyUserForm(props.user); submitError.value = ''; formRef.value?.clearValidate(); markSaved() } }, { flush: 'post', immediate: true })
 function reset() { form.value = emptyUserForm(); submitError.value = ''; formRef.value?.clearValidate() }
-function close(value: boolean) { if (!saving.value) emit('update:modelValue', value) }
+async function beforeClose(done: () => void) { if (!saving.value && await confirmDiscard()) done() }
+async function close() { if (!saving.value && await confirmDiscard()) emit('update:modelValue', false) }
 function revalidateConfirmation() { if (form.value.confirmPassword) void formRef.value?.validateField('confirmPassword').catch(() => {}) }
 async function save() {
   if (saving.value || !canSave.value || !formRef.value) return
@@ -96,6 +99,7 @@ async function save() {
       ? await usersApi.create(payload as Parameters<typeof usersApi.create>[0])
       : await usersApi.update(props.user!.id, payload)
     if (disposed) return
+    markSaved()
     emit('update:modelValue', false)
     emit('saved', result, props.mode)
   } catch (error) { if (!disposed) submitError.value = userError(error) }

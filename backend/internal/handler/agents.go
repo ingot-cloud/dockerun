@@ -116,6 +116,10 @@ func AgentPoll(c *gin.Context) {
 				c.Status(204)
 				return
 			}
+			if release.HasScripts(s.Scripts) && c.Query("scripts") != "1" {
+				release.RemoteFailure(&d, "failed", "目标 Agent 不支持发布脚本，请更新 Agent 后重新发布")
+				continue
+			}
 			var env models.Environment
 			var user models.User
 			if database.DB.First(&env, d.EnvironmentID).Error != nil || database.DB.First(&user, d.UserID).Error != nil || !user.Enabled || !d.Automatic && !user.IsAdmin || d.Automatic && (!env.AutoDeploy || !release.PublisherAllowed(env, d.UserID)) {
@@ -222,18 +226,24 @@ func AgentComplete(c *gin.Context) {
 		return
 	}
 	var q struct {
-		Status         string          `json:"status"`
-		RecoveryStatus string          `json:"recovery_status"`
-		Result         string          `json:"result"`
-		ActualImages   string          `json:"actual_images"`
-		Health         string          `json:"health"`
-		Images         []release.Image `json:"images"`
+		Status           string          `json:"status"`
+		ScriptsCompleted bool            `json:"scripts_completed"`
+		RecoveryStatus   string          `json:"recovery_status"`
+		Result           string          `json:"result"`
+		ActualImages     string          `json:"actual_images"`
+		Health           string          `json:"health"`
+		Images           []release.Image `json:"images"`
 	}
 	if c.ShouldBindJSON(&q) != nil || q.Status != "success" && q.Status != "failed" && q.Status != "needs_attention" {
 		c.Status(400)
 		return
 	}
 	s.Images = q.Images
+	s.ScriptsCompleted = q.ScriptsCompleted
+	if q.Status == "success" && release.HasScripts(s.Scripts) && !q.ScriptsCompleted {
+		q.Status = "needs_attention"
+		q.Result = "节点尚未确认脚本执行完成，请更新 Agent 并核对发布结果"
+	}
 	b, _ := json.Marshal(s)
 	database.DB.Model(d).Update("snapshot", string(b))
 	database.DB.Model(d).Update("recovery_status", q.RecoveryStatus)

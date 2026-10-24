@@ -1,11 +1,19 @@
 <template>
-  <div class="registry-resource registry-detail-page">
-    <header class="registry-heading">
-      <h1>{{ creating ? '添加仓库' : '仓库详情' }}<span v-if="registry" class="registry-heading-name">{{ registry.name }}</span></h1>
-      <div class="registry-heading-actions"><el-button v-if="registry" :disabled="busy || loading" @click="router.push({ name: 'RegistryImages', params: { id: registry.id }, query: route.query })"><PortainerIcon name="box" />浏览镜像</el-button><el-button link :disabled="busy" @click="goBack">返回仓库列表</el-button></div>
-    </header>
-    <div v-if="loadError" class="registry-error" role="alert"><span>{{ loadError }}</span><el-button link @click="loadRegistry">重试</el-button></div>
-    <div v-loading="loading" class="registry-detail-body" :aria-busy="loading">
+  <WorkspaceEditor :title="creating ? '添加仓库' : registry ? `仓库详情 · ${registry.name}` : '仓库详情'" :loading="loading" :busy="busy" :refreshable="false">
+    <template v-if="creating || registry" #actions>
+      <span v-if="registry" class="workspace-editor-status" role="status" aria-label="仓库认证状态">{{ registry.username ? '已启用认证' : '匿名访问' }}</span>
+      <el-button v-if="registry" type="danger" :disabled="busy || loading" @click="deleteVisible = true"><PortainerIcon name="trash" />删除仓库</el-button>
+      <el-button v-if="registry" :disabled="busy || loading" @click="router.push({ name: 'RegistryImages', params: { id: registry.id }, query: route.query })"><PortainerIcon name="box" />浏览镜像</el-button>
+      <el-button :disabled="busy || loading" :loading="testing" @click="testConnection">测试连接</el-button>
+      <el-button :disabled="busy" @click="goBack">取消</el-button>
+      <el-button type="primary" :loading="saving" :disabled="busy || loading" @click="save">{{ creating ? '添加仓库' : '保存更改' }}</el-button>
+    </template>
+    <template v-if="loadError || actionError || testSuccess" #feedback>
+      <div v-if="loadError" class="management-error" role="alert"><span>{{ loadError }}</span><el-button link :disabled="busy || loading" @click="loadRegistry">重试</el-button></div>
+      <div v-if="actionError" class="management-error" role="alert"><span>{{ actionError }}</span><el-button link @click="actionError = ''">关闭</el-button></div>
+      <div v-if="testSuccess" class="registry-test-success" role="status">仓库接口连接成功；目录和镜像标签的读取结果请在“浏览镜像”中查看。</div>
+    </template>
+    <div v-loading="loading" class="registry-resource registry-detail-page workspace-page workspace-editor-page" :aria-busy="loading">
       <template v-if="creating || registry">
         <section v-if="creating" class="registry-card" aria-labelledby="provider-title">
           <header class="registry-card-header"><h2 id="provider-title"><span class="registry-section-icon"><PortainerIcon name="registry" /></span>仓库提供商</h2></header>
@@ -41,14 +49,8 @@
         <section v-if="registry" class="registry-card" aria-labelledby="registry-info-title"><header class="registry-card-header"><h2 id="registry-info-title">仓库信息</h2></header><dl class="registry-details"><div><dt>ID</dt><dd>{{ registry.id }}</dd></div><div><dt>创建时间</dt><dd>{{ formatDate(registry.created_at) }}</dd></div><div><dt>更新时间</dt><dd>{{ formatDate(registry.updated_at) }}</dd></div></dl></section>
       </template>
     </div>
-    <div v-if="actionError" class="registry-error" role="alert"><span>{{ actionError }}</span><el-button link @click="actionError = ''">关闭</el-button></div>
-    <div v-if="testSuccess" class="registry-test-success" role="status">仓库接口连接成功；目录和镜像标签的读取结果请在“浏览镜像”中查看。</div>
-    <footer v-if="creating || registry" class="registry-card registry-form-footer">
-      <el-button v-if="registry" class="registry-remove" :disabled="busy || loading" @click="deleteVisible = true"><PortainerIcon name="trash" />删除仓库</el-button><span v-else />
-      <div><el-button :disabled="busy || loading" :loading="testing" @click="testConnection">测试连接</el-button><el-button :disabled="busy" @click="goBack">取消</el-button><el-button class="registry-primary" :loading="saving" :disabled="busy || loading" @click="save">{{ creating ? '添加仓库' : '保存更改' }}</el-button></div>
-    </footer>
     <RegistryDeleteDialog v-model="deleteVisible" :registries="registry ? [registry] : []" @removed="onRemoved" />
-  </div>
+  </WorkspaceEditor>
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -56,6 +58,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { registryApi, type Registry } from '@/api/registry'
 import PortainerIcon from '@/components/PortainerIcon.vue'
+import WorkspaceEditor from '@/components/WorkspaceEditor.vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import RegistryDeleteDialog from '@/components/registries/RegistryDeleteDialog.vue'
 import { buildRegistryRequest, emptyRegistryForm, normalizeRegistryUrl, registryError, registryProvider, registryProviders, type RegistryProvider } from '@/utils/registries'
 import '@/styles/registries.css'
@@ -69,6 +73,7 @@ const activeProvider = computed(() => registryProviders.find(provider => provide
 const loading = ref(false), saving = ref(false), testing = ref(false), deleteVisible = ref(false)
 const loadError = ref(''), actionError = ref(''), testSuccess = ref(false)
 const busy = computed(() => saving.value || testing.value || deleteVisible.value)
+const { markSaved } = useUnsavedChanges(() => ({ form: form.value, provider: selectedProvider.value }), { enabled: () => !loading.value && (creating.value || !!registry.value), busy: () => busy.value })
 let controller: AbortController | undefined
 let disposed = false
 const rules: FormRules = {
@@ -88,14 +93,14 @@ function selectProvider(id: RegistryProvider) {
   formRef.value?.clearValidate()
 }
 function goBack() { void router.push({ name: 'Registry', query: route.query }) }
-function onRemoved(ids: number[]) { if (registry.value && ids.includes(registry.value.id)) goBack() }
+function onRemoved(ids: number[]) { if (registry.value && ids.includes(registry.value.id)) { markSaved(); deleteVisible.value = false; goBack() } }
 function formatDate(value: string) { return value ? new Date(value).toLocaleString('zh-CN') : '—' }
 async function loadRegistry() {
   controller?.abort()
   const current = new AbortController(); controller = current
   registry.value = null; form.value = emptyRegistryForm(); selectedProvider.value = 'custom'
   loadError.value = ''; actionError.value = ''; testSuccess.value = false; loading.value = false
-  if (creating.value) return
+  if (creating.value) { markSaved(); return }
   loading.value = true
   try {
     const result = await registryApi.get(Number(route.params.id), current.signal)
@@ -105,6 +110,7 @@ async function loadRegistry() {
     selectedProvider.value = registryProvider(result.url)
     form.value = { ...emptyRegistryForm(), name: result.name, url: result.url, authentication: Boolean(result.username), username: result.username, email: result.email || '', pull_username: result.pull_username || '', pull_only_confirmed: result.pull_only_confirmed || false, is_default: result.is_default, insecure: result.insecure }
     formRef.value?.clearValidate()
+    markSaved()
   } catch (error) { if (!current.signal.aborted && !disposed) loadError.value = `仓库详情加载失败：${registryError(error)}` }
   finally { if (!current.signal.aborted) loading.value = false }
 }
@@ -118,12 +124,13 @@ async function save() {
     const payload = buildRegistryRequest(form.value, !creating.value)
     if (payload.pull_username && (!registry.value?.pull_username || payload.pull_username !== registry.value.pull_username) && !payload.pull_password) throw new Error('请填写新账号的 Agent 拉取密码')
     saving.value = true
-    if (creating.value) { await registryApi.create(payload); if (!disposed && context === controller) { ElMessage.success('仓库已添加'); goBack() } }
+    if (creating.value) { await registryApi.create(payload); if (!disposed && context === controller) { markSaved(); ElMessage.success('仓库已添加'); saving.value = false; void router.replace({ name: 'Registry', query: route.query }) } }
     else {
       const updated = await registryApi.update(registry.value!.id, payload)
       if (disposed || context !== controller) return
       registry.value = updated; form.value.password = ''; form.value.pull_password = ''
       selectedProvider.value = registryProvider(updated.url)
+      markSaved()
       ElMessage.success('仓库配置已保存')
     }
   } catch (error) { if (!disposed && context === controller) actionError.value = registryError(error) }
@@ -145,3 +152,7 @@ async function testConnection() {
 watch(() => [route.name, route.params.id], loadRegistry, { immediate: true })
 onBeforeUnmount(() => { disposed = true; controller?.abort() })
 </script>
+<style scoped>
+.registry-config-form :deep(.el-checkbox) { max-width: 100%; height: auto; margin-block: 6px; white-space: normal; }
+.registry-config-form :deep(.el-checkbox__label) { min-width: 0; white-space: normal; line-height: 20px; }
+</style>

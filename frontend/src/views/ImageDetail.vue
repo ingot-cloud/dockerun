@@ -1,16 +1,15 @@
 <template>
-  <div class="image-detail-page">
-    <header class="detail-heading">
-      <h1>镜像详情</h1>
-      <div class="detail-heading-actions">
-        <router-link :to="listLocation">返回镜像列表</router-link>
-        <el-button text circle aria-label="刷新镜像详情" title="刷新镜像详情" :disabled="loading || busy" @click="loadImage"><PortainerIcon name="refresh" /></el-button>
-      </div>
-    </header>
-
-    <el-alert v-if="detailError" title="镜像详情加载失败" :description="detailError" type="error" :closable="false" show-icon>
-      <el-button link @click="loadImage">重新加载</el-button>
-    </el-alert>
+  <WorkspaceEditor title="镜像详情" :loading="loading" :busy="busy || deleteVisible" @refresh="loadImage">
+    <template v-if="image" #actions>
+      <span class="workspace-editor-status" role="status" aria-label="镜像使用状态"><span v-if="useCount !== null" class="usage-badge" :class="useCount ? 'in-use' : 'unused'">{{ useCount ? '使用中' : '未使用' }}</span><span v-else>{{ usageLoading ? '正在读取使用状态…' : '使用状态未知' }}</span></span>
+      <el-button type="danger" :disabled="busy || loading || deleteVisible" @click="openDelete"><PortainerIcon name="trash" />删除镜像</el-button>
+      <el-button :disabled="busy || loading || deleteVisible" :loading="exporting" @click="exportImage"><PortainerIcon v-if="!exporting" name="download" />{{ exporting ? '导出中…' : '导出镜像' }}</el-button>
+    </template>
+    <template v-if="detailError || actionError" #feedback>
+      <div v-if="detailError" class="management-error" role="alert"><span>镜像详情加载失败：{{ detailError }}</span><el-button link :disabled="loading || busy" @click="loadImage">重新加载</el-button></div>
+      <div v-if="actionError" class="management-error" role="alert"><span>{{ actionError }}</span><el-button link @click="actionError = ''">关闭</el-button></div>
+    </template>
+    <div class="image-detail-page workspace-page workspace-editor-page">
     <div v-if="loading && !image" class="detail-card detail-loading" role="status">正在加载镜像详情…</div>
 
     <template v-if="image">
@@ -35,13 +34,9 @@
 
       <section class="detail-card" aria-labelledby="image-info-title">
         <h2 id="image-info-title"><span class="detail-icon"><PortainerIcon name="list" /></span>镜像信息</h2>
-        <el-alert v-if="actionError" title="操作失败" :description="actionError" type="error" show-icon @close="actionError = ''" />
         <table class="metadata-table" aria-label="镜像基本信息">
           <tbody>
-            <tr><th scope="row">ID</th><td><div class="id-and-actions"><code class="full-image-id">{{ image.Id }}</code><div class="image-detail-actions">
-              <el-button class="detail-remove" :disabled="busy || loading" @click="openDelete"><PortainerIcon name="trash" />删除镜像</el-button>
-              <el-button :disabled="busy || loading" :loading="exporting" @click="exportImage"><PortainerIcon v-if="!exporting" name="download" />{{ exporting ? '导出中…' : '导出镜像' }}</el-button>
-            </div></div></td></tr>
+            <tr><th scope="row">ID</th><td><code class="full-image-id">{{ image.Id }}</code></td></tr>
             <tr><th scope="row">大小</th><td>{{ formatImageSize(image.Size) }}</td></tr>
             <tr><th scope="row">创建时间</th><td>{{ formatImageDate(image.Created) }}</td></tr>
             <tr><th scope="row">构建平台</th><td>{{ platform }}<span v-if="image.DockerVersion" class="detail-muted"> · Docker {{ image.DockerVersion }}</span></td></tr>
@@ -100,6 +95,7 @@
         </div>
       </section>
     </template>
+    </div>
 
     <el-dialog v-model="deleteVisible" title="删除镜像" width="540px" class="image-detail-dialog" append-to-body :show-close="!deleting" :close-on-click-modal="!deleting" :close-on-press-escape="!deleting">
       <p>确定删除此镜像及其标签？此操作无法撤销。</p>
@@ -109,7 +105,7 @@
       <el-alert v-if="deleteError" title="删除失败" :description="deleteError" type="error" :closable="false" show-icon />
       <template #footer><el-button :disabled="deleting" @click="deleteVisible = false">取消</el-button><el-button type="danger" :loading="deleting" @click="deleteImage">{{ forceDelete ? '确认强制删除' : '确认删除' }}</el-button></template>
     </el-dialog>
-  </div>
+  </WorkspaceEditor>
 </template>
 
 <script setup lang="ts">
@@ -117,6 +113,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PortainerIcon from '@/components/PortainerIcon.vue'
+import WorkspaceEditor from '@/components/WorkspaceEditor.vue'
 import { localImagesApi } from '@/api/localImages'
 import { formatImageDate, formatImageSize, imageEnvironment, imageExportName, imageLayerCommand, imageListQuery, imageUseCount, readImageListState, type ImageContainer, type ImageHistoryLayer, type LocalImage, type LocalImageDetails } from '@/utils/localImages'
 
@@ -282,13 +279,7 @@ onBeforeUnmount(() => { readController?.abort(); lifetime.abort() })
 
 <style scoped>
 .image-detail-page { --el-color-primary: #33a7d5; width: 100%; min-width: 0; color: #e7e7e7; font-size: 13px; }
-.detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.detail-heading h1 { font-size: 18px; font-weight: 600; line-height: 28px; margin: 0; }
-.detail-heading-actions { display: flex; align-items: center; gap: 16px; }
-.detail-heading-actions a { color: #35acd7; text-decoration: none; font-size: 12px; }
-.detail-heading-actions a:hover { text-decoration: underline; }
-.detail-heading-actions .el-button { color: #ccc; height: 28px; }
-.detail-card { background: #202020; border: 1px solid #303030; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.detail-card { background: #202020; border: 1px solid #303030; border-radius: 10px; overflow: hidden; }
 .detail-card h2 { display: flex; align-items: center; gap: 10px; padding: 16px 20px; font-size: 15px; line-height: 24px; font-weight: 600; margin: 0; }
 .detail-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #303844; color: #c6d4e5; flex-shrink: 0; }
 .detail-icon .portainer-icon { width: 18px; height: 18px; }
@@ -304,7 +295,7 @@ onBeforeUnmount(() => { readController?.abort(); lifetime.abort() })
 .tag-image-form :deep(.el-input__inner) { font-size: 13px; }
 .image-detail-page :deep(.el-button) { font-size: 12px; }
 .image-detail-page :deep(.el-button > span) { gap: 6px; }
-.tag-image-form .el-button, .image-detail-actions .el-button { color: #222; background: #f2f2f2; border-color: #f2f2f2; margin: 0; }
+.tag-image-form .el-button { color: #222; background: #f2f2f2; border-color: #f2f2f2; margin: 0; }
 .tag-image-form .el-button.is-disabled { opacity: .45; }
 .tag-error { margin: 0 20px 20px; width: auto; }
 .metadata-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -312,11 +303,7 @@ onBeforeUnmount(() => { readController?.abort(); lifetime.abort() })
 .metadata-table > tbody > tr > td { padding: 13px 20px 13px 0; }
 .metadata-table > tbody > tr > th, .metadata-table > tbody > tr > td { border-top: 1px solid #303030; line-height: 1.7; overflow-wrap: anywhere; }
 .metadata-table code { font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: #dedede; }
-.id-and-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .full-image-id { user-select: all; }
-.image-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.image-detail-actions .el-button { height: 28px; padding: 0 9px; }
-.image-detail-actions .detail-remove { color: #fff; background: #a9333c; border-color: #a9333c; }
 .key-value-table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 12px; }
 .key-value-table th, .key-value-table td { border-bottom: 1px solid #343434; padding: 9px 12px; text-align: left; font-weight: 400; vertical-align: top; overflow-wrap: anywhere; }
 .key-value-table tr:last-child th, .key-value-table tr:last-child td { border-bottom: 0; }
@@ -332,7 +319,7 @@ onBeforeUnmount(() => { readController?.abort(); lifetime.abort() })
 .exposed-ports { display: flex; flex-wrap: wrap; gap: 12px; }
 .layer-count { margin-left: auto; font-size: 12px; font-weight: 400; color: #999; }
 .layers-table-scroll { overflow-x: auto; }
-.layers-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.layers-table { width: 100%; min-width: 560px; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
 .layers-table th { text-align: left; background: #303030; font-weight: 500; padding: 10px 20px; }
 .layers-table th:first-child { width: 96px; }
 .layers-table th:nth-child(2) { width: 120px; }

@@ -3,16 +3,17 @@
     xmlns="http://www.w3.org/2000/svg"
     width="24"
     height="24"
-    :viewBox="name === 'sort' ? '0 0 16 12' : '0 0 24 24'"
+    :viewBox="name === 'back' ? '0 0 512 512' : name === 'sort' ? '0 0 16 12' : '0 0 24 24'"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
+    :stroke-width="name === 'back' ? 48 : 2"
     stroke-linecap="round"
     stroke-linejoin="round"
     aria-hidden="true"
     class="portainer-icon"
   >
-    <template v-if="name === 'list'">
+    <path v-if="name === 'back'" d="M244 400L100 256l144-144M120 256h292" />
+    <template v-else-if="name === 'list'">
       <path d="M3 5h.01" /><path d="M3 12h.01" /><path d="M3 19h.01" />
       <path d="M8 5h13" /><path d="M8 12h13" /><path d="M8 19h13" />
     </template>
@@ -80,7 +81,7 @@
 <script setup lang="ts">
 // 资源页面共用的 Lucide 风格线性图标。
 defineProps<{
-  name: 'list' | 'trash' | 'upload' | 'download' | 'refresh' | 'search' | 'chevron-down' | 'sort' | 'tag' | 'box' | 'play' | 'stop' | 'kill' | 'pause' | 'info' | 'terminal' | 'attach' | 'logs' | 'inspect' | 'chart' | 'link' | 'plus' | 'network' | 'volume' | 'registry'
+  name: 'back' | 'list' | 'trash' | 'upload' | 'download' | 'refresh' | 'search' | 'chevron-down' | 'sort' | 'tag' | 'box' | 'play' | 'stop' | 'kill' | 'pause' | 'info' | 'terminal' | 'attach' | 'logs' | 'inspect' | 'chart' | 'link' | 'plus' | 'network' | 'volume' | 'registry'
 }>()
 </script>
 

@@ -21,6 +21,7 @@ import { validatePassword } from '@/utils/users'
 import { formatDate,tokenState } from '@/utils/management'
 import { useAuthStore } from '@/stores/auth'
 import { useResource } from '@/composables/useResource'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import WorkspaceHeading from '@/components/WorkspaceHeading.vue'
 import ResourceList from '@/components/ResourceList.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -30,11 +31,23 @@ const passwordForm=ref<FormInstance>(),tokenForm=ref<FormInstance>(),passwordSav
 const canPull=computed(()=>Boolean(auth.user?.is_admin || ['read_only','read_write'].includes(auth.user?.registry_access))),canPush=computed(()=>Boolean(auth.user?.is_admin || auth.user?.registry_access==='read_write'))
 const passwords=ref({old:'',next:'',confirm:''}),token=ref({name:'',scopes:canPull.value?['pull']:[] as string[]})
 const busy=computed(()=>passwordSaving.value || tokenSaving.value || revoking.value)
+const passwordDraft=useUnsavedChanges(()=>passwords.value,{busy:()=>busy.value})
+const tokenDraft=useUnsavedChanges(()=>token.value,{busy:()=>busy.value})
 const passwordRules:FormRules={old:[{required:true,message:'请输入原密码',trigger:'blur'}],next:[{validator:(_r,value,done)=>{const message=validatePassword(value);done(message?new Error(message):undefined)},trigger:['blur','change']}],confirm:[{validator:(_r,value,done)=>done(value===passwords.value.next && value?undefined:new Error('两次输入的新密码不一致')),trigger:['blur','change']}]}
 const tokenRules={name:[{required:true,whitespace:true,message:'请输入令牌用途',trigger:'blur'}],scopes:[{type:'array' as const,required:true,min:1,message:'请选择至少一项权限',trigger:'change'}]}
 function scopeText(value:string){return (value || '').split(' ').map(scope=>({pull:'拉取镜像',push:'推送镜像',deploy:'发布应用'}[scope] || '未知权限')).join('、') || '无权限'}
-async function changePassword(){if(busy.value || !await passwordForm.value?.validate().catch(()=>false) || busy.value)return;passwordSaving.value=true;passwordError.value='';try{await authApi.changePassword({old_password:encryptPassword(passwords.value.old),new_password:encryptPassword(passwords.value.next)});auth.logout();ElMessage.success('密码已更新，请重新登录');await router.replace('/login')}catch(cause){passwordError.value=errorText(cause)}finally{passwordSaving.value=false}}
-async function createToken(){if(busy.value || !await tokenForm.value?.validate().catch(()=>false) || busy.value)return;tokenSaving.value=true;tokenError.value='';try{const result=await api('POST','/auth/tokens',{name:token.value.name.trim(),scopes:token.value.scopes,days:30});secret.value=result.token;token.value.name='';await load();ElMessage.success('自动化令牌已创建')}catch(cause){tokenError.value=errorText(cause)}finally{tokenSaving.value=false}}
+async function changePassword(){
+  if(busy.value || !await passwordForm.value?.validate().catch(()=>false) || busy.value)return
+  // 修改密码会强制重新登录，先确认尚未提交的令牌表单。
+  if(!await tokenDraft.confirmDiscard() || busy.value)return
+  passwordSaving.value=true;passwordError.value=''
+  try{
+    await authApi.changePassword({old_password:encryptPassword(passwords.value.old),new_password:encryptPassword(passwords.value.next)})
+    passwordDraft.markSaved();tokenDraft.markSaved();passwordSaving.value=false
+    auth.logout();ElMessage.success('密码已更新，请重新登录');await router.replace('/login')
+  }catch(cause){passwordError.value=errorText(cause)}finally{passwordSaving.value=false}
+}
+async function createToken(){if(busy.value || !await tokenForm.value?.validate().catch(()=>false) || busy.value)return;tokenSaving.value=true;tokenError.value='';try{const result=await api('POST','/auth/tokens',{name:token.value.name.trim(),scopes:token.value.scopes,days:30});secret.value=result.token;token.value.name='';tokenDraft.markSaved();await load();ElMessage.success('自动化令牌已创建')}catch(cause){tokenError.value=errorText(cause)}finally{tokenSaving.value=false}}
 async function copySecret(){try{await copy(secret.value);ElMessage.success('令牌已复制')}catch{ElMessage.error('复制失败，请重试')}}
 async function revoke(row:any){if(busy.value)return;revoking.value=true;try{await ElMessageBox.confirm(`确定撤销「${row.name}」？使用此令牌的自动化任务将无法继续认证。`,'撤销自动化令牌',{confirmButtonText:'确认撤销',cancelButtonText:'取消',type:'warning'})}catch{revoking.value=false;return}try{await api('DELETE',`/auth/tokens/${row.id}`);ElMessage.success('令牌已撤销');await load()}catch(cause){error.value=errorText(cause)}finally{revoking.value=false}}
 </script>

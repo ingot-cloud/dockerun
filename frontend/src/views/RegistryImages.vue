@@ -1,9 +1,6 @@
 <template>
   <div class="registry-resource registry-images-page">
-    <header class="registry-heading">
-      <h1>仓库镜像<span class="registry-heading-name">{{ registryName || '镜像仓库' }}</span></h1>
-      <div class="registry-heading-actions"><el-button link :disabled="deleting || confirming" @click="router.push({ name: 'RegistryDetail', params: { id: registryId }, query: route.query })">仓库详情</el-button><el-button link :disabled="deleting || confirming" @click="router.push({ name: 'Registry', query: route.query })">返回仓库列表</el-button></div>
-    </header>
+    <WorkspaceHeading :title="`仓库镜像 · ${registryName || '镜像仓库'}`" :busy="deleting || confirming" :refreshable="false" />
     <section class="registry-card registry-list" aria-labelledby="registry-images-title">
       <header class="registries-toolbar">
         <h2 id="registry-images-title"><span class="registry-section-icon"><PortainerIcon name="box" /></span>镜像列表</h2>
@@ -29,16 +26,17 @@
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopyDocument } from '@element-plus/icons-vue'
 import { useClipboard } from '@vueuse/core'
 import { registryApi, type RegistryImage } from '@/api/registry'
 import PortainerIcon from '@/components/PortainerIcon.vue'
+import WorkspaceHeading from '@/components/WorkspaceHeading.vue'
 import { registryError } from '@/utils/registries'
 import '@/styles/registries.css'
 
-const router = useRouter(), route = useRoute()
+const route = useRoute()
 const registryId = computed(() => Number(route.params.id))
 const loading = ref(false), deleting = ref(false), confirming = ref(false)
 const images = ref<RegistryImage[]>([]), expanded = ref(new Set<string>())

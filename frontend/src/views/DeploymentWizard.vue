@@ -1,17 +1,17 @@
 <template>
-  <div v-loading="loading" class="workspace-page form-page">
-    <WorkspaceHeading :title="`发布 ${data.application?.name || '应用'}`" :loading="loading" :busy="busy" @refresh="loadOptions"><router-link :to="{path:`/applications/${id}`,query:route.query}">返回应用详情</router-link></WorkspaceHeading>
+  <WorkspaceEditor :title="`发布 ${data.application?.name || '应用'}`" :loading="loading" :busy="busy" :reset-key="step" @refresh="loadOptions">
+    <template #actions>
+      <el-button :disabled="loading || step === 0 || busy" @click="step--">上一步</el-button>
+      <el-button v-if="step < 2" type="primary" :disabled="loading || busy || !data.application || (step === 1 && !environment)" @click="step++">下一步</el-button>
+      <el-button v-if="step === 2" type="primary" :disabled="loading" :loading="busy" @click="preflight">准备版本并预检查</el-button>
+      <el-button v-if="step === 3" type="primary" :disabled="loading" :loading="busy" @click="deploy">确认并部署</el-button>
+    </template>
+    <template #navigation><el-steps :active="step" finish-status="success"><el-step title="选择来源" /><el-step title="应用与环境" /><el-step title="参数配置" /><el-step title="预检查与差异" /></el-steps></template>
+    <template v-if="error" #feedback><el-alert :title="error" type="error" class="inline-error" :closable="false" /></template>
+  <div v-loading="loading" class="workspace-page workspace-editor-page form-page">
     <p class="management-description">选择交付材料，确认部署环境和版本差异后再执行部署。</p>
-    <el-steps :active="step" finish-status="success" style="margin: 4px 0 8px"
-      ><el-step title="选择来源" /><el-step title="应用与环境" /><el-step
-        title="参数配置" /><el-step title="预检查与差异" /></el-steps
-    ><el-alert
-      v-if="error"
-      :title="error"
-      type="error"
-      class="inline-error"
-      :closable="false"
-    />
+    <div v-if="!loading && !data.environments?.length" class="management-warning" role="status"><span>首次发布需要先添加环境，配置目标主机、环境参数和脚本。</span><router-link :to="{path:`/applications/${id}`,query:route.query}">前往配置环境</router-link></div>
+    <p v-else-if="!selectedEnv?.current_release_id" class="management-form-help">首次发布请完整配置镜像、端口、挂载及配置文件。首次成功后，可回到环境配置开启自动发布。</p>
     <template v-if="step === 0"
       ><div class="source-grid">
         <button
@@ -58,7 +58,7 @@
                 v-for="r in registries"
                 :key="r.id"
                 :value="r.id"
-                :label="r.name" /></el-select></el-form-item
+                :label="r.name" /></el-select><p class="management-form-help">{{ selectedRegistry?.kind==='builtin' ? '默认使用内置仓库，镜像推送事件由系统直接接收，无需配置 Webhook。' : '外部仓库自动发布需要接入推送回调；手动发布只需镜像可拉取。' }}</p></el-form-item
           ><el-form-item v-if="form.source === 'bundle'" label="完整发布包"
             ><el-select v-model="bundleId"
               ><el-option
@@ -87,7 +87,7 @@
           镜像版本保持原有身份；目标环境的端口、地址及参数不会被包内默认值覆盖。
         </p>
         <pre class="code-block">{{
-          selectedEnv?.parameters || {}
+          maskTemplateParameters(selectedEnv?.parameters || {}, data.application?.definition?.parameters || [])
         }}</pre></template
       ><template v-else
         ><el-form label-position="top" :disabled="busy || loading"
@@ -102,7 +102,7 @@
             ><el-form-item label="镜像引用"
               ><el-input
                 v-model="simple.image"
-                placeholder="registry.example.com/team/app:v1" /></el-form-item
+                :placeholder="`${registryHost(selectedRegistry) || 'registry.example.com'}/team/app:v1`" /><p class="management-form-help">填写包含仓库地址、镜像名称和标签的完整引用。请先将镜像推送到所选仓库。</p></el-form-item
             ><el-form-item label="端口映射（可选：宿主端口:容器端口）"
               ><el-input
                 v-model="simple.port"
@@ -113,18 +113,10 @@
                 type="textarea"
                 :rows="3" /></el-form-item></template
           ><template v-if="definitionMode === 'compose'"
-            ><el-form-item label="从常用模板开始"
-              ><el-select
-                placeholder="选择模板，填入 Compose"
-                @change="(i: number) => applyTemplate(i)"
-                ><el-option
-                  v-for="(t, i) in templates"
-                  :key="i"
-                  :value="i"
-                  :label="t.name" /></el-select></el-form-item
             ><el-form-item label="Compose 定义"
               ><CodeEditor
                 v-model="form.compose"
+                label="Compose 定义"
                 language="yaml"
                 height="360px" /></el-form-item></template
           ><el-form-item label="目标平台（可选）"
@@ -147,6 +139,7 @@
           :closable="false"
       /></template>
     </section>
+    <section v-if="step === 2" class="panel"><h2>本次部署脚本</h2><p class="management-description">{{selectedEnv?.script_mode==='override'?'使用当前环境的独立脚本。':selectedEnv?.script_mode==='disabled'?'此环境已停用脚本，由系统启动 Compose。':'沿用发布版本保存的应用脚本。新版本使用当前应用脚本。'}} 脚本在确认部署后执行，可在应用详情或环境配置中修改。</p><el-collapse v-if="hasScripts(plannedScripts)"><el-collapse-item title="查看部署前、部署与部署后脚本" name="scripts"><DeploymentScriptEditor :model-value="plannedScripts" disabled /></el-collapse-item></el-collapse><p v-else class="management-form-help">未配置脚本，由系统准备镜像、检查目标主机并启动 Compose。</p></section>
     <section v-if="step === 3" class="panel">
       <h2>预检查结果</h2>
       <el-alert
@@ -172,43 +165,27 @@
           }}</pre>
         </el-collapse-item></el-collapse
       >
+      <el-collapse v-if="hasScripts(preview?.scripts)"><el-collapse-item title="确认本次执行的脚本快照" name="scripts"><DeploymentScriptEditor :model-value="copyScripts(preview?.scripts)" disabled /></el-collapse-item></el-collapse>
     </section>
-    <div class="management-form-actions">
-      <el-button :disabled="step === 0 || busy" @click="step--"
-        >上一步</el-button
-      ><el-button
-        v-if="step < 2"
-        type="primary"
-        :disabled="loading || busy || !data.application || (step === 1 && !environment)"
-        @click="step++"
-        >下一步</el-button
-      ><el-button
-        v-if="step === 2"
-        type="primary"
-        :loading="busy"
-        @click="preflight"
-        >准备版本并预检查</el-button
-      ><el-button
-        v-if="step === 3"
-        type="primary"
-        :loading="busy"
-        @click="deploy"
-        >确认并部署</el-button
-      >
-    </div>
   </div>
+  </WorkspaceEditor>
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from "vue";
-import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { api, errorText } from "@/api/workspace";
-import WorkspaceHeading from '@/components/WorkspaceHeading.vue';
+import WorkspaceEditor from '@/components/WorkspaceEditor.vue';
 import { parseObject, sourceLabel } from '@/utils/management';
+import DeploymentScriptEditor from '@/components/DeploymentScriptEditor.vue';
+import { copyScripts, defaultReleaseRegistry, emptyScripts, hasScripts, registryHost } from '@/utils/releases';
+import { maskTemplateParameters } from '@/utils/applicationTemplates';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 const loading = ref(false);
 let preparedSignature = '';
 let executionKey = '';
 const optionsController=new AbortController();
 let disposed=false;
+const defaultsLoaded=ref(false);
 const CodeEditor = defineAsyncComponent(
   () => import("@/components/CodeEditor.vue"),
 );
@@ -242,11 +219,7 @@ function selectSource(source: string) {
   existing.value = undefined;
 }
 const restoreConfiguration = ref(false);
-const templates = ref<any[]>([]);
-function applyTemplate(i: number) {
-  form.value.compose = templates.value[i].compose;
-  definitionMode.value = "compose";
-}
+const { markSaved } = useUnsavedChanges(() => ({ form: form.value, environment: environment.value, bundle: bundleId.value, existing: existing.value, definitionMode: definitionMode.value, simple: simple.value, restore: restoreConfiguration.value }), { enabled: () => defaultsLoaded.value, busy: () => busy.value });
 const sources = [
   {
     value: "registry",
@@ -267,6 +240,13 @@ const sources = [
 const selectedEnv = computed(() =>
   data.value.environments?.find((e: any) => e.id === environment.value),
 );
+const selectedRegistry = computed(() => registries.value.find(item => item.id === form.value.registry_id));
+const plannedScripts = computed(() => {
+  if(selectedEnv.value?.script_mode === 'disabled') return emptyScripts();
+  if(selectedEnv.value?.script_mode === 'override') return copyScripts(selectedEnv.value.scripts);
+  const version = data.value.releases?.find((item:any) => item.id === existing.value);
+  return copyScripts(existing.value ? version?.scripts : data.value.application?.scripts);
+});
 async function preflight() {
   if (busy.value || loading.value) return;
   busy.value = true;
@@ -274,7 +254,7 @@ async function preflight() {
   try {
     if (!environment.value) throw new Error('请选择部署环境');
     if(!existing.value && form.value.source!=='bundle')parseObject(form.value.configs, '非敏感配置文件');
-    const signature = JSON.stringify({existing:existing.value,bundle:bundleId.value,environment:environment.value,form:form.value,definitionMode:definitionMode.value,simple:simple.value});
+    const signature = JSON.stringify({existing:existing.value,bundle:bundleId.value,environment:environment.value,parameters:selectedEnv.value?.parameters,form:form.value,definitionMode:definitionMode.value,simple:simple.value,scripts:plannedScripts.value});
     if (preparedSignature === signature && releaseId.value) {
       // 预检查失败重试复用已准备版本，避免重复创建不可变版本。
     } else if (existing.value) {
@@ -300,7 +280,7 @@ async function preflight() {
       const r = await api(
         "POST",
         `/applications/${id}/releases?environment_id=${environment.value}`,
-        { ...form.value, compose: definition },
+        { ...form.value, compose: definition,save_definition:true },
       );
       releaseId.value = r.id;
     }
@@ -329,8 +309,9 @@ async function deploy() {
       restore_configuration: restoreConfiguration.value,
       idempotency_key: executionKey,
     });
+    markSaved();
     busy.value = false;
-    await router.push(`/deployments/${d.id}`);
+    await router.replace(`/deployments/${d.id}`);
   } catch (e) {
     error.value = errorText(e);
   } finally {
@@ -342,16 +323,16 @@ async function loadOptions() {
   loading.value = true; error.value = '';
   try {
     const results = await Promise.all([
-      api('GET', `/applications/${id}`,undefined,optionsController.signal), api<any[]>('GET','/registries',undefined,optionsController.signal), api<any[]>('GET','/bundles',undefined,optionsController.signal), api<any[]>('GET','/managed-templates',undefined,optionsController.signal),
+      api('GET', `/applications/${id}`,undefined,optionsController.signal), api<any[]>('GET','/registries',undefined,optionsController.signal), api<any[]>('GET','/bundles',undefined,optionsController.signal),
     ]);
     if(disposed)return;
-    data.value = results[0]; registries.value = results[1] || []; bundles.value = results[2] || []; templates.value = results[3] || [];
-    if (!data.value.environments?.some((item:any)=>item.id===environment.value)) environment.value=data.value.environments?.[0]?.id;
-    if (!form.value.registry_id) form.value.registry_id=registries.value.find(item=>item.is_default)?.id || registries.value[0]?.id || 0;
+    data.value = results[0]; registries.value = results[1] || []; bundles.value = results[2] || [];
+    if (!data.value.environments?.some((item:any)=>item.id===environment.value)) environment.value=data.value.environments?.find((item:any)=>item.id===Number(route.query.environment))?.id || data.value.environments?.[0]?.id;
+    if (!form.value.registry_id) form.value.registry_id=defaultReleaseRegistry(registries.value);
+    if(!defaultsLoaded.value){const definition=data.value.application?.definition;if(definition?.compose && !existing.value){form.value.compose=definition.compose;form.value.configs=JSON.stringify(definition.configs || {},null,2);form.value.registry_id=selectedEnv.value?.registry_id || defaultReleaseRegistry(registries.value);definitionMode.value='compose';if(route.query.prepare==='template')step.value=2}defaultsLoaded.value=true;markSaved()}
   } catch(cause) { if(!disposed)error.value=errorText(cause) }
   finally { loading.value=false }
 }
-onBeforeRouteLeave(()=>!busy.value);
 onMounted(loadOptions);
 onBeforeUnmount(()=>{disposed=true;optionsController.abort()});
 </script>
