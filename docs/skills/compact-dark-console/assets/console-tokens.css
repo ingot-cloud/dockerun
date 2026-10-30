@@ -1,0 +1,79 @@
+/* 紧凑深色工作台：按需映射到项目主题，不包含组件覆盖或全局重置。
+ * 在工作区根节点设置 data-console-theme="dark"；根部浮层需同样获得主题。
+ * 颜色与尺寸说明见 references/visual.md。
+ */
+[data-console-theme="dark"] {
+  color-scheme: dark;
+
+  --cdc-bg-page: #151515;
+  --cdc-bg-surface: #202020;
+  --cdc-bg-input: #171717;
+  --cdc-bg-header: #303030;
+  --cdc-bg-hover: #282828;
+  --cdc-bg-selected: #24343c;
+  --cdc-border: #303030;
+  --cdc-border-control: #3b3b3b;
+  --cdc-border-control-hover: #666;
+
+  --cdc-text-primary: #ebebeb;
+  --cdc-text-regular: #d6d6d6;
+  --cdc-text-secondary: #999;
+  --cdc-text-muted: #888;
+  --cdc-link: #35acd7;
+  --cdc-link-hover: #76cdec;
+  --cdc-focus: #33a7d5;
+
+  --cdc-action-bg: #eee;
+  --cdc-action-border: #eee;
+  --cdc-action-text: #262626;
+  --cdc-action-hover-bg: #fff;
+  --cdc-action-hover-text: #111;
+  --cdc-danger-bg: #482427;
+  --cdc-danger-border: #6c3439;
+  --cdc-danger-text: #f1a7ac;
+  --cdc-danger-hover-bg: #673035;
+  --cdc-danger-hover-border: #9a4d54;
+  --cdc-danger-hover-text: #ffd6d9;
+
+  --cdc-error-bg: #3c2528;
+  --cdc-error-text: #ffc3c8;
+  --cdc-warning-bg: #3a3020;
+  --cdc-warning-text: #e6c48e;
+  --cdc-success-bg: #23362b;
+  --cdc-success-text: #acd6bc;
+  --cdc-info-bg: #075474;
+  --cdc-info-text: #d4ecf6;
+  --cdc-icon-bg: #303844;
+  --cdc-icon-text: #c6d4e5;
+
+  --cdc-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --cdc-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --cdc-font-title: 18px;
+  --cdc-font-section: 15px;
+  --cdc-font-body: 13px;
+  --cdc-font-control: 12px;
+  --cdc-font-small: 11px;
+  --cdc-line-title: 28px;
+  --cdc-line-section: 24px;
+  --cdc-line-body: 20px;
+  --cdc-weight-heading: 600;
+
+  --cdc-radius-card: 10px;
+  --cdc-radius-control: 4px;
+  --cdc-radius-code: 6px;
+  --cdc-page-block: 18px;
+  --cdc-page-inline: 20px;
+  --cdc-gap-module: 16px;
+  --cdc-gap-action: 8px;
+  --cdc-control-height: 32px;
+  --cdc-form-control-height: 36px;
+  --cdc-content-max: 1100px;
+}
+
+@media (max-width: 760px) {
+  [data-console-theme="dark"] {
+    --cdc-page-block: 12px;
+    --cdc-page-inline: 12px;
+    --cdc-gap-module: 12px;
+  }
+}
