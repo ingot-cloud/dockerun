@@ -15,7 +15,7 @@ SERVER_ADDR ?= 127.0.0.1:8080
 # Local Make targets default to Docker Desktop's host address; override for other environments.
 PUBLIC_URL ?= http://host.docker.internal:8080
 BACKEND_URL ?= http://127.0.0.1:8080
-FRONTEND_PORT ?= 5173
+FRONTEND_PORT ?= 5999
 BACKEND_ENV = DATA_DIR="$(abspath $(DATA_DIR))" TEMPLATE_DIR="$(abspath $(TEMPLATE_DIR))" DATABASE_TYPE="$(DATABASE_TYPE)" SERVER_ADDR="$(SERVER_ADDR)" PUBLIC_URL="$(PUBLIC_URL)"
 
 .PHONY: help build run clean docker-build docker-run docker-stop docker-logs install-deps dev-frontend dev-backend test-backend lint-backend
