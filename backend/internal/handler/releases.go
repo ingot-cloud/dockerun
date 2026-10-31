@@ -50,15 +50,50 @@ func ApplicationDetail(c *gin.Context) {
 		c.JSON(404, gin.H{"error": "应用不存在"})
 		return
 	}
-	var envs []models.Environment
-	var versions []models.Release
-	database.DB.Where("application_id = ?", a.ID).Find(&envs)
-	database.DB.Where("application_id = ?", a.ID).Order("id DESC").Find(&versions)
+	envs := []environmentSummary{}
+	versions := []releaseSummary{}
+	if err := database.DB.Model(&models.Environment{}).Where("application_id = ?", a.ID).Find(&envs).Error; err != nil {
+		fail(c, err)
+		return
+	}
+	if err := database.DB.Model(&models.Release{}).Where("application_id = ?", a.ID).Order("id DESC").Find(&versions).Error; err != nil {
+		fail(c, err)
+		return
+	}
 	var states []models.TargetState
-	database.DB.Where("environment_id IN (?)", database.DB.Model(&models.Environment{}).Select("id").Where("application_id = ?", a.ID)).Find(&states)
+	if err := database.DB.Where("environment_id IN (?)", database.DB.Model(&models.Environment{}).Select("id").Where("application_id = ?", a.ID)).Find(&states).Error; err != nil {
+		fail(c, err)
+		return
+	}
+	ids := make([]uint, 0, len(versions))
+	for _, version := range versions {
+		ids = append(ids, version.ID)
+	}
+	reasons, err := releaseDeletionReasons(database.DB, ids)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	for i := range versions {
+		versions[i].DeletionBlockedReason = reasons[versions[i].ID]
+	}
+	environmentIDs := make([]uint, 0, len(envs))
+	for _, environment := range envs {
+		environmentIDs = append(environmentIDs, environment.ID)
+	}
+	environmentReasons, err := environmentDeletionReasons(database.DB, environmentIDs)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	for i := range envs {
+		envs[i].DeletionBlockedReason = environmentReasons[envs[i].ID]
+	}
 	c.JSON(200, gin.H{"application": a, "environments": envs, "releases": versions, "targets": states})
 }
 func SaveApplicationScripts(c *gin.Context) {
+	builtin.ReferenceGate.RLock()
+	defer builtin.ReferenceGate.RUnlock()
 	var q struct {
 		Scripts models.DeploymentScripts `json:"scripts"`
 	}
@@ -84,6 +119,8 @@ func SaveApplicationScripts(c *gin.Context) {
 	c.JSON(200, app)
 }
 func SaveEnvironment(c *gin.Context) {
+	builtin.ReferenceGate.RLock()
+	defer builtin.ReferenceGate.RUnlock()
 	var q models.Environment
 	if err := c.ShouldBindJSON(&q); err != nil {
 		fail(c, err)
@@ -459,7 +496,7 @@ func DeploymentDetail(c *gin.Context) {
 }
 func DeploymentEvents(c *gin.Context) {
 	var d models.Deployment
-	if database.DB.First(&d, c.Param("id")).Error != nil {
+	if database.DB.Where("history_deleted_at IS NULL").First(&d, c.Param("id")).Error != nil {
 		c.Status(404)
 		return
 	}
@@ -482,7 +519,9 @@ func DeploymentEvents(c *gin.Context) {
 			c.Writer.WriteString("\n\n")
 			after = int(l.ID)
 		}
-		database.DB.First(&d, d.ID)
+		if database.DB.Where("history_deleted_at IS NULL").First(&d, d.ID).Error != nil {
+			return
+		}
 		c.SSEvent("status", d)
 		c.Writer.Flush()
 		if d.Status != "queued" && d.Status != "running" {
@@ -521,7 +560,11 @@ func Overview(c *gin.Context) {
 	counts := map[string]int64{}
 	for k, m := range map[string]any{"applications": &models.Application{}, "deployments": &models.Deployment{}, "bundles": &models.Bundle{}, "image_events": &models.ImageEvent{}} {
 		var n int64
-		database.DB.Model(m).Count(&n)
+		query := database.DB.Model(m)
+		if k == "deployments" {
+			query = query.Where("history_deleted_at IS NULL")
+		}
+		query.Count(&n)
 		counts[k] = n
 	}
 	var envs []models.Environment

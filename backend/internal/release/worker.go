@@ -68,11 +68,20 @@ func Stop() {
 func Enqueue(env models.Environment, r models.Release, uid uint, key string, automatic bool, event uint) (*models.Deployment, error) {
 	builtin.ReferenceGate.RLock()
 	defer builtin.ReferenceGate.RUnlock()
+	var application models.Application
+	var storedEnvironment models.Environment
+	var storedRelease models.Release
+	if database.DB.First(&application, r.ApplicationID).Error != nil || database.DB.Where("id = ? AND application_id = ?", env.ID, application.ID).First(&storedEnvironment).Error != nil || database.DB.Where("id = ? AND application_id = ?", r.ID, application.ID).First(&storedRelease).Error != nil {
+		return nil, fmt.Errorf("应用、环境或发布版本已删除，请刷新后重试")
+	}
 	if key == "" {
 		key = identity.Random()
 	}
 	var old models.Deployment
 	if database.DB.Where("idempotency_key = ?", key).First(&old).Error == nil {
+		if old.HistoryDeletedAt != nil {
+			return nil, fmt.Errorf("该请求对应的部署记录已删除，请重新发起部署")
+		}
 		return &old, nil
 	}
 	if r.ApplicationID != env.ApplicationID {
@@ -163,8 +172,13 @@ func eligible(env models.Environment, uid uint) bool {
 	return false
 }
 func finish(d *models.Deployment, status, result string) {
+	builtin.ReferenceGate.RLock()
+	defer builtin.ReferenceGate.RUnlock()
 	now := time.Now()
-	database.DB.Model(d).Updates(map[string]any{"status": status, "stage": "complete", "result": result, "completed_at": &now})
+	resultUpdate := database.DB.Model(d).Where("history_deleted_at IS NULL").Updates(map[string]any{"status": status, "stage": "complete", "result": result, "completed_at": &now})
+	if resultUpdate.Error != nil || resultUpdate.RowsAffected == 0 {
+		return
+	}
 	Log(d, "complete", result)
 	if status == "success" {
 		refreshRetention(d.EnvironmentID)
@@ -469,6 +483,16 @@ func RemoteFailure(d *models.Deployment, status, result string) { finish(d, stat
 func SaveRelease(r *models.Release) error {
 	builtin.ReferenceGate.RLock()
 	defer builtin.ReferenceGate.RUnlock()
+	var application models.Application
+	if err := database.DB.First(&application, r.ApplicationID).Error; err != nil {
+		return fmt.Errorf("应用已删除或不可用，请刷新后重试：%w", err)
+	}
+	if r.BundleID != 0 {
+		var bundle models.Bundle
+		if err := database.DB.First(&bundle, r.BundleID).Error; err != nil {
+			return fmt.Errorf("发布包已删除或不可用，请刷新后重试：%w", err)
+		}
+	}
 	return database.DB.Create(r).Error
 }
 func refreshRetention(environmentID uint) {
@@ -479,7 +503,7 @@ func refreshRetention(environmentID uint) {
 	var envs []uint
 	database.DB.Model(&models.Environment{}).Where("application_id = ?", env.ApplicationID).Pluck("id", &envs)
 	var history []models.Deployment
-	database.DB.Where("environment_id IN ? AND status = ?", envs, "success").Order("id DESC").Find(&history)
+	database.DB.Where("environment_id IN ? AND status = ?", envs, "success").Where("release_id IN (?)", database.DB.Model(&models.Release{}).Select("id")).Order("id DESC").Find(&history)
 	keep := map[uint]bool{}
 	successful := map[uint]bool{}
 	perTarget := map[string]map[uint]bool{}
@@ -569,7 +593,7 @@ func RetentionProtection(r models.Release) string {
 		return "执行与恢复材料受保护"
 	}
 	var history []models.Deployment
-	database.DB.Where("environment_id IN (?) AND status = ?", database.DB.Model(&models.Environment{}).Select("id").Where("application_id = ?", r.ApplicationID), "success").Order("id DESC").Find(&history)
+	database.DB.Where("environment_id IN (?) AND status = ?", database.DB.Model(&models.Environment{}).Select("id").Where("application_id = ?", r.ApplicationID), "success").Where("release_id IN (?)", database.DB.Model(&models.Release{}).Select("id")).Order("id DESC").Find(&history)
 	seen := map[string]map[uint]bool{}
 	for _, d := range history {
 		k := fmt.Sprintf("%d:%d", d.EnvironmentID, d.TargetID)

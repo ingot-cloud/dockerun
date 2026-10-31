@@ -133,6 +133,8 @@ type Deployment struct {
 	StartedAt         *time.Time `json:"started_at"`
 	CompletedAt       *time.Time `json:"completed_at"`
 	LeaseUntil        *time.Time `json:"lease_until"`
+	// 历史记录删除后保留执行快照，供运行检查、恢复配置和回滚使用。
+	HistoryDeletedAt *time.Time `json:"-" gorm:"index"`
 }
 type TaskLog struct {
 	EventKey     *string   `json:"-" gorm:"size:100;uniqueIndex"`

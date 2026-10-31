@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"dockerun/internal/builtin"
 	"dockerun/internal/database"
 	"dockerun/internal/identity"
 	"dockerun/internal/models"
@@ -197,6 +198,8 @@ func AgentHeartbeat(c *gin.Context) {
 	c.JSON(200, gin.H{"lease_until": t})
 }
 func AgentLog(c *gin.Context) {
+	builtin.ReferenceGate.RLock()
+	defer builtin.ReferenceGate.RUnlock()
 	d, _, err := agentTask(c)
 	if err != nil {
 		c.Status(403)

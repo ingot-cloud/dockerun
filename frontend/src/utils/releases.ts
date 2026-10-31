@@ -30,3 +30,7 @@ export function automationIssue(environment: any, releases: any[]): string {
   if (!releaseImages(base).some(image => imageRepository(image.reference) === environment.repository.trim())) return '镜像名称必须包含在此环境当前成功版本中。'
   return ''
 }
+
+export function releaseDeletionReason(version: {deletion_blocked_reason?: string}): string {
+  return typeof version.deletion_blocked_reason === 'string' ? version.deletion_blocked_reason : '版本引用状态尚未确认，请刷新后重试'
+}

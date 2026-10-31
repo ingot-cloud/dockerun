@@ -1,5 +1,6 @@
 <template>
   <WorkspaceEditor :title="template?`从 ${template.name} 创建应用`:'从模板创建应用'" :loading="loading" :busy="saving" @refresh="load">
+    <template #navigation><ApplicationSetupSteps :step="created?2:0" /></template>
     <template v-if="template" #actions><router-link v-if="created" :to="`/applications/${created.application.id}`">查看已创建应用</router-link><el-button type="primary" :disabled="loading" :loading="saving" @click="create">{{created?'继续准备发布':'创建并准备发布'}}</el-button></template>
     <template v-if="error || actionError" #feedback>
       <div v-if="error" class="management-error" role="alert"><span>{{error}}</span><el-button link :disabled="saving" @click="load">重试</el-button></div>
@@ -26,6 +27,7 @@ import { api,errorText } from '@/api/workspace'
 import { copyScripts,defaultReleaseRegistry,hasScripts,type ReleaseRegistry } from '@/utils/releases'
 import { templateValues,validateTemplateValues,retargetTemplateImages } from '@/utils/applicationTemplates'
 import WorkspaceEditor from '@/components/WorkspaceEditor.vue'
+import ApplicationSetupSteps from '@/components/ApplicationSetupSteps.vue'
 import TemplateParameters from '@/components/TemplateParameters.vue'
 import DeploymentScriptEditor from '@/components/DeploymentScriptEditor.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'

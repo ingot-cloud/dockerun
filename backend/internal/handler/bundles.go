@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"dockerun/internal/builtin"
 	"dockerun/internal/bundle"
 	"dockerun/internal/config"
 	"dockerun/internal/database"
@@ -270,6 +271,8 @@ func ListBundles(c *gin.Context) {
 	c.JSON(200, rows)
 }
 func BundleVersion(c *gin.Context) {
+	builtin.ReferenceGate.RLock()
+	defer builtin.ReferenceGate.RUnlock()
 	var q struct {
 		ApplicationID uint `json:"application_id"`
 	}
@@ -328,7 +331,8 @@ func BundleVersion(c *gin.Context) {
 	images, _ := json.Marshal(m.Images)
 	conf, _ := json.Marshal(configs)
 	r := models.Release{ApplicationID: q.ApplicationID, Version: m.Version, Source: "bundle", BundleID: b.ID, Platform: m.Platform, Compose: string(content), Images: string(images), Configs: string(conf), PublisherID: c.GetUint("user_id"), GitCommit: m.GitCommit, Retained: true, Scripts: a.Scripts}
-	if err := release.SaveRelease(&r); err != nil {
+	// 当前请求已持有引用锁，避免重复获取读锁。
+	if err := database.DB.Create(&r).Error; err != nil {
 		fail(c, err)
 		return
 	}
@@ -393,6 +397,8 @@ func processImageArchive(b models.Bundle) {
 }
 
 func RetryBundle(c *gin.Context) {
+	builtin.ReferenceGate.RLock()
+	defer builtin.ReferenceGate.RUnlock()
 	var b models.Bundle
 	if database.DB.First(&b, c.Param("id")).Error != nil {
 		c.Status(404)

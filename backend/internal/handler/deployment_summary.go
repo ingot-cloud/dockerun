@@ -25,6 +25,7 @@ type deploymentSummary struct {
 
 func deploymentSummaries() *gorm.DB {
 	return database.DB.Model(&models.Deployment{}).
+		Where("deployments.history_deleted_at IS NULL").
 		Select(`deployments.*, applications.id AS application_id, applications.name AS application_name,
 			environments.name AS environment_name, releases.version AS release_version,
 			targets.name AS target_name, users.username AS username, deploy_scripts.name AS legacy_script_name`).

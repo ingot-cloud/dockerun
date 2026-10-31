@@ -1,21 +1,46 @@
 <template>
-  <WorkspaceEditor :title="data.application?.name || '应用详情'" :loading="loading" :busy="busy" @refresh="load()">
-    <template #actions><el-button type="primary" :disabled="loading || !data.application || busy" @click="router.push({path:`/applications/${id}/deploy`,query:route.query})">发布应用</el-button></template>
+  <WorkspaceEditor class="application-detail-editor" :class="{'application-detail-editor--list':activeTab!=='configuration'}" :title="data.application?.name || '应用详情'" :loading="loading" :busy="busy" :reset-key="activeTab" @refresh="load()">
+    <template #actions><el-button type="primary" :disabled="loading || !data.application || busy || !environmentRows.length" :title="environmentRows.length?'准备镜像并发布应用':'请先添加部署环境'" @click="prepareDeployment()">发布应用</el-button></template>
+    <template #navigation>
+      <div v-if="data.application && setupStep<3" class="application-setup-guide" aria-label="首次发布指引">
+        <ApplicationSetupSteps :step="setupStep" />
+        <div class="application-setup-next"><span>{{setupStep===1?'下一步：选择主机，配置首个环境。':'下一步：准备镜像，预检查后首次手动发布。'}}</span><el-button link type="primary" :disabled="busy || loading || (setupStep===1 && (optionsLoading || !!optionsError))" @click="setupStep===1?edit():prepareDeployment()">{{setupStep===1?'配置首个环境':'准备首次发布'}}<span aria-hidden="true"> →</span></el-button></div>
+      </div>
+      <nav class="application-detail-tabs" aria-label="应用详情视图">
+        <button v-for="tab in tabs" :key="tab.value" type="button" :aria-current="activeTab===tab.value?'page':undefined" :disabled="busy" @click="activeTab=tab.value">{{tab.label}}<span v-if="tab.value!=='configuration'">{{tab.value==='environments'?environmentRows.length:versions.length}}</span></button>
+      </nav>
+    </template>
     <template v-if="error || actionError || optionsError" #feedback>
       <div v-if="error || actionError" class="management-error" role="alert"><span>{{error || actionError}}</span><el-button link :disabled="loading || busy" @click="actionError='';load()">重试</el-button></div>
       <div v-if="optionsError" class="management-warning" role="alert"><span>{{optionsError}}</span><el-button link :disabled="optionsLoading || busy" @click="loadOptions">重试</el-button></div>
     </template>
-  <div class="workspace-page workspace-editor-page">
+    <div class="application-detail-page workspace-editor-page">
+      <ResourceList v-if="activeTab==='environments'" key="environments" class="application-environment-list" selection :selectable="row=>!environmentDeletionReason(row)" @selection-change="selectedEnvironments=$event" title="部署环境" icon="Connection" :items="environmentRows" :loading="loading" :busy="busy" :search-keys="['name','target_name','current_version']" query-prefix="env_" placeholder="搜索环境、主机或当前版本…" :sorts="[{key:'name',label:'环境名称'}]" empty-text="暂无部署环境" @refresh="load()">
+        <template #actions><el-button type="danger" :disabled="busy || loading || !selectedEnvironments.length" :title="selectedEnvironments.length?'删除选中的部署环境':'请先勾选没有活动任务的部署环境'" @click="openDeleteEnvironments(selectedEnvironments)">批量删除</el-button><el-button type="primary" :disabled="busy || loading || optionsLoading || !!optionsError || !data.application" @click="edit()">添加环境</el-button></template>
+        <el-table-column prop="name" label="环境" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="target_name" label="目标主机" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="current_version" label="当前版本" min-width="150" show-overflow-tooltip />
+        <el-table-column label="健康状态" width="140"><template #default="{row}"><StatusBadge :value="row.health" /></template></el-table-column>
+        <el-table-column label="发布方式" min-width="170"><template #default="{row}">{{row.auto_deploy?'自动（受推送人限制）':'手动'}}</template></el-table-column>
+        <el-table-column label="操作" width="230" :fixed="narrow?false:'right'"><template #default="{row}"><div class="management-row-actions"><el-button link type="primary" :disabled="busy || !!optionsError || optionsLoading" @click="edit(row)">配置</el-button><el-button link :disabled="busy || !!optionsError || optionsLoading" @click="clone(row)">复制</el-button><router-link :to="{path:'/deployments',query:{environment_id:row.id}}">记录</router-link><el-tooltip :content="environmentDeletionReason(row)" :disabled="!environmentDeletionReason(row)"><span><el-button link type="danger" :disabled="busy || loading || !!environmentDeletionReason(row)" :aria-label="`删除部署环境 ${row.name} #${row.id}`" @click="openDeleteEnvironments([row])">删除</el-button></span></el-tooltip></div></template></el-table-column>
+        <template #empty><span>添加首个环境，选择目标主机并填写部署参数。</span></template>
+      </ResourceList>
+      <ResourceList v-else-if="activeTab==='releases'" key="releases" title="发布版本" icon="Collection" :items="versions" :loading="loading" :busy="busy" selection :selectable="row=>!releaseDeletionReason(row)" :search-keys="['version','platform','id']" query-prefix="release_" placeholder="搜索版本、平台或编号…" :sorts="[{key:'created_at',label:'创建时间'},{key:'version',label:'版本名称'}]" empty-text="暂无发布版本" @refresh="load()" @selection-change="selectedVersions=$event">
+        <template #actions><el-button type="danger" :disabled="busy || loading || !selectedVersions.length" :title="selectedVersions.length?'删除选中的发布版本':'请先勾选未被使用的发布版本'" @click="openDeleteVersions(selectedVersions)">批量删除</el-button></template>
+        <el-table-column prop="version" label="版本" min-width="190" show-overflow-tooltip />
+        <el-table-column label="来源" width="130"><template #default="{row}">{{sourceLabel(row.source)}}</template></el-table-column>
+        <el-table-column label="平台" width="130"><template #default="{row}">{{row.platform || '—'}}</template></el-table-column>
+        <el-table-column label="创建时间" width="180"><template #default="{row}">{{formatDate(row.created_at)}}</template></el-table-column>
+        <el-table-column label="操作" width="300" :fixed="narrow?false:'right'"><template #default="{row}"><div class="management-row-actions"><el-button link type="primary" :disabled="busy || !environmentRows.length" @click="prepareDeployment(row.id)">晋升 / 恢复</el-button><el-button link :disabled="busy" @click="inspect=row">查看版本</el-button><el-button v-if="row.source==='bundle'" link type="primary" :loading="publishing===row.id" :disabled="busy" @click="publishBundle(row)">镜像入库</el-button><el-tooltip :content="releaseDeletionReason(row)" :disabled="!releaseDeletionReason(row)"><span><el-button link type="danger" :disabled="busy || loading || !!releaseDeletionReason(row)" :aria-label="`删除发布版本 ${row.version} #${row.id}`" @click="openDeleteVersions([row])">删除</el-button></span></el-tooltip></div></template></el-table-column>
+        <template #empty><span>通过「发布应用」准备镜像并创建首个版本。</span></template>
+      </ResourceList>
+      <div v-else class="workspace-page application-configuration">
     <p class="management-description">{{data.application?.description || '独立管理各环境的版本、健康与发布授权。'}}</p>
     <section v-if="data.application?.definition?.compose" class="management-card"><header class="management-toolbar"><h2>{{templateCategory(data.application.category)}}配置</h2><el-button :disabled="busy" @click="openSaveTemplate">另存为应用模板</el-button></header><div class="management-card-body" style="padding-top:0"><p class="management-description">{{data.application.template_id?`创建来源：${data.application.template_id} · ${data.application.template_version}。`:'此应用已保存可复用定义。'}} 应用持有独立配置，模板更新不会修改此应用。</p><p v-if="data.application.definition.storage" class="management-form-help">持久化：{{data.application.definition.storage}}</p><p v-if="data.application.definition.initialization" class="management-form-help">首次初始化：{{data.application.definition.initialization}}</p><p class="management-form-help">{{data.application.definition.instructions}}</p><p v-if="data.application.definition.stateful" class="management-form-help">升级方式：先在环境配置中调整镜像版本，再点击「发布应用」预检查并手动部署。业务数据需单独备份。</p></div></section>
-    <section v-if="data.application?.definition?.endpoints?.length && data.environments?.some((env:any)=>env.current_release_id)" class="management-card"><header class="management-toolbar"><h2>环境访问配置</h2></header><div class="management-card-body" style="padding-top:0"><template v-for="env in data.environments.filter((env:any)=>env.current_release_id)" :key="env.id"><p class="management-description">{{env.name}}{{env.target_id>1?'（远程主机请替换为实际访问地址）':''}}</p><div v-for="endpoint in environmentEndpoints(env)" :key="endpoint.name" class="management-row-actions application-endpoint"><span>{{endpoint.name}}</span><code>{{endpoint.address}}</code><el-button link @click="copyEndpoint(endpoint.address)">复制地址</el-button></div></template><p class="management-form-help">地址根据环境参数生成，发布后请确认网络可达。访问凭据在环境配置中管理。</p></div></section>
-    <section class="management-card application-guide">
-      <header class="management-toolbar"><h2>首次发布与自动发布</h2><span class="management-muted">{{ data.environments?.some((env:any)=>env.current_release_id) ? '已有环境完成发布' : '请先完成一次手动发布' }}</span></header>
-      <ol><li><strong>配置环境</strong><span>选择目标主机，填写环境参数，并配置部署脚本或沿用应用脚本。</span></li><li><strong>准备镜像</strong><span>将镜像推送到<router-link to="/builtin">内置仓库</router-link>，内置仓库无需配置 Webhook。</span></li><li><strong>首次手动发布</strong><span>点击「发布应用」，配置镜像、端口、挂载、应用栈及配置文件，预检查后确认部署。</span></li><li><strong>开启自动发布</strong><span>首次成功后，在环境配置中开启自动发布。授权用户推送匹配镜像和标签后，系统沿用该环境当前版本的定义自动部署。</span></li></ol>
-    </section>
+    <section v-if="data.application?.definition?.endpoints?.length && environments.some((env:any)=>env.current_release_id)" class="management-card"><header class="management-toolbar"><h2>环境访问配置</h2></header><div class="management-card-body" style="padding-top:0"><template v-for="env in environments.filter((env:any)=>env.current_release_id)" :key="env.id"><p class="management-description">{{env.name}}{{env.target_id>1?'（远程主机请替换为实际访问地址）':''}}</p><div v-for="endpoint in environmentEndpoints(env)" :key="endpoint.name" class="management-row-actions application-endpoint"><span>{{endpoint.name}}</span><code>{{endpoint.address}}</code><el-button link @click="copyEndpoint(endpoint.address)">复制地址</el-button></div></template><p class="management-form-help">地址根据环境参数生成，发布后请确认网络可达。访问凭据在环境配置中管理。</p></div></section>
     <section class="management-card"><header class="management-toolbar"><h2>应用部署脚本</h2><el-button :disabled="busy || !data.application" @click="openScripts">配置应用脚本</el-button></header><div class="management-card-body" style="padding-top:0"><p class="management-description">{{ hasScripts(data.application?.scripts) ? '已配置应用脚本，手动和自动创建的新版本都会保存脚本快照。' : '尚未配置脚本，系统默认使用 Compose 部署。需要准备目录、自定义启动或部署后检查时，可在此配置。' }} 环境可以单独覆盖或停用脚本，已有版本保留原脚本。</p></div></section>
-    <ResourceList title="部署环境" icon="Connection" :items="data.environments || []" :loading="loading" :busy="busy" query-prefix="env_" :sorts="[{key:'name',label:'环境名称'}]" empty-text="暂无部署环境" style="flex:none;height:370px" @refresh="load()"><template #actions><el-button type="primary" :disabled="optionsLoading || !!optionsError || !data.application" @click="edit()">添加环境</el-button></template><el-table-column prop="name" label="环境" min-width="150" /><el-table-column label="目标主机" width="120"><template #default="{row}">{{row.target_id>1?`主机 #${row.target_id}`:'本机'}}</template></el-table-column><el-table-column label="当前版本" width="120"><template #default="{row}">{{row.current_release_id?`#${row.current_release_id}`:'尚未发布'}}</template></el-table-column><el-table-column label="健康状态" width="180"><template #default="{row}"><StatusBadge :value="row.health" /></template></el-table-column><el-table-column label="发布方式" min-width="180"><template #default="{row}">{{row.auto_deploy?'自动（受推送人限制）':'手动'}}</template></el-table-column><el-table-column label="操作" width="190"><template #default="{row}"><div class="management-row-actions"><el-button link type="primary" :disabled="busy || !!optionsError || optionsLoading" @click="edit(row)">配置</el-button><el-button link :disabled="busy || !!optionsError || optionsLoading" @click="clone(row)">复制</el-button><router-link :to="{path:'/deployments',query:{environment_id:row.id}}">记录</router-link></div></template></el-table-column></ResourceList>
-    <ResourceList title="发布版本" icon="Collection" :items="data.releases || []" :loading="loading" :busy="busy" :search-keys="['version','platform','id']" query-prefix="release_" :sorts="[{key:'created_at',label:'创建时间'},{key:'version',label:'版本名称'}]" empty-text="暂无发布版本" style="flex:none;height:420px" @refresh="load()"><el-table-column prop="version" label="版本" min-width="170" /><el-table-column label="来源" width="140"><template #default="{row}">{{sourceLabel(row.source)}}</template></el-table-column><el-table-column label="平台" width="140"><template #default="{row}">{{row.platform || '—'}}</template></el-table-column><el-table-column label="创建时间" width="180"><template #default="{row}">{{formatDate(row.created_at)}}</template></el-table-column><el-table-column label="操作" min-width="260"><template #default="{row}"><div class="management-row-actions"><el-button link type="primary" :disabled="busy" @click="router.push({path:`/applications/${id}/deploy`,query:{...route.query,release:row.id}})">晋升 / 恢复</el-button><el-button link @click="inspect=row">查看版本</el-button><el-button v-if="row.source==='bundle'" link type="primary" :loading="publishing===row.id" :disabled="busy" @click="publishBundle(row)">镜像入库</el-button></div></template></el-table-column></ResourceList>
+        <section class="management-card"><header class="management-toolbar"><h2>发布操作指引</h2></header><div class="management-card-body application-instructions"><p>先添加环境并配置主机、参数与部署脚本，再通过「发布应用」准备镜像、端口、挂载和配置文件，完成预检查后确认部署。</p><p>首次使用仓库镜像成功发布后，可在环境配置中开启自动发布，指定镜像名称、标签规则和允许触发的用户。推送到内置仓库无需配置 Webhook。</p></div></section>
+      </div>
     <FormDialog v-model="visible" :draft="{form,params,targetIds,publishers,parameterValues}" title="环境配置" wide :loading="saving" confirm-text="保存环境" @confirm="save" @cancel="visible=false">
       <div v-if="formError" class="management-error management-feedback" role="alert">{{formError}}</div>
       <el-form :model="form" label-position="top" :disabled="saving" @submit.prevent="save">
@@ -28,11 +53,14 @@
     <FormDialog :model-value="!!inspect" title="不可变发布版本" extra-wide :show-footer="false" @update:model-value="(value:boolean)=>{if(!value)inspect=null}"><pre class="management-code">{{JSON.stringify(inspect,null,2)}}</pre></FormDialog>
     <FormDialog v-model="scriptsVisible" :draft="scriptDraft" title="应用部署脚本" extra-wide :loading="scriptsSaving" confirm-text="保存应用脚本" @confirm="saveScripts" @cancel="scriptsVisible=false"><div v-if="scriptsError" class="management-error management-feedback" role="alert">{{scriptsError}}</div><p class="management-description">用于之后手动或自动创建的新版本。环境选择独立脚本或停用脚本时，优先使用环境配置。</p><DeploymentScriptEditor v-model="scriptDraft" :disabled="scriptsSaving" /></FormDialog>
     <FormDialog v-model="saveTemplateVisible" :draft="templateForm" title="另存为应用模板" :loading="templateSaving" confirm-text="保存模板" @confirm="saveAsTemplate" @cancel="saveTemplateVisible=false"><div v-if="templateError" class="management-error management-feedback" role="alert">{{templateError}}</div><p class="management-description">保存应用定义、非敏感配置文件和应用脚本；环境参数值、主机和业务数据不会复制。请确认配置文件及脚本没有固定凭据，已有模板版本不会被覆盖。</p><el-form label-position="top" :disabled="templateSaving"><el-form-item label="模板名称" required><el-input v-model="templateForm.name" maxlength="100" /></el-form-item><el-form-item label="模板版本" required><el-input v-model="templateForm.version" placeholder="例如：1.0.0" maxlength="100" /></el-form-item><el-form-item label="用途说明"><el-input v-model="templateForm.description" type="textarea" :rows="2" /></el-form-item></el-form></FormDialog>
+    <ManagementDeleteDialog v-model="environmentDeleteVisible" :items="environmentDeleteTargets" kind="部署环境" :endpoint="`/applications/${id}/environments`" warning="将删除所选环境及其部署状态，无法撤销。应用、发布版本、部署历史和日志会保留，已部署的容器、网络、卷和镜像会保留；删除后无法再通过此环境管理或回滚。存在排队、执行或恢复中的任务时不能删除。" @removed="onEnvironmentsRemoved" />
+    <ManagementDeleteDialog v-model="deleteVisible" :items="deleteTargets" kind="发布版本" endpoint="/releases" warning="将删除所选版本定义，无法撤销，删除后不能再选择该版本发布或晋升。部署历史、执行快照、已部署资源、镜像及原始发布包会保留。正在使用或被排队、执行、恢复中的任务引用的版本不能删除。" @removed="onVersionsRemoved" />
   </div>
   </WorkspaceEditor>
 </template>
 <script setup lang="ts">
-import { computed,onBeforeUnmount,onMounted,ref } from 'vue'
+import { computed,onBeforeUnmount,onMounted,ref,watch } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 import { useRoute,useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/api/request'
@@ -44,17 +72,38 @@ import ResourceList from '@/components/ResourceList.vue'
 import FormDialog from '@/components/FormDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import DeploymentScriptEditor from '@/components/DeploymentScriptEditor.vue'
-import { automationIssue, copyScripts, defaultReleaseRegistry, emptyScripts, hasScripts, imageRepository, releaseImages } from '@/utils/releases'
+import ApplicationSetupSteps from '@/components/ApplicationSetupSteps.vue'
+import ManagementDeleteDialog from '@/components/ManagementDeleteDialog.vue'
+import { workspaceDeleteTargets } from '@/utils/workspaceDeletion'
+import { applicationDetailTab,applicationSetupStep,environmentDeletionReason,type ApplicationDetailTab } from '@/utils/applicationDetail'
+import { automationIssue, copyScripts, defaultReleaseRegistry, emptyScripts, hasScripts, imageRepository, releaseImages, releaseDeletionReason } from '@/utils/releases'
 import TemplateParameters from '@/components/TemplateParameters.vue'
 import { applicationTemplatesApi,type ApplicationTemplate } from '@/api/applicationTemplates'
 import { templateCategory,templateValues,validateTemplateValues,retargetTemplateImages,templateEndpoints } from '@/utils/applicationTemplates'
 const route=useRoute(),router=useRouter(),id=route.params.id
+const narrow=useMediaQuery('(max-width: 760px)')
 const {data,loading,error,load}=useResource<any>(`/applications/${id}`,{})
+const tabs:{value:ApplicationDetailTab;label:string}[]=[{value:'environments',label:'部署环境'},{value:'releases',label:'发布版本'},{value:'configuration',label:'应用配置'}]
+const activeTab=computed({get:()=>applicationDetailTab(route.query.app_view),set:(value:ApplicationDetailTab)=>{if(!busy.value)void router.replace({query:{...route.query,app_view:value}})}})
+const deleteVisible=ref(false),deleteTargets=ref<{id:number;name:string}[]>([]),removedVersionIds=ref(new Set<number>()),selectedVersions=ref<any[]>([])
+const environmentDeleteVisible=ref(false),environmentDeleteTargets=ref<{id:number;name:string}[]>([]),removedEnvironmentIds=ref(new Set<number>()),selectedEnvironments=ref<any[]>([])
+const versions=computed(()=>(data.value.releases || []).filter((row:any)=>!removedVersionIds.value.has(row.id)))
+const environments=computed(()=>(data.value.environments || []).filter((row:any)=>!removedEnvironmentIds.value.has(row.id)))
+const environmentRows=computed(()=>environments.value.map((row:any)=>({...row,target_name:environmentTarget(row),current_version:row.current_release_id?(versions.value.find((version:any)=>version.id===row.current_release_id)?.version || `版本 #${row.current_release_id}`):'尚未发布'})))
+const setupStep=computed(()=>applicationSetupStep(environments.value,(data.value.targets || []).filter((row:any)=>!removedEnvironmentIds.value.has(row.environment_id))))
 const visible=ref(false),saving=ref(false),publishing=ref(0),actionError=ref(''),formError=ref(''),optionsError=ref(''),optionsLoading=ref(false)
 const users=ref<any[]>([]),registries=ref<any[]>([]),hosts=ref<any[]>([]),form=ref<any>({}),params=ref('{}'),targetIds=ref<number[]>([]),publishers=ref<number[]>([]),inspect=ref<any>(null)
 const scriptsVisible=ref(false),scriptsSaving=ref(false),scriptsError=ref(''),scriptDraft=ref(emptyScripts())
 const parameterValues=ref<Record<string,string>>({}),saveTemplateVisible=ref(false),templateSaving=ref(false),templateError=ref(''),templateForm=ref({name:'',version:'1.0.0',description:''});let previousEnvironmentRegistry=0
-const busy=computed(()=>saving.value || scriptsSaving.value || templateSaving.value || !!publishing.value),controller=new AbortController();let disposed=false
+const busy=computed(()=>saving.value || scriptsSaving.value || templateSaving.value || !!publishing.value || deleteVisible.value || environmentDeleteVisible.value),controller=new AbortController();let disposed=false,setupOpened=false
+watch(activeTab,()=>{selectedVersions.value=[];selectedEnvironments.value=[]})
+watch([()=>data.value.application?.id,()=>optionsLoading.value,()=>optionsError.value,()=>route.query.setup],()=>{if(!setupOpened && route.query.setup==='environment' && data.value.application && !loading.value && !optionsLoading.value && !optionsError.value && !environmentRows.value.length){setupOpened=true;edit()}},{flush:'post'})
+function environmentTarget(row:any){const ids=parseArray(row.target_ids);return (ids.length?ids:[row.target_id || 1]).map(id=>hosts.value.find(host=>host.id===id)?.name || (id===1?'本机':`主机 #${id}`)).join('、')}
+function prepareDeployment(version?:number){if(busy.value || loading.value || !environmentRows.value.length)return;const query={...route.query};delete query.release;delete query.setup;if(version)query.release=String(version);void router.push({path:`/applications/${id}/deploy`,query})}
+function openDeleteVersions(items:any[]){if(busy.value || loading.value)return;const targets=workspaceDeleteTargets(items.filter(row=>!releaseDeletionReason(row)),row=>row.id,row=>row.version || `版本 #${row.id}`);if(!targets.length)return;deleteTargets.value=targets;deleteVisible.value=true}
+function onVersionsRemoved(ids:number[]){removedVersionIds.value=new Set([...removedVersionIds.value,...ids]);void load(true)}
+function openDeleteEnvironments(items:any[]){if(busy.value || loading.value)return;const targets=workspaceDeleteTargets(items.filter(row=>!environmentDeletionReason(row)),row=>row.id,row=>row.name || `环境 #${row.id}`);if(!targets.length)return;environmentDeleteTargets.value=targets;environmentDeleteVisible.value=true}
+function onEnvironmentsRemoved(ids:number[]){removedEnvironmentIds.value=new Set([...removedEnvironmentIds.value,...ids]);void load(true)}
 const selectedRegistry=computed(()=>registries.value.find(reg=>reg.id===form.value.registry_id))
 const canEnableAutomatic=computed(()=>data.value.releases?.some((r:any)=>r.id===form.value.current_release_id && r.source==='registry'))
 const automaticIssue=computed(()=>automationIssue(form.value,data.value.releases || []))
@@ -63,7 +112,7 @@ function edit(row?:any){const base=data.value.releases?.find((r:any)=>r.id===row
 function clone(row:any){edit({...row,id:0,current_release_id:0,name:`${row.name}-副本`,auto_deploy:false})}
 function changeEnvironmentRegistry(){parameterValues.value=retargetTemplateImages(data.value.application?.definition?.parameters || [],parameterValues.value,registries.value.find(item=>item.id===previousEnvironmentRegistry),selectedRegistry.value);previousEnvironmentRegistry=form.value.registry_id}
 function environmentParameters(){if(data.value.application?.definition?.parameters?.length){validateTemplateValues(data.value.application.definition.parameters,parameterValues.value);return parameterValues.value}return parseObject(params.value,'环境参数')}
-async function save(){if(saving.value)return;formError.value='';try{if(!form.value.name?.trim())throw new Error('请输入环境名称');if(!form.value.target_id)throw new Error('请选择目标主机');if(form.value.auto_deploy && automaticIssue.value)throw new Error(automaticIssue.value);const payload={id:form.value.id || 0,name:form.value.name.trim(),target_id:form.value.target_id,stateless:Boolean(form.value.stateless),auto_deploy:Boolean(form.value.auto_deploy),registry_id:form.value.registry_id || defaultReleaseRegistry(registries.value),repository:form.value.repository?.trim() || '',tag_pattern:form.value.tag_pattern || '*',parameters:environmentParameters(),target_ids:JSON.stringify(targetIds.value),allowed_publishers:JSON.stringify(publishers.value),auto_rollback:Boolean(form.value.stateless && form.value.auto_rollback),script_mode:form.value.script_mode,scripts:form.value.script_mode==='override'?copyScripts(form.value.scripts):emptyScripts()};saving.value=true;await api('PUT',`/applications/${id}/environments`,payload);visible.value=false;ElMessage.success('环境配置已保存');await load()}catch(cause){formError.value=errorText(cause)}finally{saving.value=false}}
+async function save(){if(saving.value)return;formError.value='';try{if(!form.value.name?.trim())throw new Error('请输入环境名称');if(!form.value.target_id)throw new Error('请选择目标主机');if(form.value.auto_deploy && automaticIssue.value)throw new Error(automaticIssue.value);const payload={id:form.value.id || 0,name:form.value.name.trim(),target_id:form.value.target_id,stateless:Boolean(form.value.stateless),auto_deploy:Boolean(form.value.auto_deploy),registry_id:form.value.registry_id || defaultReleaseRegistry(registries.value),repository:form.value.repository?.trim() || '',tag_pattern:form.value.tag_pattern || '*',parameters:environmentParameters(),target_ids:JSON.stringify(targetIds.value),allowed_publishers:JSON.stringify(publishers.value),auto_rollback:Boolean(form.value.stateless && form.value.auto_rollback),script_mode:form.value.script_mode,scripts:form.value.script_mode==='override'?copyScripts(form.value.scripts):emptyScripts()};saving.value=true;await api('PUT',`/applications/${id}/environments`,payload);visible.value=false;ElMessage.success('环境配置已保存');await load();if(route.query.setup){const query={...route.query};delete query.setup;await router.replace({query})}}catch(cause){formError.value=errorText(cause)}finally{saving.value=false}}
 function openScripts(){scriptDraft.value=copyScripts(data.value.application?.scripts);scriptsError.value='';scriptsVisible.value=true}
 async function saveScripts(){if(scriptsSaving.value)return;scriptsSaving.value=true;scriptsError.value='';try{await api('PUT',`/applications/${id}/scripts`,{scripts:scriptDraft.value});scriptsVisible.value=false;ElMessage.success('应用脚本已保存，新版本将使用此配置');await load()}catch(cause){scriptsError.value=errorText(cause)}finally{scriptsSaving.value=false}}
 function environmentEndpoints(env:any){return templateEndpoints(data.value.application.definition,env.parameters || {},env.target_id>1?'<目标主机地址>':window.location.hostname)}
@@ -74,12 +123,45 @@ async function publishBundle(row:any){if(busy.value)return;publishing.value=row.
 onMounted(loadOptions);onBeforeUnmount(()=>{disposed=true;controller.abort()})
 </script>
 <style scoped>
-.application-endpoint { margin:10px 0;font-size:12px;overflow-wrap:anywhere; }.application-endpoint code { min-width:0;overflow-wrap:anywhere; }
-.application-guide ol { margin: 0; padding: 0 20px 18px 40px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 32px; font-size: 12px; line-height: 20px; }
-.application-guide li { padding-left: 4px; }
-.application-guide li strong,.application-guide li span { display: block; }
-.application-guide li span { color: #999; margin-top: 4px; }
-.application-guide .management-toolbar { flex-wrap: wrap; }
-@media(max-width:760px) { .application-endpoint { margin:10px 0;font-size:12px;overflow-wrap:anywhere; }.application-endpoint code { min-width:0;overflow-wrap:anywhere; }
-.application-guide ol { grid-template-columns: minmax(0,1fr); padding-right: 16px; } }
+.application-detail-editor :deep(.workspace-editor-page) { max-width:none; }
+.application-detail-editor :deep(.workspace-editor-heading) { padding-bottom:10px; }
+.application-detail-editor :deep(.workspace-editor-header-content) { gap:10px; }
+.application-detail-editor :deep(.workspace-editor-navigation) { padding-bottom:0; }
+.application-detail-editor--list :deep(.workspace-editor-scroll) { display:flex; flex-direction:column; overflow:hidden; }
+.application-detail-page { display:flex; flex-direction:column; min-height:0; min-width:0; }
+.application-detail-editor--list .application-detail-page { flex:1; overflow:hidden; }
+.application-detail-page > .resource-list { flex:1; min-height:0; overflow:hidden; }
+.application-detail-page :deep(.resource-list-table) { min-height:0; overflow:hidden; }
+.application-detail-tabs { display:flex; gap:20px; min-width:0; border-bottom:1px solid #303030; }
+.application-detail-tabs button { display:inline-flex; align-items:center; gap:6px; padding:8px 0; border:0; border-bottom:2px solid transparent; background:none; color:#aaa; font:inherit; font-size:13px; cursor:pointer; white-space:nowrap; }
+.application-detail-tabs button[aria-current=page] { color:#35acd7; border-bottom-color:#35acd7; }
+.application-detail-tabs button:disabled { cursor:default; opacity:.5; }
+.application-detail-tabs button:focus-visible { outline:2px solid #35acd7; outline-offset:2px; }
+.application-detail-tabs button span { font-size:11px; color:#888; }
+.application-setup-guide { display:flex; align-items:center; justify-content:space-between; gap:8px 20px; flex-wrap:wrap; padding-bottom:6px; }
+.application-setup-next { display:flex; align-items:center; flex-wrap:wrap; gap:4px 12px; color:#999; font-size:12px; min-width:0; }
+.application-setup-next .el-button { margin:0; font-size:12px; }
+.application-configuration { max-width:1100px; width:100%; margin-inline:auto; }
+.application-configuration > .management-description { margin:0; overflow-wrap:anywhere; }
+.application-endpoint { margin:10px 0; font-size:12px; overflow-wrap:anywhere; }.application-endpoint code { min-width:0; overflow-wrap:anywhere; }
+.application-instructions p { margin:0; font-size:12px; color:#aaa; line-height:1.8; }.application-instructions p + p { margin-top:10px; }
+@media(max-width:760px) {
+  .application-detail-tabs { gap:18px; }
+  .application-detail-editor :deep(.workspace-editor-heading) { flex-wrap:nowrap; gap:8px; }
+  .application-detail-editor :deep(.workspace-editor-heading .workspace-heading-title) { flex:1 1 0; gap:6px; }
+  .application-detail-editor :deep(.workspace-heading-title h1) { font-size:16px; line-height:24px; }
+  .application-detail-editor :deep(.workspace-editor-heading .management-heading-actions) { flex-wrap:nowrap; flex-shrink:0; width:auto; margin-left:auto; gap:4px; }
+  .application-detail-page :deep(.management-toolbar) { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; padding:10px 12px; }
+  .application-detail-page :deep(.management-toolbar .management-actions) { display:contents; }
+  .application-detail-page :deep(.management-toolbar .management-search) { grid-column:1/-1; grid-row:2; width:100%; }
+  .application-detail-page :deep(.management-toolbar .management-actions > .el-button) { grid-column:2; grid-row:1; }
+  .application-detail-page :deep(.application-environment-list .management-toolbar) { grid-template-columns:minmax(0,1fr) auto auto; column-gap:6px; }
+  .application-detail-page :deep(.application-environment-list .management-actions > .el-button:last-child) { grid-column:3; }
+  .application-detail-page :deep(.management-filters) { padding:0 12px 12px; }
+  .application-detail-page :deep(.management-pagination) { gap:6px; padding:8px 12px; }
+  .application-detail-page :deep(.management-pagination > span) { width:auto; flex:1 1 auto; }
+  .application-detail-page :deep(.el-pagination) { --el-pagination-button-width:22px; --el-pagination-button-height:28px; --el-pagination-font-size:12px; --el-pagination-item-gap:0; min-width:0; }
+  .application-detail-page :deep(.management-pagination .el-select) { width:96px; }
+  .application-detail-page :deep(.el-pagination__sizes) { margin-right:6px; }
+}
 </style>

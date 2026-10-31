@@ -75,6 +75,11 @@ func TestConsoleRoundTrip(t *testing.T) {
 			resize <- req.URL.Query().Get("w") + "x" + req.URL.Query().Get("h")
 			w.WriteHeader(200)
 		case strings.HasSuffix(req.URL.Path, "/start"), strings.HasSuffix(req.URL.Path, "/attach"):
+			// 升级连接前读完 HTTP 请求体，避免将启动参数误当成终端输入。
+			if _, err := io.Copy(io.Discard, req.Body); err != nil {
+				t.Error(err)
+				return
+			}
 			connection, buffer, err := w.(http.Hijacker).Hijack()
 			if err != nil {
 				t.Error(err)

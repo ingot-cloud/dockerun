@@ -4,7 +4,7 @@ import test from 'node:test'
 import ts from 'typescript'
 const source=await readFile(new URL('../src/utils/deployments.ts',import.meta.url),'utf8')
 const {outputText}=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ES2020}})
-const {deploymentName,deploymentEnvironment,deploymentVersion,deploymentTarget,deploymentUser}=await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+const {deploymentName,deploymentEnvironment,deploymentVersion,deploymentTarget,deploymentUser,deploymentDeletionReason}=await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 test('部署名称优先使用业务名称和关联资源名称',()=>{
   assert.equal(deploymentName({id:1,name:'网关 · 生产 · v2'}),'网关 · 生产 · v2')
   assert.equal(deploymentName({id:1,application_name:'网关',environment_name:'生产',release_version:'v2'}),'网关 · 生产 · v2')
@@ -25,4 +25,12 @@ test('环境、版本、主机和用户名称覆盖技术编号',()=>{
   assert.equal(deploymentTarget({target_id:1}),'本机')
   assert.equal(deploymentUser({user_id:4,username:'张三'}),'张三')
   assert.equal(deploymentUser({user_id:4}),'用户 #4')
+})
+test('只有已结束且未恢复中的部署记录可删除',()=>{
+  for(const status of ['queued','blocked','running','unknown','']) assert.ok(deploymentDeletionReason({status}))
+  assert.ok(deploymentDeletionReason({}))
+  for(const status of ['success','failed','needs_attention','cancelled','paused']){
+    assert.equal(deploymentDeletionReason({status}),'')
+    assert.ok(deploymentDeletionReason({status,recovery_status:'running'}))
+  }
 })
