@@ -1,0 +1,25 @@
+{
+  "blank_id": 1,
+  "builtin_registry": {
+    "pull_username": "",
+    "pull_only_confirmed": false,
+    "id": 1,
+    "kind": "builtin",
+    "name": "Dockerun 内置仓库",
+    "url": "http://127.0.0.1:18080",
+    "username": "",
+    "password": "***redacted***",
+    "is_default": true,
+    "insecure": false,
+    "email": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "updated_at": "0001-01-01T00:00:00Z"
+  },
+  "blank_env_id": 1,
+  "redis_app_id": 2,
+  "redis_env_id": 2,
+  "mysql_app_id": 3,
+  "mysql_env_id": 3,
+  "web-app_app_id": 4,
+  "web-app_env_id": 4
+}

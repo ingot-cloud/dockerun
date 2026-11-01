@@ -1,0 +1,30 @@
+=== docker ps ===
+NAMES                           IMAGE                STATUS                             PORTS
+dockerun-test-2222-dockerun-1   dockerun:test-2222   Up 22 seconds (health: starting)   127.0.0.1:18081->8080/tcp
+dockerun-a1-e1-demo-1           dc73b49f5124         Up 35 seconds (healthy)            80/tcp
+
+=== compose ps ===
+NAME                            IMAGE                COMMAND                  SERVICE    CREATED          STATUS                             PORTS
+dockerun-test-2222-dockerun-1   dockerun:test-2222   "docker-entrypoint.s…"   dockerun   23 seconds ago   Up 23 seconds (health: starting)   127.0.0.1:18081->8080/tcp
+
+=== compose health ===
+HTTP/1.1 200 OK
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Headers: Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With
+Access-Control-Allow-Methods: POST, OPTIONS, GET, PUT, DELETE, PATCH
+Access-Control-Allow-Origin: *
+Content-Type: application/json; charset=utf-8
+Date: Sun, 01 Nov 2026 11:18:03 GMT
+Content-Length: 15
+
+{"status":"ok"}
+=== local health ===
+{"status":"ok"}
+=== images ===
+REPOSITORY                              TAG           IMAGE ID       SIZE
+dockerun                                test-2222     7b52ad78bf87   287MB
+127.0.0.1:18080/dockerun-test/demo      v1            dc73b49f5124   62.1MB
+127.0.0.1:18080/dockerun-test/demo      v2            dc73b49f5124   62.1MB
+127.0.0.1:18080/dockerun-test/demo      v3            dc73b49f5124   62.1MB
+127.0.0.1:18080/offline/app-1/image-0   release-1     dc73b49f5124   62.1MB
+nginx                                   1.28-alpine   dc73b49f5124   62.1MB

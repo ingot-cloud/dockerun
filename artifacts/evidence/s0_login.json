@@ -1,0 +1,13 @@
+{
+  "code": 200,
+  "body": {
+    "token": "***redacted***",
+    "user": {
+      "enabled": true,
+      "id": 1,
+      "is_admin": true,
+      "registry_access": "read_write",
+      "username": "admin"
+    }
+  }
+}

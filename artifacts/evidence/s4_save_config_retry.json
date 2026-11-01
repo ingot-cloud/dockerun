@@ -1,0 +1,70 @@
+{
+  "code": 200,
+  "body": {
+    "application": {
+      "id": 1,
+      "created_at": "2026-11-01T11:14:23.321519963Z",
+      "updated_at": "2026-11-01T11:16:30.476101145Z",
+      "name": "blank-app-2222",
+      "description": "空白应用隔离测试",
+      "kind": "compose",
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      },
+      "category": "",
+      "template_id": "",
+      "template_version": "",
+      "definition": {
+        "source": "registry",
+        "registry_id": 1,
+        "platform": "linux/amd64",
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "services:\n  demo:\n    image: 127.0.0.1:18080/dockerun-test/demo:v1\n    restart: unless-stopped\n    command: [sh, -c, 'while true; do sleep 30; done']\n    healthcheck:\n      test: [CMD, 'true']\n      interval: 1s\n      timeout: 1s\n      retries: 5\n",
+        "configs": {},
+        "parameters": [],
+        "stateful": false,
+        "topology": "",
+        "instructions": "",
+        "storage": "",
+        "initialization": "",
+        "endpoints": null
+      }
+    },
+    "environment": {
+      "container_names": null,
+      "replace_containers": false,
+      "id": 1,
+      "application_id": 1,
+      "name": "test",
+      "target_id": 1,
+      "target_ids": "[]",
+      "parameters": {
+        "COMPOSE_PROJECT_NAME": "dockerun-a1-e1"
+      },
+      "current_release_id": 2,
+      "stateless": true,
+      "auto_rollback": false,
+      "auto_deploy": false,
+      "registry_id": 1,
+      "repository": "",
+      "tag_pattern": "*",
+      "allowed_publishers": "[]",
+      "script_mode": "inherit",
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      },
+      "health": "healthy",
+      "runtime_state": "running"
+    }
+  }
+}

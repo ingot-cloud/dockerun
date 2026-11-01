@@ -1,0 +1,5 @@
+{
+  "code": 0,
+  "stdout": "Login Succeeded\n",
+  "stderr": "\nWARNING! Your credentials are stored unencrypted in '/home/ubuntu/.docker/config.json'.\nConfigure a credential helper to remove this warning. See\nhttps://docs.docker.com/go/credential-store/\n\n"
+}

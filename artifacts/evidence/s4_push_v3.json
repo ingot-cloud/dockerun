@@ -1,0 +1,6 @@
+{
+  "tag": 0,
+  "push": 0,
+  "stdout": "The push refers to repository [127.0.0.1:18080/dockerun-test/demo]\nf76f397f2ce6: Preparing\n53c769b49ca0: Preparing\n42608b42cb5e: Preparing\na3446cc6c821: Preparing\n9e707aa6db47: Preparing\n47a53288c3ef: Preparing\na2738b08d711: Preparing\n989e799e6349: Preparing\na2738b08d711: Waiting\n47a53288c3ef: Waiting\n989e799e6349: Waiting\n42608b42cb5e: Layer already exists\n9e707aa6db47: Layer already exists\n53c769b49ca0: Layer already exists\na3446cc6c821: Layer already exists\nf76f397f2ce6: Layer already exists\n47a53288c3ef: Layer already exists\na2738b08d711: Layer already exists\n989e799e6349: Layer already exists\nv3: digest: sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d size: 1989\n",
+  "stderr": ""
+}

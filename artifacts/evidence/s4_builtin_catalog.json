@@ -1,0 +1,43 @@
+{
+  "code": 200,
+  "body": {
+    "catalog": {
+      "repositories": [
+        "dockerun-test/demo"
+      ]
+    },
+    "events": [
+      {
+        "id": 2,
+        "created_at": "2026-11-01T11:14:26.624809155Z",
+        "registry_id": 1,
+        "repository": "dockerun-test/demo",
+        "reference": "v2",
+        "digest": "sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d",
+        "media_type": "application/vnd.docker.distribution.manifest.v2+json",
+        "user_id": 1,
+        "key": "f211521848b7162836d64e02d96eaafc190ae7f7702658a7fea08880fc6deb94",
+        "imported": false,
+        "committed": true,
+        "processed": true
+      },
+      {
+        "id": 1,
+        "created_at": "2026-11-01T11:14:26.403429569Z",
+        "registry_id": 1,
+        "repository": "dockerun-test/demo",
+        "reference": "v1",
+        "digest": "sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d",
+        "media_type": "application/vnd.docker.distribution.manifest.v2+json",
+        "user_id": 1,
+        "key": "7ff4516869a57d542a0b14747ab6700d2b0aedd2dca16ca8076c0f19018f38e4",
+        "imported": false,
+        "committed": true,
+        "processed": true
+      }
+    ],
+    "permission": "read_write",
+    "public_url": "http://127.0.0.1:18080",
+    "read_only": false
+  }
+}

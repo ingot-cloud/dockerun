@@ -1,0 +1,162 @@
+{
+  "code": 200,
+  "body": {
+    "deployment": {
+      "legacy_script_id": 0,
+      "target_id": 1,
+      "batch": "image-event-3-env-1",
+      "sequence": 0,
+      "id": 3,
+      "created_at": "2026-11-01T11:17:17.439016335Z",
+      "updated_at": "2026-11-01T11:17:29.328149447Z",
+      "environment_id": 1,
+      "release_id": 4,
+      "previous_release_id": 3,
+      "user_id": 1,
+      "idempotency_key": "image-event-3-env-1",
+      "status": "success",
+      "stage": "complete",
+      "automatic": true,
+      "event_id": 3,
+      "result": "发布成功，健康检查通过",
+      "actual_images": "{\"1f68a1069f387c4489b92389de15fc69fd6275adf9f6de89320c319af2da35ca\":\"sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5\"}",
+      "recovery_status": "",
+      "started_at": "2026-11-01T11:17:17.441878155Z",
+      "completed_at": "2026-11-01T11:17:29.326408186Z",
+      "lease_until": null,
+      "name": "blank-app-2222 · test · image-event-3-env-1",
+      "application_id": 1,
+      "application_name": "blank-app-2222",
+      "environment_name": "test",
+      "release_version": "image-event-3-env-1",
+      "target_name": "本机",
+      "username": "admin",
+      "legacy_script_name": ""
+    },
+    "logs": [
+      {
+        "id": 30,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:17.442494183Z",
+        "stage": "images",
+        "message": "准备全部镜像；完成前保留当前服务"
+      },
+      {
+        "id": 31,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:17.464115918Z",
+        "stage": "images",
+        "message": "Pulling from dockerun-test/demo"
+      },
+      {
+        "id": 32,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:17.465787433Z",
+        "stage": "images",
+        "message": "Digest: sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d"
+      },
+      {
+        "id": 33,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:17.466523068Z",
+        "stage": "images",
+        "message": "Status: Image is up to date for 127.0.0.1:18080/dockerun-test/demo@sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d"
+      },
+      {
+        "id": 34,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:17.476767262Z",
+        "stage": "preflight",
+        "message": "检查目标主机的端口、挂载、网络和卷"
+      },
+      {
+        "id": 35,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:17.47945882Z",
+        "stage": "deploy",
+        "message": "预检查通过，更新此应用的 Compose project"
+      },
+      {
+        "id": 36,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:17.547745445Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Recreate \n"
+      },
+      {
+        "id": 37,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:27.701609375Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Recreated \n"
+      },
+      {
+        "id": 38,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:27.704168547Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Starting \n"
+      },
+      {
+        "id": 39,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:27.816222549Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Started \n Container dockerun-a1-e1-demo-1 Waiting \n"
+      },
+      {
+        "id": 40,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:29.318516305Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Healthy \n"
+      },
+      {
+        "id": 41,
+        "deployment_id": 3,
+        "created_at": "2026-11-01T11:17:29.326731362Z",
+        "stage": "complete",
+        "message": "发布成功，健康检查通过"
+      }
+    ],
+    "nodes": [
+      {
+        "legacy_script_id": 0,
+        "target_id": 1,
+        "batch": "image-event-3-env-1",
+        "sequence": 0,
+        "id": 3,
+        "created_at": "2026-11-01T11:17:17.439016335Z",
+        "updated_at": "2026-11-01T11:17:29.328149447Z",
+        "environment_id": 1,
+        "release_id": 4,
+        "previous_release_id": 3,
+        "user_id": 1,
+        "idempotency_key": "image-event-3-env-1",
+        "status": "success",
+        "stage": "complete",
+        "automatic": true,
+        "event_id": 3,
+        "result": "发布成功，健康检查通过",
+        "actual_images": "{\"1f68a1069f387c4489b92389de15fc69fd6275adf9f6de89320c319af2da35ca\":\"sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5\"}",
+        "recovery_status": "",
+        "started_at": "2026-11-01T11:17:17.441878155Z",
+        "completed_at": "2026-11-01T11:17:29.326408186Z",
+        "lease_until": null,
+        "name": "blank-app-2222 · test · image-event-3-env-1",
+        "application_id": 1,
+        "application_name": "blank-app-2222",
+        "environment_name": "test",
+        "release_version": "image-event-3-env-1",
+        "target_name": "本机",
+        "username": "admin",
+        "legacy_script_name": ""
+      }
+    ],
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    }
+  }
+}

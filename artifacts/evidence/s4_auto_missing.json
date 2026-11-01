@@ -1,0 +1,177 @@
+{
+  "overview": {
+    "code": 200,
+    "body": {
+      "counts": {
+        "applications": 4,
+        "bundles": 0,
+        "deployments": 0,
+        "image_events": 2
+      },
+      "environments": [
+        {
+          "container_names": null,
+          "replace_containers": false,
+          "id": 1,
+          "application_id": 1,
+          "name": "test",
+          "target_id": 1,
+          "target_ids": "[]",
+          "parameters": {},
+          "current_release_id": 0,
+          "stateless": true,
+          "auto_rollback": false,
+          "auto_deploy": false,
+          "registry_id": 1,
+          "repository": "",
+          "tag_pattern": "*",
+          "allowed_publishers": "[]",
+          "script_mode": "inherit",
+          "scripts": {
+            "before": "",
+            "deploy": "",
+            "after": ""
+          },
+          "health": "unknown",
+          "runtime_state": "unknown"
+        },
+        {
+          "container_names": null,
+          "replace_containers": false,
+          "id": 2,
+          "application_id": 2,
+          "name": "test",
+          "target_id": 1,
+          "target_ids": "[]",
+          "parameters": {
+            "COMPOSE_PROJECT_NAME": "dockerun-template-preview",
+            "REDIS_IMAGE": "127.0.0.1:18080/redis:8.2.0",
+            "REDIS_PASSWORD": "***redacted***",
+            "REDIS_PORT": "16379"
+          },
+          "current_release_id": 0,
+          "stateless": false,
+          "auto_rollback": false,
+          "auto_deploy": false,
+          "registry_id": 1,
+          "repository": "",
+          "tag_pattern": "*",
+          "allowed_publishers": "[]",
+          "script_mode": "inherit",
+          "scripts": {
+            "before": "",
+            "deploy": "",
+            "after": ""
+          },
+          "health": "unknown",
+          "runtime_state": "unknown"
+        },
+        {
+          "container_names": null,
+          "replace_containers": false,
+          "id": 3,
+          "application_id": 3,
+          "name": "test",
+          "target_id": 1,
+          "target_ids": "[]",
+          "parameters": {
+            "COMPOSE_PROJECT_NAME": "dockerun-template-preview",
+            "MYSQL_IMAGE": "127.0.0.1:18080/mysql:8.0.44",
+            "MYSQL_PORT": "13306",
+            "MYSQL_ROOT_PASSWORD": "***redacted***"
+          },
+          "current_release_id": 0,
+          "stateless": false,
+          "auto_rollback": false,
+          "auto_deploy": false,
+          "registry_id": 1,
+          "repository": "",
+          "tag_pattern": "*",
+          "allowed_publishers": "[]",
+          "script_mode": "inherit",
+          "scripts": {
+            "before": "",
+            "deploy": "",
+            "after": ""
+          },
+          "health": "unknown",
+          "runtime_state": "unknown"
+        },
+        {
+          "container_names": null,
+          "replace_containers": false,
+          "id": 4,
+          "application_id": 4,
+          "name": "test",
+          "target_id": 1,
+          "target_ids": "[]",
+          "parameters": {
+            "COMPOSE_PROJECT_NAME": "dockerun-template-preview",
+            "CONTAINER_PORT": "80",
+            "HOST_PORT": "18081",
+            "IMAGE": "127.0.0.1:18080/dockerun-test/demo:v1"
+          },
+          "current_release_id": 0,
+          "stateless": true,
+          "auto_rollback": false,
+          "auto_deploy": false,
+          "registry_id": 1,
+          "repository": "",
+          "tag_pattern": "*",
+          "allowed_publishers": "[]",
+          "script_mode": "inherit",
+          "scripts": {
+            "before": "",
+            "deploy": "",
+            "after": ""
+          },
+          "health": "unknown",
+          "runtime_state": "unknown"
+        }
+      ]
+    }
+  },
+  "catalog": {
+    "code": 200,
+    "body": {
+      "catalog": {
+        "repositories": [
+          "dockerun-test/demo"
+        ]
+      },
+      "events": [
+        {
+          "id": 2,
+          "created_at": "2026-11-01T11:14:26.624809155Z",
+          "registry_id": 1,
+          "repository": "dockerun-test/demo",
+          "reference": "v2",
+          "digest": "sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json",
+          "user_id": 1,
+          "key": "f211521848b7162836d64e02d96eaafc190ae7f7702658a7fea08880fc6deb94",
+          "imported": false,
+          "committed": true,
+          "processed": true
+        },
+        {
+          "id": 1,
+          "created_at": "2026-11-01T11:14:26.403429569Z",
+          "registry_id": 1,
+          "repository": "dockerun-test/demo",
+          "reference": "v1",
+          "digest": "sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json",
+          "user_id": 1,
+          "key": "7ff4516869a57d542a0b14747ab6700d2b0aedd2dca16ca8076c0f19018f38e4",
+          "imported": false,
+          "committed": true,
+          "processed": true
+        }
+      ],
+      "permission": "read_write",
+      "public_url": "http://127.0.0.1:18080",
+      "read_only": false
+    }
+  }
+}

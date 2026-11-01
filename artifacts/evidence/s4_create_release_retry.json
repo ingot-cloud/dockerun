@@ -1,0 +1,31 @@
+{
+  "code": 201,
+  "body": {
+    "execution": {
+      "mode": "",
+      "command": "",
+      "work_dir": "",
+      "check_command": "",
+      "timeout_seconds": 0
+    },
+    "id": 3,
+    "created_at": "2026-11-01T11:16:30.505014188Z",
+    "application_id": 1,
+    "version": "v1-registry-test",
+    "source": "registry",
+    "registry_id": 1,
+    "bundle_id": 0,
+    "platform": "linux/amd64",
+    "compose": "services:\n    demo:\n        command:\n            - sh\n            - -c\n            - while true; do sleep 30; done\n        healthcheck:\n            interval: 1s\n            retries: 5\n            test:\n                - CMD\n                - \"true\"\n            timeout: 1s\n        image: 127.0.0.1:18080/dockerun-test/demo:v1\n        restart: unless-stopped\n",
+    "images": "[{\"reference\":\"127.0.0.1:18080/dockerun-test/demo:v1\",\"digest\":\"sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d\"}]",
+    "configs": "{}",
+    "git_commit": "",
+    "publisher_id": 1,
+    "retained": true,
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    }
+  }
+}

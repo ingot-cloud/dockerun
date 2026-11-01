@@ -1,0 +1,104 @@
+{
+  "code": 201,
+  "body": {
+    "application": {
+      "id": 2,
+      "created_at": "2026-11-01T11:14:23.360070948Z",
+      "updated_at": "2026-11-01T11:14:23.360070948Z",
+      "name": "redis-from-template-2222",
+      "description": "从模板 redis 创建",
+      "kind": "compose",
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      },
+      "category": "middleware",
+      "template_id": "redis",
+      "template_version": "1.0.0",
+      "definition": {
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "services:\n  redis:\n    image: ${REDIS_IMAGE:?请填写 Redis 镜像}\n    restart: unless-stopped\n    ports: ['${REDIS_PORT}:6379']\n    environment:\n      REDIS_PASSWORD: ${REDIS_PASSWORD:?请填写访问密码}\n    command: [sh, -c, 'exec redis-server /usr/local/etc/redis/redis.conf --requirepass \"$$REDIS_PASSWORD\"']\n    configs:\n      - source: redis-config\n        target: /usr/local/etc/redis/redis.conf\n    volumes: ['redis-data:/data']\n    healthcheck:\n      test: [CMD-SHELL, 'REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG']\n      interval: 10s\n      timeout: 5s\n      retries: 12\nconfigs:\n  redis-config:\n    file: ./configs/redis.conf\nvolumes:\n  redis-data: {}\n",
+        "configs": {
+          "configs/redis.conf": "bind 0.0.0.0\nprotected-mode yes\nappendonly yes\ndir /data\n"
+        },
+        "parameters": [
+          {
+            "key": "REDIS_IMAGE",
+            "label": "Redis 镜像",
+            "type": "image",
+            "default": "redis:8.2.0",
+            "required": true,
+            "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+          },
+          {
+            "key": "REDIS_PORT",
+            "label": "访问端口",
+            "type": "port",
+            "default": "6379",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          },
+          {
+            "key": "REDIS_PASSWORD",
+            "label": "访问密码",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "仅保存到当前环境，不写入公共模板。"
+          }
+        ],
+        "stateful": true,
+        "topology": "single_host",
+        "instructions": "默认手动发布。升级前备份数据；应用备份不包含业务数据卷。",
+        "storage": "redis-data → /data；AOF 数据随独立数据卷保留。",
+        "initialization": "",
+        "endpoints": [
+          {
+            "name": "缓存连接",
+            "port": "REDIS_PORT",
+            "protocol": "redis",
+            "path": ""
+          }
+        ]
+      }
+    },
+    "environment": {
+      "container_names": null,
+      "replace_containers": false,
+      "id": 2,
+      "application_id": 2,
+      "name": "test",
+      "target_id": 1,
+      "target_ids": "[]",
+      "parameters": {
+        "COMPOSE_PROJECT_NAME": "dockerun-template-preview",
+        "REDIS_IMAGE": "127.0.0.1:18080/redis:8.2.0",
+        "REDIS_PASSWORD": "***redacted***",
+        "REDIS_PORT": "16379"
+      },
+      "current_release_id": 0,
+      "stateless": false,
+      "auto_rollback": false,
+      "auto_deploy": false,
+      "registry_id": 1,
+      "repository": "",
+      "tag_pattern": "*",
+      "allowed_publishers": "[]",
+      "script_mode": "inherit",
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      },
+      "health": "unknown",
+      "runtime_state": "unknown"
+    }
+  }
+}

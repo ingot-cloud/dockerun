@@ -1,0 +1,32 @@
+{
+  "code": 200,
+  "body": {
+    "registries": [
+      {
+        "pull_username": "",
+        "pull_only_confirmed": false,
+        "id": 1,
+        "kind": "builtin",
+        "name": "Dockerun 内置仓库",
+        "url": "http://127.0.0.1:18080",
+        "username": "",
+        "password": "***redacted***",
+        "is_default": true,
+        "insecure": false,
+        "email": "",
+        "created_at": "0001-01-01T00:00:00Z",
+        "updated_at": "0001-01-01T00:00:00Z"
+      }
+    ],
+    "targets": [
+      {
+        "instance_id": "",
+        "id": 1,
+        "name": "本机",
+        "enabled": true,
+        "last_seen_at": null,
+        "platform": "linux/amd64"
+      }
+    ]
+  }
+}

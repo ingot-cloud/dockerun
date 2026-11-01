@@ -1,0 +1,31 @@
+{
+  "code": 200,
+  "body": {
+    "container_names": null,
+    "replace_containers": false,
+    "id": 1,
+    "application_id": 1,
+    "name": "test",
+    "target_id": 1,
+    "target_ids": "[]",
+    "parameters": {
+      "COMPOSE_PROJECT_NAME": "dockerun-a1-e1"
+    },
+    "current_release_id": 3,
+    "stateless": true,
+    "auto_rollback": false,
+    "auto_deploy": true,
+    "registry_id": 1,
+    "repository": "dockerun-test/demo",
+    "tag_pattern": "v*",
+    "allowed_publishers": "[]",
+    "script_mode": "inherit",
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    },
+    "health": "healthy",
+    "runtime_state": "running"
+  }
+}

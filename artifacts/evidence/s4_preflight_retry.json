@@ -1,0 +1,43 @@
+{
+  "code": 200,
+  "body": {
+    "compose": "{\"name\":\"dockerun-a1-e1\",\"services\":{\"demo\":{\"command\":[\"sh\",\"-c\",\"while true; do sleep 30; done\"],\"entrypoint\":null,\"healthcheck\":{\"test\":[\"CMD\",\"true\"],\"timeout\":\"1s\",\"interval\":\"1s\",\"retries\":5},\"image\":\"127.0.0.1:18080/dockerun-test/demo:v1\",\"labels\":{\"io.dockerun.managed\":\"true\"},\"networks\":{\"default\":null},\"pull_policy\":\"never\",\"restart\":\"unless-stopped\"}},\"networks\":{\"default\":{\"name\":\"dockerun-a1-e1_default\",\"ipam\":{}}}}",
+    "container_policy": {
+      "names": [],
+      "replace": false
+    },
+    "environment": "test",
+    "execution": {
+      "mode": "",
+      "command": "",
+      "work_dir": "",
+      "check_command": "",
+      "timeout_seconds": 0
+    },
+    "images": [
+      {
+        "reference": "127.0.0.1:18080/dockerun-test/demo:v1",
+        "digest": "sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d"
+      }
+    ],
+    "message": "定义检查通过；脚本只在确认部署后执行，执行前还将检查全部镜像、平台、端口、挂载和网络",
+    "parameters": {
+      "COMPOSE_PROJECT_NAME": "dockerun-a1-e1"
+    },
+    "previous_compose": "services:\n    fixture:\n        command:\n            - sh\n            - -c\n            - while true; do sleep 30; done\n        healthcheck:\n            interval: 1s\n            retries: 5\n            test:\n                - CMD\n                - \"true\"\n            timeout: 1s\n        image: nginx:1.28-alpine\n",
+    "previous_execution": {
+      "mode": "",
+      "command": "",
+      "work_dir": "",
+      "check_command": "",
+      "timeout_seconds": 0
+    },
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    },
+    "target_id": 1,
+    "valid": true
+  }
+}

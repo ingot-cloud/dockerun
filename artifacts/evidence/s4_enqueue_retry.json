@@ -1,0 +1,27 @@
+{
+  "code": 202,
+  "body": {
+    "legacy_script_id": 0,
+    "target_id": 1,
+    "batch": "manual-retry-1793531790528",
+    "sequence": 0,
+    "id": 2,
+    "created_at": "2026-11-01T11:16:30.529623817Z",
+    "updated_at": "2026-11-01T11:16:30.529623817Z",
+    "environment_id": 1,
+    "release_id": 3,
+    "previous_release_id": 2,
+    "user_id": 1,
+    "idempotency_key": "manual-retry-1793531790528",
+    "status": "queued",
+    "stage": "queued",
+    "automatic": false,
+    "event_id": 0,
+    "result": "",
+    "actual_images": "",
+    "recovery_status": "",
+    "started_at": null,
+    "completed_at": null,
+    "lease_until": null
+  }
+}

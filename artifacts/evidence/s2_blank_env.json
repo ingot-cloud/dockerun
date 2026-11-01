@@ -1,0 +1,29 @@
+{
+  "code": 200,
+  "body": {
+    "container_names": null,
+    "replace_containers": false,
+    "id": 1,
+    "application_id": 1,
+    "name": "test",
+    "target_id": 1,
+    "target_ids": "[]",
+    "parameters": {},
+    "current_release_id": 0,
+    "stateless": true,
+    "auto_rollback": false,
+    "auto_deploy": false,
+    "registry_id": 1,
+    "repository": "",
+    "tag_pattern": "*",
+    "allowed_publishers": "[]",
+    "script_mode": "inherit",
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    },
+    "health": "unknown",
+    "runtime_state": "unknown"
+  }
+}
