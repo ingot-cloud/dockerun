@@ -1,0 +1,10 @@
+{
+  "exists": true,
+  "name": "dockerun-a2-e2-demo-1",
+  "id": "0897fd92599a7c5c03e1a0babc8865fda2642ff843967184005c193d38a6c7a4",
+  "image": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+  "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+  "running": true,
+  "status": "running",
+  "started_at": "2026-11-01T13:43:36.225426639Z"
+}

@@ -1,0 +1,10 @@
+{
+  "exists": true,
+  "name": "dockerun-sc3-app-2222",
+  "id": "b43ad4cd3c68d9fd4938c84a14976c233be6c99ad76ca2b66057b6455e56089d",
+  "image": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+  "image_id": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+  "running": true,
+  "status": "running",
+  "started_at": "2026-11-01T13:44:51.302014584Z"
+}

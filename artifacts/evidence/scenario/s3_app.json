@@ -1,0 +1,6 @@
+{
+  "app_id": 3,
+  "env_id": 3,
+  "name": "scenario-local-2222",
+  "container": "dockerun-sc3-app-2222"
+}

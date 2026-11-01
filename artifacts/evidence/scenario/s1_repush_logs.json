@@ -1,0 +1,17 @@
+[
+  "[prepare] 准备部署命令与配置文件",
+  "[containers] 停止关联容器 /dockerun-sc1-app-2222",
+  "[containers] 删除关联容器 /dockerun-sc1-app-2222，保留数据卷",
+  "[images] 清理同 tag 的本地镜像引用：127.0.0.1:18080/dockerun-scenario/demo:latest",
+  "[images] Pulling from dockerun-scenario/demo",
+  "[images] Digest: sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+  "[images] Status: Downloaded newer image for 127.0.0.1:18080/dockerun-scenario/demo@sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+  "[images] 已刷新本地 tag：127.0.0.1:18080/dockerun-scenario/demo:latest → sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+  "[deploy_script] 开始执行脚本",
+  "[deploy_script] 94ab7590f72a4477d8f6713b71125e26fc8ab4ffb4de074587bc153672dfea7d\n",
+  "[deploy_script] 脚本执行完成",
+  "[check_script] 开始执行脚本",
+  "[check_script] true\n",
+  "[check_script] 脚本执行完成",
+  "[complete] 部署命令执行完成，部署检查通过"
+]

@@ -1,0 +1,10 @@
+{
+  "cmd": [
+    "docker",
+    "push",
+    "127.0.0.1:18080/dockerun-scenario/demo:v2"
+  ],
+  "code": 0,
+  "stdout": "The push refers to repository [127.0.0.1:18080/dockerun-scenario/demo]\ncf6a977a1f6d: Preparing\n08bc4e534116: Preparing\ncf6a977a1f6d: Layer already exists\n08bc4e534116: Layer already exists\nv2: digest: sha256:d355f2904c26a50253275686456c835cb807ad3eff62a886960fbb1d1ebe417a size: 735\n",
+  "stderr": ""
+}

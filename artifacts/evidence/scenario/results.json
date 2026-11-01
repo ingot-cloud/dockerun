@@ -1,0 +1,416 @@
+[
+  {
+    "case": "S0 health",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:27Z",
+    "code": 200,
+    "body": {
+      "status": "ok"
+    }
+  },
+  {
+    "case": "S0 setup",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:27Z",
+    "code": 200
+  },
+  {
+    "case": "S0 login+token",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:27Z",
+    "code": 201
+  },
+  {
+    "case": "S0 docker login",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:27Z",
+    "code": 0
+  },
+  {
+    "case": "S0 build image a",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:28Z",
+    "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339"
+  },
+  {
+    "case": "S0 build image b",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:28Z",
+    "image_id": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a"
+  },
+  {
+    "case": "S0 distinct image IDs",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:28Z",
+    "id_a": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+    "id_b": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a"
+  },
+  {
+    "case": "S0 command app",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:28Z",
+    "app_id": 1,
+    "env_id": 1,
+    "name": "scenario-auto-2222",
+    "container": "dockerun-sc1-app-2222"
+  },
+  {
+    "case": "S0 compose app",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:28Z",
+    "app_id": 2,
+    "env_id": 2,
+    "name": "scenario-compose-2222"
+  },
+  {
+    "case": "1.0 baseline auto-deploy A:latest",
+    "status": "pass",
+    "ts": "2026-11-01T13:42:31Z",
+    "container_id": "78dde3ea4b4efd419178a1c8511abdb2b4361e7b97c9cf5956f2c0c62842b493",
+    "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339"
+  },
+  {
+    "case": "1.1 auto-deploy triggered",
+    "status": "pass",
+    "ts": "2026-11-01T13:43:03Z",
+    "deploy_status": "success",
+    "deployment_id": 2
+  },
+  {
+    "case": "1.2 stop then remove associated container (logs)",
+    "status": "pass",
+    "ts": "2026-11-01T13:43:03Z",
+    "found": [
+      {
+        "needle": "停止关联容器",
+        "index": 1,
+        "line": "[containers] 停止关联容器 /dockerun-sc1-app-2222"
+      },
+      {
+        "needle": "删除关联容器",
+        "index": 2,
+        "line": "[containers] 删除关联容器 /dockerun-sc1-app-2222，保留数据卷"
+      },
+      {
+        "needle": "清理同 tag 的本地镜像引用",
+        "index": 3,
+        "line": "[images] 清理同 tag 的本地镜像引用：127.0.0.1:18080/dockerun-scenario/demo:latest"
+      }
+    ],
+    "logs": [
+      "[prepare] 准备部署命令与配置文件",
+      "[containers] 停止关联容器 /dockerun-sc1-app-2222",
+      "[containers] 删除关联容器 /dockerun-sc1-app-2222，保留数据卷",
+      "[images] 清理同 tag 的本地镜像引用：127.0.0.1:18080/dockerun-scenario/demo:latest",
+      "[images] Pulling from dockerun-scenario/demo",
+      "[images] Digest: sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+      "[images] Status: Downloaded newer image for 127.0.0.1:18080/dockerun-scenario/demo@sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+      "[images] 已刷新本地 tag：127.0.0.1:18080/dockerun-scenario/demo:latest → sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+      "[deploy_script] 开始执行脚本",
+      "[deploy_script] 94ab7590f72a4477d8f6713b71125e26fc8ab4ffb4de074587bc153672dfea7d\n",
+      "[deploy_script] 脚本执行完成",
+      "[check_script] 开始执行脚本",
+      "[check_script] true\n",
+      "[check_script] 脚本执行完成",
+      "[complete] 部署命令执行完成，部署检查通过"
+    ]
+  },
+  {
+    "case": "1.3 clean same-tag image ref then pull/retag",
+    "status": "pass",
+    "ts": "2026-11-01T13:43:03Z",
+    "pulled": true,
+    "logs": [
+      "[images] 清理同 tag 的本地镜像引用：127.0.0.1:18080/dockerun-scenario/demo:latest",
+      "[images] Pulling from dockerun-scenario/demo",
+      "[images] Digest: sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+      "[images] Status: Downloaded newer image for 127.0.0.1:18080/dockerun-scenario/demo@sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+      "[images] 已刷新本地 tag：127.0.0.1:18080/dockerun-scenario/demo:latest → sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a"
+    ]
+  },
+  {
+    "case": "1.4 running Image ID changed to B",
+    "status": "pass",
+    "ts": "2026-11-01T13:43:03Z",
+    "before": {
+      "exists": true,
+      "name": "dockerun-sc1-app-2222",
+      "id": "78dde3ea4b4efd419178a1c8511abdb2b4361e7b97c9cf5956f2c0c62842b493",
+      "image": "127.0.0.1:18080/dockerun-scenario/demo@sha256:d355f2904c26a50253275686456c835cb807ad3eff62a886960fbb1d1ebe417a",
+      "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:42:30.156683206Z"
+    },
+    "after": {
+      "exists": true,
+      "name": "dockerun-sc1-app-2222",
+      "id": "94ab7590f72a4477d8f6713b71125e26fc8ab4ffb4de074587bc153672dfea7d",
+      "image": "127.0.0.1:18080/dockerun-scenario/demo@sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+      "image_id": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:43:02.306513196Z"
+    },
+    "expected_b": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a"
+  },
+  {
+    "case": "2a.1 auto-deploy different tag v2",
+    "status": "pass",
+    "ts": "2026-11-01T13:43:35Z",
+    "deploy_status": "success"
+  },
+  {
+    "case": "2a.2 stop current containers",
+    "status": "pass",
+    "ts": "2026-11-01T13:43:35Z",
+    "found": [
+      {
+        "needle": "停止关联容器",
+        "index": 1,
+        "line": "[containers] 停止关联容器 /dockerun-sc1-app-2222"
+      },
+      {
+        "needle": "删除关联容器",
+        "index": 2,
+        "line": "[containers] 删除关联容器 /dockerun-sc1-app-2222，保留数据卷"
+      }
+    ],
+    "before_id": "94ab7590f72a4477d8f6713b71125e26fc8ab4ffb4de074587bc153672dfea7d",
+    "after_id": "cfb88d137a34b7d70798432e9d38e38dd8cbd3d531065f7e024ce238dbd2fdc4"
+  },
+  {
+    "case": "2a.3 running Image ID matches tag v2 / image A",
+    "status": "pass",
+    "ts": "2026-11-01T13:43:35Z",
+    "running": {
+      "exists": true,
+      "name": "dockerun-sc1-app-2222",
+      "id": "cfb88d137a34b7d70798432e9d38e38dd8cbd3d531065f7e024ce238dbd2fdc4",
+      "image": "127.0.0.1:18080/dockerun-scenario/demo@sha256:d355f2904c26a50253275686456c835cb807ad3eff62a886960fbb1d1ebe417a",
+      "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:43:34.291243814Z"
+    },
+    "expected": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+    "tag_v2": {
+      "exists": true,
+      "ref": "127.0.0.1:18080/dockerun-scenario/demo:v2",
+      "id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "repo_digests": [
+        "127.0.0.1:18080/dockerun-scenario/demo@sha256:d355f2904c26a50253275686456c835cb807ad3eff62a886960fbb1d1ebe417a"
+      ],
+      "labels": {
+        "dockerun.fixture": "scenario-2222",
+        "dockerun.scenario": "a"
+      }
+    }
+  },
+  {
+    "case": "2b.1 manual compose deploy tag v1=A",
+    "status": "pass",
+    "ts": "2026-11-01T13:43:37Z",
+    "deploy_status": "success",
+    "snapshot": {
+      "exists": true,
+      "name": "dockerun-a2-e2-demo-1",
+      "id": "0897fd92599a7c5c03e1a0babc8865fda2642ff843967184005c193d38a6c7a4",
+      "image": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:43:36.225426639Z"
+    }
+  },
+  {
+    "case": "2b.2 manual compose deploy different tag latest=B",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:19Z",
+    "deploy_status": "success"
+  },
+  {
+    "case": "2b.3 container recreated with Image ID of tag latest/B",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:19Z",
+    "before": {
+      "exists": true,
+      "name": "dockerun-a2-e2-demo-1",
+      "id": "0897fd92599a7c5c03e1a0babc8865fda2642ff843967184005c193d38a6c7a4",
+      "image": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:43:36.225426639Z"
+    },
+    "after": {
+      "exists": true,
+      "name": "dockerun-a2-e2-demo-1",
+      "id": "56e85aa783efcb7828159f06edb4c4aedbc2f41164c4d726f8d21f537e9df921",
+      "image": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+      "image_id": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:44:17.680028141Z"
+    },
+    "logs": [
+      "[images] 准备全部镜像；完成前保留当前服务",
+      "[images] Pulling from dockerun-scenario/demo",
+      "[images] Digest: sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+      "[images] Status: Image is up to date for 127.0.0.1:18080/dockerun-scenario/demo@sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+      "[preflight] 检查目标主机的端口、挂载、网络和卷",
+      "[deploy] 预检查通过，更新此应用的 Compose project",
+      "[deploy]  Container dockerun-a2-e2-demo-1 Recreate \n",
+      "[deploy]  Container dockerun-a2-e2-demo-1 Recreated \n",
+      "[deploy]  Container dockerun-a2-e2-demo-1 Starting \n",
+      "[deploy]  Container dockerun-a2-e2-demo-1 Started \n Container dockerun-a2-e2-demo-1 Waiting \n",
+      "[deploy]  Container dockerun-a2-e2-demo-1 Healthy \n",
+      "[complete] 已启动，未验证健康"
+    ]
+  },
+  {
+    "case": "3.0 create local-import app",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:19Z",
+    "app_id": 3,
+    "env_id": 3,
+    "name": "scenario-local-2222",
+    "container": "dockerun-sc3-app-2222"
+  },
+  {
+    "case": "3.0 bootstrap container A",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:19Z",
+    "snapshot": {
+      "exists": true,
+      "name": "dockerun-sc3-app-2222",
+      "id": "225302a0e544f77bdb508cb1def9307388de38a1e6906742418e59cecbddad7b",
+      "image": "dockerun-scenario-a:local",
+      "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:44:19.535799264Z"
+    }
+  },
+  {
+    "case": "3.1 docker save B",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:19Z",
+    "size": 8108544
+  },
+  {
+    "case": "3.2 import kind=image ready",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:20Z",
+    "material": {
+      "local_loaded": true,
+      "local_load_note": "",
+      "kind": "image",
+      "id": 1,
+      "created_at": "2026-11-01T13:44:19.794354677Z",
+      "name": "image-b.tar",
+      "sha256": "4f02a1b833835fa9002a8045c8a5d257119b75ec44d4219f85ce278bf6bbd26f",
+      "status": "ready",
+      "manifest": "[{\"reference\":\"dockerun-scenario-b:local\",\"id\":\"sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a\",\"platform\":\"linux/amd64\"}]",
+      "error": "",
+      "user_id": 1
+    }
+  },
+  {
+    "case": "3.3 import does not stop existing container",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:20Z",
+    "before": {
+      "exists": true,
+      "name": "dockerun-sc3-app-2222",
+      "id": "225302a0e544f77bdb508cb1def9307388de38a1e6906742418e59cecbddad7b",
+      "image": "dockerun-scenario-a:local",
+      "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:44:19.535799264Z"
+    },
+    "during": {
+      "exists": true,
+      "name": "dockerun-sc3-app-2222",
+      "id": "225302a0e544f77bdb508cb1def9307388de38a1e6906742418e59cecbddad7b",
+      "image": "dockerun-scenario-a:local",
+      "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:44:19.535799264Z"
+    }
+  },
+  {
+    "case": "3.4 create source=local release from image archive",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:20Z",
+    "source": "local",
+    "images": [
+      {
+        "reference": "dockerun-scenario-b:local",
+        "id": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+        "platform": "linux/amd64"
+      }
+    ],
+    "expected": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a"
+  },
+  {
+    "case": "3.5 preflight does not stop container",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:20Z",
+    "snapshot": {
+      "exists": true,
+      "name": "dockerun-sc3-app-2222",
+      "id": "225302a0e544f77bdb508cb1def9307388de38a1e6906742418e59cecbddad7b",
+      "image": "dockerun-scenario-a:local",
+      "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:44:19.535799264Z"
+    }
+  },
+  {
+    "case": "3.6 deploy from imported local Image ID",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:52Z",
+    "deploy_status": "success",
+    "result": "部署命令执行完成，部署检查通过"
+  },
+  {
+    "case": "3.7 deploy stops associated container",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:52Z",
+    "found": [
+      {
+        "needle": "停止关联容器",
+        "index": 3,
+        "line": "[containers] 停止关联容器 /dockerun-sc3-app-2222"
+      },
+      {
+        "needle": "删除关联容器",
+        "index": 4,
+        "line": "[containers] 删除关联容器 /dockerun-sc3-app-2222，保留数据卷"
+      }
+    ],
+    "before": "225302a0e544f77bdb508cb1def9307388de38a1e6906742418e59cecbddad7b",
+    "after": "b43ad4cd3c68d9fd4938c84a14976c233be6c99ad76ca2b66057b6455e56089d"
+  },
+  {
+    "case": "3.8 running uses imported image B local ID",
+    "status": "pass",
+    "ts": "2026-11-01T13:44:52Z",
+    "after": {
+      "exists": true,
+      "name": "dockerun-sc3-app-2222",
+      "id": "b43ad4cd3c68d9fd4938c84a14976c233be6c99ad76ca2b66057b6455e56089d",
+      "image": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+      "image_id": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+      "running": true,
+      "status": "running",
+      "started_at": "2026-11-01T13:44:51.302014584Z"
+    },
+    "expected": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+    "path": "POST /api/bundles/uploads/:sha/complete kind=image + POST /api/applications/:id/releases source=local bundle_id"
+  }
+]

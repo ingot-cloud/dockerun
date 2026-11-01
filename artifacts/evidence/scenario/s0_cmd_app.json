@@ -1,0 +1,6 @@
+{
+  "app_id": 1,
+  "env_id": 1,
+  "name": "scenario-auto-2222",
+  "container": "dockerun-sc1-app-2222"
+}
