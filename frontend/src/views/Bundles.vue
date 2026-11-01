@@ -28,9 +28,8 @@
 import { computed,ref,watch } from 'vue'
 import { onBeforeRouteLeave,useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import CryptoJS from 'crypto-js'
+import { uploadOfflineMaterial } from '@/api/bundles'
 import { api,download,errorText } from '@/api/workspace'
-import request from '@/api/request'
 import { useResource } from '@/composables/useResource'
 import { statusLabel } from '@/utils/management'
 import WorkspaceHeading from '@/components/WorkspaceHeading.vue'
@@ -50,7 +49,7 @@ function onRemoved(ids:number[]){removedIds.value=new Set([...removedIds.value,.
 onBeforeRouteLeave(()=>!busy.value)
 watch(importSource,()=>{progress.value=null;stage.value='';operationError.value=''})
 function select(event:Event){file.value=(event.target as HTMLInputElement).files?.[0];progress.value=null;operationError.value='';stage.value=''}
-async function upload(){if(!file.value || busy.value)return;const selected=file.value,selectedKind=kind.value;uploading.value=true;operationError.value='';try{if(!selected.size)throw new Error('文件为空，请选择有效的交付材料');stage.value='正在计算文件校验值…';const hasher=CryptoJS.algo.SHA256.create(),chunkSize=8*1024*1024;for(let start=0;start<selected.size;start+=chunkSize){const bytes=new Uint8Array(await selected.slice(start,start+chunkSize).arrayBuffer());hasher.update(CryptoJS.lib.WordArray.create(bytes as any))}const hash=hasher.finalize().toString();let {offset}=await api('GET',`/bundles/uploads/${hash}`);if(!Number.isSafeInteger(offset) || offset<0 || offset>selected.size)throw new Error('服务器返回的上传偏移无效，请重试');progress.value=Math.floor(offset/selected.size*100);while(offset<selected.size){stage.value='正在上传材料，可断点续传…';const end=Math.min(offset+chunkSize,selected.size);const result:any=await request.put(`/bundles/uploads/${hash}`,selected.slice(offset,end),{headers:{'Content-Type':'application/octet-stream','Content-Range':`bytes ${offset}-${end-1}/${selected.size}`},timeout:120000,silentError:true});if(!Number.isSafeInteger(result.offset) || result.offset<=offset || result.offset>selected.size)throw new Error('上传进度未推进，请重新选择同一文件重试');offset=result.offset;progress.value=Math.floor(offset/selected.size*100)}await api('POST',`/bundles/uploads/${hash}/complete`,{kind:selectedKind,name:selected.name});stage.value='上传完成，服务器正在校验和加载镜像，请在下方查看导入结果。';ElMessage.success('材料已上传');await load()}catch(cause){operationError.value=errorText(cause)}finally{uploading.value=false}}
+async function upload(){if(!file.value || busy.value)return;uploading.value=true;operationError.value='';try{await uploadOfflineMaterial(file.value,kind.value as 'bundle'|'image',(message,value)=>{stage.value=message;progress.value=value});stage.value='上传完成，服务器正在校验和加载镜像，请在下方查看导入结果。';ElMessage.success('材料已上传');await load()}catch(cause){operationError.value=errorText(cause)}finally{uploading.value=false}}
 async function importDirectory(){if(busy.value || !serverFile.value.trim())return;importing.value=true;operationError.value='';try{await api('POST','/bundles/import-directory',{file:serverFile.value.trim(),kind:kind.value});ElMessage.success('服务器文件已提交导入');await load()}catch(cause){operationError.value=errorText(cause)}finally{importing.value=false}}
 async function retry(row:any){if(busy.value)return;rowBusy.value=true;operationError.value='';try{await api('POST',`/bundles/${row.id}/retry`);ElMessage.success('已重新提交导入');await load()}catch(cause){operationError.value=errorText(cause)}finally{rowBusy.value=false}}
 async function createVersion(row:any){if(busy.value)return;rowBusy.value=true;operationError.value='';try{const result=await api('POST',`/bundles/${row.id}/version`,{});rowBusy.value=false;await router.push(`/applications/${result.release.application_id}`)}catch(cause){operationError.value=errorText(cause)}finally{rowBusy.value=false}}

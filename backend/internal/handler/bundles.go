@@ -392,7 +392,7 @@ func processImageArchive(b models.Bundle) {
 	}
 	b.LocalLoaded = true
 	data, _ := json.Marshal(images)
-	database.DB.Model(&b).Updates(map[string]any{"status": "ready", "manifest": string(data)})
+	database.DB.Model(&b).Updates(map[string]any{"status": "ready", "manifest": string(data), "local_loaded": true})
 	identity.Audit(b.UserID, "image.import", fmt.Sprint(b.ID))
 }
 

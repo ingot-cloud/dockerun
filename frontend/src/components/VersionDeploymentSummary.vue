@@ -7,11 +7,12 @@
         <dt>目标环境</dt><dd>{{environment?.name || '请选择部署环境'}}</dd>
         <dt>环境当前版本</dt><dd>{{currentVersion || '尚未部署'}}</dd>
         <dt>部署方式</dt><dd>{{version.execution?.mode==='command'?'命令部署':'Compose 部署'}}</dd>
-        <template v-if="version.source!=='command'"><dt>版本来源</dt><dd>{{sourceLabel(version.source)}}</dd></template>
+        <template v-if="version.source!=='command'"><dt>版本来源</dt><dd>{{sourceLabel(version.source,version.bundle_id)}}</dd></template>
         <template v-if="version.platform"><dt>目标平台</dt><dd>{{version.platform}}</dd></template>
         <template v-if="version.execution?.work_dir"><dt>工作目录</dt><dd>{{version.execution.work_dir}}</dd></template>
         <template v-if="version.execution?.timeout_seconds"><dt>任务超时</dt><dd>{{version.execution.timeout_seconds}} 秒</dd></template>
-        <template v-if="policy.names.length"><dt>关联容器</dt><dd>{{policy.names.join('、')}}</dd><dt>容器替换</dt><dd>{{policy.replace && version.execution?.mode==='command'?'停止并删除关联容器后刷新镜像，再执行脚本':'由脚本或 Compose 管理'}}</dd></template>
+        <template v-if="policy.names.length"><dt>关联容器</dt><dd>{{policy.names.join('、')}}</dd><dt>容器替换</dt><dd>{{policy.replace && version.execution?.mode==='command'?'先准备此版本镜像，再停止并删除已关联的旧容器，执行此版本脚本；不清理镜像':'由脚本或 Compose 管理'}}</dd></template>
+        <template v-if="version.bundle_id"><dt>离线镜像</dt><dd>从此版本保留的离线包重新加载并核对 Image ID，不拉取仓库。</dd></template>
         <template v-if="hasScripts(scripts) || environment?.script_mode==='disabled'"><dt>附加脚本来源</dt><dd>{{environment?.script_mode==='disabled'?'不执行附加脚本':environment?.script_mode==='override'?'使用此环境的独立附加脚本':'使用版本中的应用附加脚本'}}</dd></template>
       </dl>
     </section>

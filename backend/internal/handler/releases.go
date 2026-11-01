@@ -299,14 +299,26 @@ func CreateRelease(c *gin.Context) {
 		return
 	}
 	if release.IsCommand(q) {
-		q.Source = "command"
+		if q.BundleID != 0 {
+			if err := prepareOfflineCommandRelease(&q); err != nil {
+				fail(c, err)
+				return
+			}
+		} else {
+			if q.Source == "local" || q.Source == "bundle" {
+				fail(c, fmt.Errorf("请选择已导入的离线材料"))
+				return
+			}
+			q.Source = "command"
+			q.TriggerImage, q.TriggerDigest = "", ""
+		}
 		q.RegistryID = 0
 	}
 	if q.Source == "command" && !release.IsCommand(q) {
 		fail(c, fmt.Errorf("命令来源必须使用命令部署"))
 		return
 	}
-	if q.Source != "registry" && q.Source != "local" && q.Source != "direct" && q.Source != "command" {
+	if q.Source != "registry" && q.Source != "local" && q.Source != "direct" && q.Source != "command" && !(q.Source == "bundle" && release.IsCommand(q)) {
 		fail(c, fmt.Errorf("请选择仓库、本机镜像，或通过发布包创建版本"))
 		return
 	}
@@ -338,8 +350,9 @@ func CreateRelease(c *gin.Context) {
 		return
 	}
 	if release.IsCommand(q) {
-		q.Images = "[]"
-		q.BundleID = 0
+		if q.BundleID == 0 {
+			q.Images = "[]"
+		}
 		if err = database.DB.Transaction(func(tx *gorm.DB) error {
 			if err := tx.Create(&q).Error; err != nil {
 				return err
@@ -349,6 +362,11 @@ func CreateRelease(c *gin.Context) {
 				a.Kind = "command"
 				a.Definition.Compose = definitionCompose
 				a.Definition.Configs = configs
+				a.Definition.Source = q.Source
+				if q.Source == "command" {
+					a.Definition.Source = "direct"
+				}
+				a.Definition.Platform = q.Platform
 				return tx.Save(&a).Error
 			}
 			return nil
@@ -510,7 +528,14 @@ func PreflightDeployment(c *gin.Context) {
 		}
 		var current models.Release
 		database.DB.First(&current, env.CurrentReleaseID)
-		c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "images": []release.Image{}, "parameters": apptemplate.RedactParameters(env.Parameters, application.Definition.Parameters), "execution": r.Execution, "previous_execution": current.Execution, "scripts": release.EffectiveScripts(r, env), "container_policy": containerPolicy(env), "message": commandDeploymentNotice(env)})
+		var images []release.Image
+		if r.Images != "" {
+			if err := json.Unmarshal([]byte(r.Images), &images); err != nil {
+				fail(c, err)
+				return
+			}
+		}
+		c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "images": images, "parameters": apptemplate.RedactParameters(env.Parameters, application.Definition.Parameters), "execution": r.Execution, "previous_execution": current.Execution, "scripts": release.EffectiveScripts(r, env), "container_policy": containerPolicy(env), "message": commandDeploymentNotice(env, r)})
 		return
 	}
 	var images []release.Image

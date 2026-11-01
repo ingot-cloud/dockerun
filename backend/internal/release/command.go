@@ -49,13 +49,35 @@ func RequiresExecutionAgent(r models.Release) bool {
 	return r.Execution != (models.DeploymentExecution{})
 }
 
-func RequiresCommandImageAgent(r models.Release) bool { return IsCommand(r) && r.Source == "registry" }
+func RequiresCommandImageAgent(r models.Release) bool {
+	return IsCommand(r) && (r.Source == "registry" || r.BundleID != 0)
+}
 
 func commandImageEnvironment(r models.Release) ([]string, error) {
 	if !RequiresCommandImageAgent(r) {
 		return nil, nil
 	}
 	var images []Image
+	if r.BundleID != 0 && (r.Source == "local" || r.Source == "bundle") {
+		if err := json.Unmarshal([]byte(r.Images), &images); err != nil || len(images) == 0 {
+			return nil, fmt.Errorf("离线命令版本缺少镜像清单")
+		}
+		for _, image := range images {
+			if (r.TriggerImage != "" && image.Reference == r.TriggerImage) || (r.TriggerImage == "" && len(images) == 1) {
+				if err := digest.Digest(image.ID).Validate(); err != nil {
+					return nil, fmt.Errorf("离线镜像缺少有效 Image ID")
+				}
+				tag := ""
+				if named, err := reference.ParseNormalizedNamed(image.Reference); err == nil {
+					if tagged, ok := named.(reference.Tagged); ok {
+						tag = tagged.Tag()
+					}
+				}
+				return []string{"DOCKERUN_IMAGE=" + image.ID, "DOCKERUN_IMAGE_TAG=" + tag, "DOCKERUN_IMAGE_DIGEST="}, nil
+			}
+		}
+		return nil, fmt.Errorf("请选择此离线归档中的主镜像")
+	}
 	if err := json.Unmarshal([]byte(r.Images), &images); err != nil || len(images) != 1 || images[0].Digest == "" {
 		return nil, fmt.Errorf("命令发布版本缺少唯一的触发镜像及摘要")
 	}

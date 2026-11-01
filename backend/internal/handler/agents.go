@@ -133,6 +133,11 @@ func AgentPoll(c *gin.Context) {
 				release.RemoteFailure(&d, "failed", "目标 Agent 不支持关联容器替换与镜像核对，请更新 Agent 后重新发布")
 				continue
 			}
+			if (s.Release.BundleID != 0 && release.IsCommand(s.Release) || release.RequiresContainerAgent(s) || !d.Automatic) && c.Query("release_policy") != "2" {
+				release.RemoteFailure(&d, "failed", "目标 Agent 不支持离线镜像与手动容器替换策略，请更新 Agent 后重新发布")
+				continue
+			}
+			s.Automatic = d.Automatic
 			var env models.Environment
 			var user models.User
 			if database.DB.First(&env, d.EnvironmentID).Error != nil || database.DB.First(&user, d.UserID).Error != nil || !user.Enabled || !d.Automatic && !user.IsAdmin || d.Automatic && (!env.AutoDeploy || !release.PublisherAllowed(env, d.UserID)) {
@@ -297,7 +302,7 @@ func AgentComplete(c *gin.Context) {
 }
 func AgentBundle(c *gin.Context) {
 	_, s, err := agentTask(c)
-	if err != nil || s.Release.Source != "bundle" {
+	if err != nil || s.Release.BundleID == 0 {
 		c.Status(http.StatusForbidden)
 		return
 	}
@@ -307,5 +312,6 @@ func AgentBundle(c *gin.Context) {
 		return
 	}
 	c.Header("X-Archive-SHA256", b.SHA256)
+	c.Header("X-Archive-Kind", b.Kind)
 	c.File(b.Path)
 }

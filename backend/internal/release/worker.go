@@ -20,6 +20,7 @@ import (
 )
 
 type Snapshot struct {
+	Automatic           bool                      `json:"automatic,omitempty"`
 	Containers          []models.RuntimeContainer `json:"containers,omitempty"`
 	SensitiveParameters []string                  `json:"sensitive_parameters,omitempty"`
 	Release             models.Release            `json:"release"`
@@ -142,7 +143,7 @@ func Enqueue(env models.Environment, r models.Release, uid uint, key string, aut
 			copyEnv := env
 			copyEnv.TargetID = target
 			copyEnv.CurrentReleaseID = previous
-			snap, _ := json.Marshal(Snapshot{Release: r, Environment: copyEnv, Scripts: EffectiveScripts(r, copyEnv), SensitiveParameters: sensitiveParameters})
+			snap, _ := json.Marshal(Snapshot{Automatic: automatic, Release: r, Environment: copyEnv, Scripts: EffectiveScripts(r, copyEnv), SensitiveParameters: sensitiveParameters})
 			status := "queued"
 			if i > 0 {
 				status = "blocked"
@@ -244,6 +245,7 @@ func execute(parent context.Context, d *models.Deployment) {
 		finish(d, "failed", "快照损坏")
 		return
 	}
+	snap.Automatic = d.Automatic
 	ctx, cancel := context.WithTimeout(parent, ExecutionTimeout(snap.Release, Timeout()))
 	defer cancel()
 	dir := JobDir(d.ID)
@@ -255,6 +257,10 @@ func execute(parent context.Context, d *models.Deployment) {
 		Log(d, "prepare", "准备部署命令与配置文件")
 	} else {
 		Log(d, "images", "准备全部镜像；完成前保留当前服务")
+	}
+	if err := LoadLocalMaterials(ctx, snap.Release, func(message string) { Log(d, "images", message) }); err != nil {
+		finish(d, "failed", err.Error())
+		return
 	}
 	actual, health, updated, err := RunDeployment(ctx, &snap, dir, "", func(stage, message string) { Log(d, stage, message) }, func() error {
 		encoded, e := json.Marshal(snap)

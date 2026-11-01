@@ -16,8 +16,8 @@
       <p v-if="field(pair)" class="management-form-help environment-parameter-help"><span :class="{'environment-parameter-required':field(pair)?.required}">{{field(pair)?.label}}{{field(pair)?.required?'（必填）':''}}</span><span v-if="field(pair)?.help"> · {{field(pair)?.help}}</span><span v-if="grpcPort(pair)"> · 对应 gRPC 客户端端口：{{grpcPort(pair)}}，部署时一并映射。</span></p>
     </div>
     <el-button v-if="allowExtra && !readonly" link :disabled="disabled" @click="add"><PortainerIcon name="plus" />添加参数</el-button>
-    <p v-if="!readonly" class="management-form-help">{{help}}</p>
-    <p v-if="schema.length && !readonly" class="management-form-help">模板参数名称固定，标记「必填」的参数必须填写{{allowExtra?'；附加参数可添加、修改或删除。':'。'}}</p>
+    <p v-if="!readonly && showHelp" class="management-form-help">{{help}}</p>
+    <p v-if="schema.length && !readonly && showHelp" class="management-form-help">模板参数名称固定，标记「必填」的参数必须填写{{allowExtra?'；附加参数可添加、修改或删除。':'。'}}</p>
   </div>
 </template>
 <script setup lang="ts">
@@ -25,7 +25,7 @@ import { computed, nextTick, ref } from 'vue'
 import PortainerIcon from '@/components/PortainerIcon.vue'
 import { isSensitiveEnvironmentParameter, type EnvironmentParameterPair } from '@/utils/applicationDetail'
 import type { TemplateParameter } from '@/api/applicationTemplates'
-const props = withDefaults(defineProps<{modelValue: EnvironmentParameterPair[]; schema?: TemplateParameter[]; disabled?: boolean; readonly?: boolean; allowExtra?: boolean; help?: string}>(), { schema: () => [], allowExtra: true, help: '名称以字母或下划线开头，可包含数字；参数仅保存在本环境。密码、令牌等敏感参数默认隐藏。' })
+const props = withDefaults(defineProps<{modelValue: EnvironmentParameterPair[]; schema?: TemplateParameter[]; disabled?: boolean; readonly?: boolean; allowExtra?: boolean; help?: string; showHelp?: boolean}>(), { schema: () => [], allowExtra: true, showHelp: true, help: '名称以字母或下划线开头，可包含数字；参数仅保存在本环境。密码、令牌等敏感参数默认隐藏。' })
 const emit = defineEmits<{'update:modelValue': [value: EnvironmentParameterPair[]]}>()
 const editor = ref<HTMLElement>()
 const fields = computed(() => new Map(props.schema.map(field => [field.key, field])))

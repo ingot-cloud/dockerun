@@ -34,7 +34,7 @@ func TestContainerBindingNames(t *testing.T) {
 }
 
 func TestManagedContainerReplacementOrderAndIsolation(t *testing.T) {
-	for _, scenario := range []string{"replace", "shared-image", "foreign-owner", "pull-failure", "checkpoint-failure", "wrong-image", "literal-tag"} {
+	for _, scenario := range []string{"replace", "shared-image", "foreign-owner", "pull-failure", "checkpoint-failure", "wrong-image", "literal-tag", "absent-tag", "manual-online", "manual-pull-failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			dir := t.TempDir()
 			marker := filepath.Join(dir, "created")
@@ -79,6 +79,11 @@ func TestManagedContainerReplacementOrderAndIsolation(t *testing.T) {
 					removed = true
 					w.WriteHeader(204)
 				case strings.Contains(path, "/images/") && strings.HasSuffix(path, "/json"):
+					if scenario == "absent-tag" && !strings.Contains(path, "@sha256:") {
+						w.WriteHeader(404)
+						fmt.Fprint(w, `{"message":"not found"}`)
+						break
+					}
 					id := "sha256:old"
 					if strings.Contains(path, "@sha256:") {
 						if !pulled {
@@ -109,7 +114,7 @@ func TestManagedContainerReplacementOrderAndIsolation(t *testing.T) {
 					if r.URL.Query().Get("tag") != digest {
 						t.Fatalf("mutable tag was pulled: %s", r.URL)
 					}
-					if scenario == "pull-failure" {
+					if scenario == "pull-failure" || scenario == "manual-pull-failure" {
 						w.WriteHeader(500)
 						fmt.Fprint(w, `{"message":"pull failed"}`)
 					} else {
@@ -136,6 +141,7 @@ func TestManagedContainerReplacementOrderAndIsolation(t *testing.T) {
 			docker.Client = cli
 			t.Cleanup(func() { docker.Client = previous; cli.Close() })
 			snapshot := Snapshot{Release: models.Release{ApplicationID: 3, Source: "registry", TriggerImage: ref, TriggerDigest: digest, Execution: models.DeploymentExecution{Mode: "command", Command: `printf '%s' "$DOCKERUN_IMAGE" > "$MARKER"`}, Images: stringJSON([]Image{{Reference: ref, Digest: digest}})}, Environment: models.Environment{ID: 4, ApplicationID: 3, ReplaceContainers: true, ContainerNames: []string{"test-nginx"}, Parameters: models.StringMap{"MARKER": marker}}}
+			snapshot.Automatic = !strings.HasPrefix(scenario, "manual-")
 			stored := stringJSON(snapshot.Release)
 			actual, _, updated, err := RunDeployment(context.Background(), &snapshot, dir, "auth", func(stage, message string) {
 				if stage == "deploy_script" && message == "开始执行脚本" {
@@ -152,10 +158,13 @@ func TestManagedContainerReplacementOrderAndIsolation(t *testing.T) {
 				t.Fatal("historical release was modified")
 			}
 			switch scenario {
-			case "replace", "shared-image", "literal-tag":
+			case "replace", "shared-image", "literal-tag", "absent-tag", "manual-online":
 				want := []string{"checkpoint", "stop", "remove-container", "remove-image", "pull", "tag", "script"}
-				if scenario == "shared-image" {
+				if scenario == "shared-image" || scenario == "absent-tag" {
 					want = []string{"checkpoint", "stop", "remove-container", "pull", "tag", "script"}
+				}
+				if scenario == "manual-online" {
+					want = []string{"checkpoint", "pull", "stop", "remove-container", "tag", "script"}
 				}
 				if err != nil || !updated || !reflect.DeepEqual(steps, want) {
 					t.Fatalf("wrong execution order: %v %t %v", steps, updated, err)
@@ -185,6 +194,10 @@ func TestManagedContainerReplacementOrderAndIsolation(t *testing.T) {
 			case "wrong-image":
 				if err == nil || !strings.Contains(err.Error(), "本次发布的镜像") {
 					t.Fatalf("unrelated image was reported as deployed: %v", err)
+				}
+			case "manual-pull-failure":
+				if err == nil || updated || removed || !reflect.DeepEqual(steps, []string{"checkpoint", "pull"}) {
+					t.Fatalf("manual image failure interrupted old service: %v %t %v", steps, updated, err)
 				}
 			}
 		})

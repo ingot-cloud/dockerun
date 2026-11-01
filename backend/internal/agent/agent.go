@@ -97,7 +97,7 @@ func Run(ctx context.Context, base, token, dir string) error {
 			return ctx.Err()
 		}
 		platform, _ := release.Platform(ctx)
-		resp, err := c.request(ctx, "GET", "/agent/poll?platform="+url.QueryEscape(platform)+"&scripts=1&execution=1&command_images=1&containers=1", nil)
+		resp, err := c.request(ctx, "GET", "/agent/poll?platform="+url.QueryEscape(platform)+"&scripts=1&execution=1&command_images=1&containers=1&release_policy=2", nil)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			select {
@@ -239,7 +239,7 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 	} else {
 		log("images", "节点开始核对全部交付材料")
 		var err error
-		if s.Release.Source == "bundle" {
+		if s.Release.BundleID != 0 {
 			var resp *http.Response
 			resp, err = c.request(ctx, "GET", base+"/bundle", nil)
 			if err == nil {
@@ -257,7 +257,9 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 						err = fmt.Errorf("节点下载发布包校验失败")
 					}
 				}
-				if err == nil {
+				if err == nil && s.Release.Source == "local" && resp.Header.Get("X-Archive-Kind") == "image" {
+					err = release.LoadImageArchive(ctx, file, "", func(m string) { log("images", m) })
+				} else if err == nil && s.Release.Source == "bundle" {
 					materials := filepath.Join(dir, "materials")
 					os.MkdirAll(materials, 0700)
 					var m *bundle.Manifest
@@ -265,6 +267,8 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 					if err == nil {
 						err = bundle.Load(ctx, materials, *m, func(m string) { log("images", m) })
 					}
+				} else if err == nil {
+					err = fmt.Errorf("节点收到的离线材料类型与版本不匹配")
 				}
 			}
 		}

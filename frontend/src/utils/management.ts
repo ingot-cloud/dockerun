@@ -10,7 +10,7 @@ Object.assign(stageLabels, { before_script: '执行部署前脚本', deploy_scri
 Object.assign(sourceLabels, { command: '命令部署', direct: '镜像地址' })
 Object.assign(statusLabels, { unchecked: '未执行健康检查', missing: '容器不存在', created: '已创建', restarting: '重启中', removing: '删除中', exited: '已退出', dead: '已失效' })
 export function statusLabel(value?: string) { return statusLabels[value || 'unknown'] || `未知状态（${value}）` }
-export function sourceLabel(value?: string) { return sourceLabels[value || ''] || (value ? `其他来源（${value}）` : '—') }
+export function sourceLabel(value?: string, bundleId?: number) { return value === 'local' && bundleId ? '离线镜像归档' : sourceLabels[value || ''] || (value ? `其他来源（${value}）` : '—') }
 export function stageLabel(value?: string) { return stageLabels[value || ''] || (value ? `其他阶段（${value}）` : '—') }
 export function formatDate(value?: string | number) {
   if (value == null || value === '') return '—'

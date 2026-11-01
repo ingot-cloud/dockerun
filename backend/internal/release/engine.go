@@ -316,13 +316,17 @@ func WriteExecution(p *types.Project, dir string) error {
 	}
 	return nil
 }
-func Up(ctx context.Context, p *types.Project, dir string, log func(string)) error {
+func Up(ctx context.Context, p *types.Project, dir string, log func(string), recreate ...bool) error {
 	if err := WriteExecution(p, dir); err != nil {
 		return err
 	}
 	file := filepath.Join(dir, "resolved.json")
 	envFile := filepath.Join(dir, "empty.env")
-	cmd := exec.CommandContext(ctx, commandExecutable("docker"), "compose", "--env-file", envFile, "--project-name", p.Name, "--project-directory", dir, "-f", file, "up", "--detach", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "120")
+	args := []string{"compose", "--env-file", envFile, "--project-name", p.Name, "--project-directory", dir, "-f", file, "up", "--detach", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "120"}
+	if len(recreate) > 0 && recreate[0] {
+		args = append(args, "--force-recreate", "--remove-orphans")
+	}
+	cmd := exec.CommandContext(ctx, commandExecutable("docker"), args...)
 	cmd.Dir = dir
 	cmd.Env = commandEnvironment()
 	cmd.Stdout = logWriter{log}

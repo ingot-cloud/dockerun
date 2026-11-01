@@ -159,7 +159,7 @@ func Apply(ctx context.Context, s Snapshot, dir string, log func(string, string)
 		err = RunScript(ctx, s.Scripts.Deploy, "deploy_script", dir, s, log)
 	} else {
 		log("deploy", "预检查通过，更新此应用的 Compose project")
-		err = Up(ctx, p, dir, func(m string) { log("deploy", m) })
+		err = Up(ctx, p, dir, func(m string) { log("deploy", m) }, !s.Automatic)
 	}
 	if err == nil {
 		actual, health, err = Actual(ctx, p)

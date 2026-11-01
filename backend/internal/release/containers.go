@@ -197,6 +197,9 @@ func removeAssociatedContainers(ctx context.Context, s Snapshot, log func(string
 }
 
 func refreshImageReferences(ctx context.Context, r models.Release, log func(string, string)) error {
+	if r.Source != "registry" && r.Source != "direct" {
+		return nil
+	}
 	var images []Image
 	if r.Images != "" {
 		if err := json.Unmarshal([]byte(r.Images), &images); err != nil {
@@ -204,7 +207,7 @@ func refreshImageReferences(ctx context.Context, r models.Release, log func(stri
 		}
 	}
 	for _, image := range images {
-		if image.Reference == "" || strings.HasPrefix(image.Reference, "sha256:") || strings.Contains(image.Reference, "@") {
+		if image.Reference == "" || strings.HasPrefix(image.Reference, "sha256:") || strings.Contains(image.Reference, "@") || (r.TriggerImage != "" && image.Reference != r.TriggerImage) {
 			continue
 		}
 		old, _, err := docker.GetClient().ImageInspectWithRaw(ctx, image.Reference)
@@ -234,7 +237,7 @@ func refreshImageReferences(ctx context.Context, r models.Release, log func(stri
 	return nil
 }
 
-// RunDeployment 统一本机与 Agent 的执行顺序；受管命令在拉取镜像前替换容器。
+// RunDeployment 统一本机与 Agent 的执行顺序；手动发布准备镜像后再替换容器。
 func RunDeployment(ctx context.Context, s *Snapshot, dir, auth string, log func(string, string), checkpoint func() error) (actual, health string, updated bool, err error) {
 	managed := IsCommand(s.Release) && s.Environment.ReplaceContainers
 	if _, err = ContainerSettings(s.Environment); err != nil {
@@ -305,7 +308,7 @@ func RunDeployment(ctx context.Context, s *Snapshot, dir, auth string, log func(
 			}
 		}()
 	}
-	if managed {
+	if managed && s.Automatic {
 		updated, err = removeAssociatedContainers(ctx, *s, log)
 		if err != nil {
 			return
@@ -318,9 +321,15 @@ func RunDeployment(ctx context.Context, s *Snapshot, dir, auth string, log func(
 	if err != nil {
 		return
 	}
+	if managed && !s.Automatic {
+		updated, err = removeAssociatedContainers(ctx, *s, log)
+		if err != nil {
+			return
+		}
+	}
 	if managed {
 		for _, image := range s.Images {
-			if image.ID != "" && image.Reference != "" && !strings.Contains(image.Reference, "@") {
+			if image.ID != "" && image.Reference != "" && !strings.HasPrefix(image.Reference, "sha256:") && !strings.Contains(image.Reference, "@") {
 				if err = docker.GetClient().ImageTag(ctx, image.ID, image.Reference); err != nil {
 					return
 				}
@@ -394,7 +403,7 @@ func RuntimeContainers(ctx context.Context, s Snapshot) ([]models.RuntimeContain
 					}
 				}
 				image = prepared.Reference
-				if s.Release.TriggerImage != "" && prepared.Digest == s.Release.TriggerDigest {
+				if s.Release.TriggerImage != "" && s.Release.TriggerDigest != "" && prepared.Digest == s.Release.TriggerDigest {
 					image = s.Release.TriggerImage
 				}
 				break

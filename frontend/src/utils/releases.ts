@@ -60,7 +60,7 @@ export function deploymentDraftFromRelease(version: any) {
     compose: version.compose || '',
     execution,
     configs: JSON.parse(version.configs || '{}'),
-    source: version.source === 'command' ? 'direct' : version.source === 'bundle' ? 'local' : version.source || 'direct',
+    source: version.source === 'command' ? 'direct' : version.source === 'bundle' && execution.mode !== 'command' ? 'local' : version.source || 'direct',
     registry_id: version.registry_id || 0,
     platform: version.platform || '',
     scripts,

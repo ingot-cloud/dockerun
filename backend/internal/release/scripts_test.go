@@ -122,7 +122,7 @@ func (f scriptDockerTransport) RoundTrip(r *http.Request) (*http.Response, error
 func TestApplyRunsScriptsInOrderOnTarget(t *testing.T) {
 	dir := t.TempDir()
 	bin := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte("#!/bin/sh\necho deploy >> order\ntouch deployed\n"), 0700); err != nil {
+	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte("#!/bin/sh\necho deploy >> order\ntouch deployed\nprintf '%s\\n' \"$@\" > compose-args\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
@@ -158,6 +158,18 @@ func TestApplyRunsScriptsInOrderOnTarget(t *testing.T) {
 	order, _ := os.ReadFile(filepath.Join(dir, "order"))
 	if string(order) != "before\ndeploy\nafter\n" {
 		t.Fatalf("wrong script order: %s", order)
+	}
+	args, _ := os.ReadFile(filepath.Join(dir, "compose-args"))
+	if !strings.Contains(string(args), "--force-recreate\n") || !strings.Contains(string(args), "--remove-orphans\n") {
+		t.Fatal("manual Compose redeployment did not replace existing services", string(args))
+	}
+	s.Automatic = true
+	if _, _, _, err := Apply(context.Background(), s, dir, func(string, string) {}, nil); err != nil {
+		t.Fatal(err)
+	}
+	args, _ = os.ReadFile(filepath.Join(dir, "compose-args"))
+	if strings.Contains(string(args), "--force-recreate") || strings.Contains(string(args), "--remove-orphans") {
+		t.Fatal("automatic Compose forced unchanged services to restart", string(args))
 	}
 	// A custom deployment script replaces only the system startup command, while health is still verified.
 	s.Scripts.Deploy = "echo custom >> order\ntouch deployed"

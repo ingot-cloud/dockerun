@@ -72,3 +72,10 @@ test('基于历史版本生成可编辑草稿，保留命令和配置原文且�
   assert.equal(legacy.execution.command,'echo legacy')
   assert.equal(legacy.scripts.deploy,'')
 })
+test('离线命令版本再次编辑时保留归档来源和脚本，Compose 包可复制为本机来源',()=>{
+  const command={mode:'command',command:'docker run "$DOCKERUN_IMAGE"'}
+  assert.equal(deploymentDraftFromRelease({source:'bundle',execution:command}).source,'bundle')
+  assert.equal(deploymentDraftFromRelease({source:'local',execution:command}).source,'local')
+  assert.equal(deploymentDraftFromRelease({source:'bundle',execution:command}).execution.command,command.command)
+  assert.equal(deploymentDraftFromRelease({source:'bundle',execution:{mode:'compose'}}).source,'local')
+})

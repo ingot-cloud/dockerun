@@ -2,6 +2,7 @@ package handler
 
 import (
 	"dockerun/internal/apptemplate"
+	"dockerun/internal/builtin"
 	"dockerun/internal/config"
 	"dockerun/internal/database"
 	"dockerun/internal/identity"
@@ -18,19 +19,23 @@ import (
 // SaveApplicationDeployment 只保存部署配置和当前脚本，不创建版本或执行任务。
 func SaveApplicationDeployment(c *gin.Context) {
 	var q struct {
-		Compose       string                     `json:"compose"`
-		Configs       models.StringMap           `json:"configs"`
-		Execution     models.DeploymentExecution `json:"execution"`
-		Scripts       models.DeploymentScripts   `json:"scripts"`
-		EnvironmentID uint                       `json:"environment_id"`
-		Source        string                     `json:"source"`
-		RegistryID    uint                       `json:"registry_id"`
-		Platform      string                     `json:"platform"`
+		Compose           string                     `json:"compose"`
+		Configs           models.StringMap           `json:"configs"`
+		Execution         models.DeploymentExecution `json:"execution"`
+		Scripts           models.DeploymentScripts   `json:"scripts"`
+		EnvironmentID     uint                       `json:"environment_id"`
+		Source            string                     `json:"source"`
+		RegistryID        uint                       `json:"registry_id"`
+		Platform          string                     `json:"platform"`
+		ContainerNames    *[]string                  `json:"container_names"`
+		ReplaceContainers *bool                      `json:"replace_containers"`
 	}
 	if err := c.ShouldBindJSON(&q); err != nil {
 		fail(c, err)
 		return
 	}
+	builtin.ReferenceGate.Lock()
+	defer builtin.ReferenceGate.Unlock()
 	var app models.Application
 	var env models.Environment
 	if database.DB.First(&app, c.Param("id")).Error != nil || database.DB.Where("id = ? AND application_id = ?", q.EnvironmentID, app.ID).First(&env).Error != nil {
@@ -45,12 +50,25 @@ func SaveApplicationDeployment(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	if q.Source == "" || (q.Execution.Mode == "command" && q.Source == "bundle") {
+	if q.ContainerNames != nil {
+		env.ContainerNames = *q.ContainerNames
+	}
+	if q.ReplaceContainers != nil {
+		env.ReplaceContainers = *q.ReplaceContainers
+	}
+	if err := release.ValidateContainerBindings(env); err != nil {
+		fail(c, err)
+		return
+	}
+	if q.Source == "" || q.Source == "command" {
 		q.Source = "direct"
 	}
-	if q.Source != "direct" && q.Source != "registry" && q.Source != "local" {
+	if q.Source != "direct" && q.Source != "registry" && q.Source != "local" && !(q.Source == "bundle" && q.Execution.Mode == "command") {
 		fail(c, fmt.Errorf("请选择有效镜像来源"))
 		return
+	}
+	if q.Source == "local" || q.Source == "bundle" {
+		q.RegistryID = 0
 	}
 	if q.Platform != "" && q.Platform != "linux/amd64" && q.Platform != "linux/arm64" {
 		fail(c, fmt.Errorf("目标平台仅支持 Linux amd64 或 arm64"))
@@ -97,6 +115,12 @@ func SaveApplicationDeployment(c *gin.Context) {
 		}
 	}
 	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		if q.ContainerNames != nil || q.ReplaceContainers != nil {
+			encoded, _ := json.Marshal(env.ContainerNames)
+			if err := tx.Model(&env).Updates(map[string]any{"container_names": string(encoded), "replace_containers": env.ReplaceContainers}).Error; err != nil {
+				return err
+			}
+		}
 		switch env.ScriptMode {
 		case "override":
 			env.Scripts = q.Scripts
