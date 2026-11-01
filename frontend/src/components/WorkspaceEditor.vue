@@ -1,5 +1,5 @@
 <template>
-  <div class="workspace-editor">
+  <div class="workspace-editor" :class="{'workspace-editor--fill':fill}">
     <div class="workspace-editor-header">
       <div class="workspace-editor-page workspace-editor-header-content">
         <WorkspaceHeading class="workspace-editor-heading" :title="title" :loading="loading" :busy="busy" :refreshable="refreshable" @refresh="emit('refresh')">
@@ -15,7 +15,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import WorkspaceHeading from '@/components/WorkspaceHeading.vue'
-const props = withDefaults(defineProps<{ title: string; loading?: boolean; busy?: boolean; refreshable?: boolean; resetKey?: string | number }>(), { refreshable: true })
+const props = withDefaults(defineProps<{ title: string; loading?: boolean; busy?: boolean; refreshable?: boolean; resetKey?: string | number; fill?:boolean }>(), { refreshable: true })
 const emit = defineEmits<{ refresh: [] }>()
 const scroll = ref<HTMLDivElement>()
 watch(() => props.resetKey, () => scroll.value?.scrollTo({ top: 0 }), { flush: 'post' })

@@ -43,6 +43,10 @@ type ApplicationEndpoint struct {
 	Path     string `json:"path"`
 }
 type ApplicationDefinition struct {
+	Source         string                 `json:"source,omitempty"`
+	RegistryID     uint                   `json:"registry_id,omitempty"`
+	Platform       string                 `json:"platform,omitempty"`
+	Execution      DeploymentExecution    `json:"execution"`
 	Compose        string                 `json:"compose"`
 	Configs        StringMap              `json:"configs"`
 	Parameters     []ApplicationParameter `json:"parameters"`
@@ -52,6 +56,15 @@ type ApplicationDefinition struct {
 	Storage        string                 `json:"storage"`
 	Initialization string                 `json:"initialization"`
 	Endpoints      []ApplicationEndpoint  `json:"endpoints"`
+}
+
+// DeploymentExecution 描述启动方式；空模式兼容已有 Compose 版本。
+type DeploymentExecution struct {
+	Mode           string `json:"mode"`
+	Command        string `json:"command"`
+	WorkDir        string `json:"work_dir"`
+	CheckCommand   string `json:"check_command"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
 }
 type ApplicationTemplate struct {
 	ID          uint                  `json:"id" gorm:"primaryKey"`
@@ -72,6 +85,8 @@ type DeploymentScripts struct {
 }
 
 type Environment struct {
+	ContainerNames       []string          `json:"container_names" gorm:"serializer:json;type:mediumtext"`
+	ReplaceContainers    bool              `json:"replace_containers"`
 	RestoreConfiguration bool              `json:"restore_configuration,omitempty" gorm:"-"`
 	ID                   uint              `json:"id" gorm:"primaryKey"`
 	ApplicationID        uint              `json:"application_id" gorm:"uniqueIndex:app_env"`
@@ -93,21 +108,24 @@ type Environment struct {
 	RuntimeState         string            `json:"runtime_state" gorm:"size:50"`
 }
 type Release struct {
-	ID            uint              `json:"id" gorm:"primaryKey"`
-	CreatedAt     time.Time         `json:"created_at"`
-	ApplicationID uint              `json:"application_id" gorm:"index"`
-	Version       string            `json:"version" gorm:"size:200"`
-	Source        string            `json:"source" gorm:"size:20"`
-	RegistryID    uint              `json:"registry_id"`
-	BundleID      uint              `json:"bundle_id"`
-	Platform      string            `json:"platform" gorm:"size:50"`
-	Compose       string            `json:"compose" gorm:"type:mediumtext"`
-	Images        string            `json:"images" gorm:"type:mediumtext"`
-	Configs       string            `json:"configs" gorm:"type:mediumtext"`
-	GitCommit     string            `json:"git_commit" gorm:"size:100"`
-	PublisherID   uint              `json:"publisher_id"`
-	Retained      bool              `json:"retained" gorm:"default:true"`
-	Scripts       DeploymentScripts `json:"scripts" gorm:"serializer:json;type:mediumtext"`
+	TriggerImage  string              `json:"trigger_image,omitempty"`
+	TriggerDigest string              `json:"trigger_digest,omitempty"`
+	Execution     DeploymentExecution `json:"execution" gorm:"serializer:json;type:mediumtext"`
+	ID            uint                `json:"id" gorm:"primaryKey"`
+	CreatedAt     time.Time           `json:"created_at"`
+	ApplicationID uint                `json:"application_id" gorm:"index"`
+	Version       string              `json:"version" gorm:"size:200"`
+	Source        string              `json:"source" gorm:"size:20"`
+	RegistryID    uint                `json:"registry_id"`
+	BundleID      uint                `json:"bundle_id"`
+	Platform      string              `json:"platform" gorm:"size:50"`
+	Compose       string              `json:"compose" gorm:"type:mediumtext"`
+	Images        string              `json:"images" gorm:"type:mediumtext"`
+	Configs       string              `json:"configs" gorm:"type:mediumtext"`
+	GitCommit     string              `json:"git_commit" gorm:"size:100"`
+	PublisherID   uint                `json:"publisher_id"`
+	Retained      bool                `json:"retained" gorm:"default:true"`
+	Scripts       DeploymentScripts   `json:"scripts" gorm:"serializer:json;type:mediumtext"`
 }
 type Deployment struct {
 	LegacyScriptID    uint       `json:"legacy_script_id"`
@@ -194,13 +212,25 @@ type Target struct {
 }
 
 type TargetState struct {
-	ID               uint      `json:"id" gorm:"primaryKey"`
-	EnvironmentID    uint      `json:"environment_id" gorm:"uniqueIndex:environment_target"`
-	TargetID         uint      `json:"target_id" gorm:"uniqueIndex:environment_target"`
-	CurrentReleaseID uint      `json:"current_release_id"`
-	Health           string    `json:"health" gorm:"size:50"`
-	RuntimeState     string    `json:"runtime_state" gorm:"size:50"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	Containers       []RuntimeContainer `json:"containers" gorm:"serializer:json;type:mediumtext"`
+	ID               uint               `json:"id" gorm:"primaryKey"`
+	EnvironmentID    uint               `json:"environment_id" gorm:"uniqueIndex:environment_target"`
+	TargetID         uint               `json:"target_id" gorm:"uniqueIndex:environment_target"`
+	CurrentReleaseID uint               `json:"current_release_id"`
+	Health           string             `json:"health" gorm:"size:50"`
+	RuntimeState     string             `json:"runtime_state" gorm:"size:50"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+}
+
+// RuntimeContainer 来自实际目标主机的 Docker 核对，不由镜像标签推断运行版本。
+type RuntimeContainer struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Image     string    `json:"image"`
+	ImageID   string    `json:"image_id"`
+	State     string    `json:"state"`
+	Health    string    `json:"health"`
+	CheckedAt time.Time `json:"checked_at"`
 }
 
 type MaintenanceJob struct {

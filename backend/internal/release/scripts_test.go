@@ -170,6 +170,15 @@ func TestApplyRunsScriptsInOrderOnTarget(t *testing.T) {
 	if !strings.HasSuffix(string(order), "custom\n") {
 		t.Fatal("custom deployment script was ignored")
 	}
+	s.Release.Execution = models.DeploymentExecution{Mode: "compose", Command: "echo execution >> order\ntouch deployed", CheckCommand: "echo check >> order"}
+	if _, _, _, err := Apply(context.Background(), s, dir, func(string, string) {}, nil); err != nil {
+		t.Fatal(err)
+	}
+	order, _ = os.ReadFile(filepath.Join(dir, "order"))
+	if !strings.HasSuffix(string(order), "execution\ncheck\n") {
+		t.Fatal("Compose execution command or additional check was ignored")
+	}
+	s.Release.Execution = models.DeploymentExecution{}
 	s.Scripts.Before = "exit 9"
 	s.Scripts.Deploy = "touch forbidden"
 	if _, _, updated, err := Apply(context.Background(), s, dir, func(string, string) {}, nil); err == nil || updated {

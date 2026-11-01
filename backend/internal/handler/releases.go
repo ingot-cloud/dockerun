@@ -119,8 +119,8 @@ func SaveApplicationScripts(c *gin.Context) {
 	c.JSON(200, app)
 }
 func SaveEnvironment(c *gin.Context) {
-	builtin.ReferenceGate.RLock()
-	defer builtin.ReferenceGate.RUnlock()
+	builtin.ReferenceGate.Lock()
+	defer builtin.ReferenceGate.Unlock()
 	var q models.Environment
 	if err := c.ShouldBindJSON(&q); err != nil {
 		fail(c, err)
@@ -227,6 +227,10 @@ func SaveEnvironment(c *gin.Context) {
 			fail(c, fmt.Errorf("请填写镜像名称，不含仓库域名和标签，例如 team/gateway"))
 			return
 		}
+		if err := release.ValidateContainerBindings(q); err != nil {
+			fail(c, err)
+			return
+		}
 		if _, err := release.AutomationBase(q); err != nil {
 			fail(c, err)
 			return
@@ -246,7 +250,10 @@ func SaveEnvironment(c *gin.Context) {
 		}
 	} else {
 		scripts, _ := json.Marshal(q.Scripts)
+		names, _ := json.Marshal(q.ContainerNames)
 		updates := map[string]any{"name": q.Name, "target_id": q.TargetID, "target_ids": q.TargetIDs, "parameters": q.Parameters, "stateless": q.Stateless, "auto_rollback": q.AutoRollback, "auto_deploy": q.AutoDeploy, "registry_id": q.RegistryID, "repository": q.Repository, "tag_pattern": q.TagPattern, "allowed_publishers": q.AllowedPublishers, "script_mode": q.ScriptMode, "scripts": string(scripts)}
+		updates["container_names"] = string(names)
+		updates["replace_containers"] = q.ReplaceContainers
 		res := database.DB.Model(&models.Environment{}).Where("id = ? AND application_id = ?", q.ID, a.ID).Updates(updates)
 		if res.Error != nil {
 			fail(c, res.Error)
@@ -287,7 +294,19 @@ func CreateRelease(c *gin.Context) {
 	q.PublisherID = c.GetUint("user_id")
 	q.Retained = true
 	q.Scripts = a.Scripts
-	if q.Source != "registry" && q.Source != "local" {
+	if err := release.ValidateExecution(q.Execution); err != nil {
+		fail(c, err)
+		return
+	}
+	if release.IsCommand(q) {
+		q.Source = "command"
+		q.RegistryID = 0
+	}
+	if q.Source == "command" && !release.IsCommand(q) {
+		fail(c, fmt.Errorf("命令来源必须使用命令部署"))
+		return
+	}
+	if q.Source != "registry" && q.Source != "local" && q.Source != "direct" && q.Source != "command" {
 		fail(c, fmt.Errorf("请选择仓库、本机镜像，或通过发布包创建版本"))
 		return
 	}
@@ -318,6 +337,28 @@ func CreateRelease(c *gin.Context) {
 		fail(c, err)
 		return
 	}
+	if release.IsCommand(q) {
+		q.Images = "[]"
+		q.BundleID = 0
+		if err = database.DB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Create(&q).Error; err != nil {
+				return err
+			}
+			if request.SaveDefinition {
+				a.Definition.Execution = q.Execution
+				a.Kind = "command"
+				a.Definition.Compose = definitionCompose
+				a.Definition.Configs = configs
+				return tx.Save(&a).Error
+			}
+			return nil
+		}); err != nil {
+			fail(c, err)
+			return
+		}
+		c.JSON(201, q)
+		return
+	}
 	p, err := release.Parse(c.Request.Context(), q.Compose, dir, "dockerun-preview", params)
 	if err != nil {
 		fail(c, err)
@@ -344,6 +385,8 @@ func CreateRelease(c *gin.Context) {
 		var im release.Image
 		if q.Source == "registry" {
 			im, err = release.Resolve(ctx, reg, ref)
+		} else if q.Source == "direct" {
+			im = release.Image{Reference: ref}
 		} else {
 			v, _, e := docker.GetClient().ImageInspectWithRaw(ctx, ref)
 			err = e
@@ -364,6 +407,11 @@ func CreateRelease(c *gin.Context) {
 		}
 		if request.SaveDefinition || a.Definition.Compose == "" {
 			a.Definition.Compose = definitionCompose
+			a.Definition.Execution = q.Execution
+			a.Kind = "compose"
+			a.Definition.Source = q.Source
+			a.Definition.RegistryID = q.RegistryID
+			a.Definition.Platform = q.Platform
 			a.Definition.Configs = configs
 			a.Definition.Parameters = apptemplate.Parameters(definitionCompose, a.Definition.Parameters)
 			if a.Category == "" {
@@ -380,10 +428,13 @@ func CreateRelease(c *gin.Context) {
 }
 func EnqueueDeployment(c *gin.Context) {
 	var q struct {
-		EnvironmentID        uint   `json:"environment_id"`
-		ReleaseID            uint   `json:"release_id"`
-		Key                  string `json:"idempotency_key"`
-		RestoreConfiguration bool   `json:"restore_configuration"`
+		EnvironmentID        uint                      `json:"environment_id"`
+		ReleaseID            uint                      `json:"release_id"`
+		Key                  string                    `json:"idempotency_key"`
+		RestoreConfiguration bool                      `json:"restore_configuration"`
+		ExpectedParameters   *models.StringMap         `json:"expected_parameters"`
+		ExpectedScripts      *models.DeploymentScripts `json:"expected_scripts"`
+		ExpectedContainers   *release.ContainerPolicy  `json:"expected_containers"`
 	}
 	if c.ShouldBindJSON(&q) != nil {
 		fail(c, fmt.Errorf("请求无效"))
@@ -395,8 +446,17 @@ func EnqueueDeployment(c *gin.Context) {
 		c.JSON(404, gin.H{"error": "环境或版本不存在"})
 		return
 	}
+	if !checkExpectedEnvironmentParameters(c, q.ExpectedParameters, env.Parameters) {
+		return
+	}
 	if err := restoreParameters(&env, r, q.RestoreConfiguration); err != nil {
 		fail(c, err)
+		return
+	}
+	if !checkExpectedContainerPolicy(c, q.ExpectedContainers, env) {
+		return
+	}
+	if !checkExpectedScripts(c, q.ExpectedScripts, r, env) {
 		return
 	}
 	d, err := release.Enqueue(env, r, c.GetUint("user_id"), q.Key, false, 0)
@@ -408,9 +468,12 @@ func EnqueueDeployment(c *gin.Context) {
 }
 func PreflightDeployment(c *gin.Context) {
 	var q struct {
-		EnvironmentID        uint `json:"environment_id"`
-		ReleaseID            uint `json:"release_id"`
-		RestoreConfiguration bool `json:"restore_configuration"`
+		EnvironmentID        uint                      `json:"environment_id"`
+		ReleaseID            uint                      `json:"release_id"`
+		RestoreConfiguration bool                      `json:"restore_configuration"`
+		ExpectedParameters   *models.StringMap         `json:"expected_parameters"`
+		ExpectedScripts      *models.DeploymentScripts `json:"expected_scripts"`
+		ExpectedContainers   *release.ContainerPolicy  `json:"expected_containers"`
 	}
 	if c.ShouldBindJSON(&q) != nil {
 		fail(c, fmt.Errorf("请求无效"))
@@ -422,8 +485,32 @@ func PreflightDeployment(c *gin.Context) {
 		fail(c, fmt.Errorf("版本和环境不匹配"))
 		return
 	}
+	if !checkExpectedEnvironmentParameters(c, q.ExpectedParameters, env.Parameters) {
+		return
+	}
 	if err := restoreParameters(&env, r, q.RestoreConfiguration); err != nil {
 		fail(c, err)
+		return
+	}
+	if !checkExpectedContainerPolicy(c, q.ExpectedContainers, env) {
+		return
+	}
+	if !checkExpectedScripts(c, q.ExpectedScripts, r, env) {
+		return
+	}
+	if release.IsCommand(r) {
+		var application models.Application
+		if database.DB.First(&application, r.ApplicationID).Error != nil {
+			fail(c, fmt.Errorf("应用不存在"))
+			return
+		}
+		if err := release.ValidateExecution(r.Execution); err != nil {
+			fail(c, err)
+			return
+		}
+		var current models.Release
+		database.DB.First(&current, env.CurrentReleaseID)
+		c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "images": []release.Image{}, "parameters": apptemplate.RedactParameters(env.Parameters, application.Definition.Parameters), "execution": r.Execution, "previous_execution": current.Execution, "scripts": release.EffectiveScripts(r, env), "container_policy": containerPolicy(env), "message": commandDeploymentNotice(env)})
 		return
 	}
 	var images []release.Image
@@ -456,7 +543,7 @@ func PreflightDeployment(c *gin.Context) {
 	content, _ := release.Encode(p)
 	var current models.Release
 	database.DB.First(&current, env.CurrentReleaseID)
-	c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "images": images, "compose": content, "previous_compose": current.Compose, "scripts": release.EffectiveScripts(r, env), "message": "定义检查通过；脚本只在确认部署后执行，执行前还将检查全部镜像、平台、端口、挂载和网络"})
+	c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "parameters": apptemplate.RedactParameters(env.Parameters, app.Definition.Parameters), "images": images, "compose": content, "previous_compose": current.Compose, "execution": r.Execution, "previous_execution": current.Execution, "scripts": release.EffectiveScripts(r, env), "container_policy": containerPolicy(env), "message": "定义检查通过；脚本只在确认部署后执行，执行前还将检查全部镜像、平台、端口、挂载和网络"})
 }
 func ListDeployments(c *gin.Context) {
 	rows := []deploymentSummary{}

@@ -97,7 +97,7 @@ func Run(ctx context.Context, base, token, dir string) error {
 			return ctx.Err()
 		}
 		platform, _ := release.Platform(ctx)
-		resp, err := c.request(ctx, "GET", "/agent/poll?platform="+url.QueryEscape(platform)+"&scripts=1", nil)
+		resp, err := c.request(ctx, "GET", "/agent/poll?platform="+url.QueryEscape(platform)+"&scripts=1&execution=1&command_images=1&containers=1", nil)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			select {
@@ -133,13 +133,14 @@ func Run(ctx context.Context, base, token, dir string) error {
 }
 
 type result struct {
-	ScriptsCompleted bool            `json:"scripts_completed"`
-	RecoveryStatus   string          `json:"recovery_status"`
-	Status           string          `json:"status"`
-	Result           string          `json:"result"`
-	ActualImages     string          `json:"actual_images"`
-	Health           string          `json:"health"`
-	Images           []release.Image `json:"images"`
+	Containers       []models.RuntimeContainer `json:"containers"`
+	ScriptsCompleted bool                      `json:"scripts_completed"`
+	RecoveryStatus   string                    `json:"recovery_status"`
+	Status           string                    `json:"status"`
+	Result           string                    `json:"result"`
+	ActualImages     string                    `json:"actual_images"`
+	Health           string                    `json:"health"`
+	Images           []release.Image           `json:"images"`
 }
 type logEntry struct {
 	Sequence int    `json:"sequence"`
@@ -198,7 +199,7 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 			}
 		}
 	}
-	ctx, cancel := context.WithTimeout(parent, time.Hour)
+	ctx, cancel := context.WithTimeout(parent, release.ExecutionTimeout(s.Release, time.Hour))
 	defer cancel()
 	done := make(chan struct{})
 	defer close(done)
@@ -220,7 +221,9 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 	old, already := os.ReadFile(journal)
 	if already == nil {
 		// A started operation is reconciled, never blindly repeated after an Agent restart.
-		if json.Unmarshal(old, &s) == nil && len(s.Images) > 0 && (!release.HasScripts(s.Scripts) || s.ScriptsCompleted) {
+		if json.Unmarshal(old, &s) == nil && release.IsCommand(s.Release) && s.ScriptsCompleted {
+			r.Status, r.Health = "success", "unchecked"
+		} else if !release.IsCommand(s.Release) && len(s.Images) > 0 && (!(release.HasScripts(s.Scripts) || release.RequiresExecutionAgent(s.Release)) || s.ScriptsCompleted) {
 			p, err := release.Render(ctx, s.Release, s.Environment, dir, s.Images)
 			if err == nil {
 				r.ActualImages, r.Health, err = release.Actual(ctx, p)
@@ -265,16 +268,14 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 				}
 			}
 		}
-		if err == nil {
-			s.Images, err = release.PrepareWithAuth(ctx, &s.Release, auth, func(m string) { log("images", m) })
-		}
 		updated := false
 		if err == nil {
-			r.ActualImages, r.Health, updated, err = release.Apply(ctx, s, dir, log, func() error {
+			r.ActualImages, r.Health, updated, err = release.RunDeployment(ctx, &s, dir, auth, log, func() error {
 				b, _ := json.Marshal(s)
 				return os.WriteFile(journal, b, 0600)
 			})
 		}
+
 		if err == nil {
 			s.ScriptsCompleted = true
 			b, _ := json.Marshal(s)
@@ -287,7 +288,7 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 			}
 		} else {
 			r.Result = err.Error()
-			if updated && previous != nil && s.Environment.Stateless && s.Environment.AutoRollback {
+			if updated && previous != nil && !release.IsCommand(s.Release) && !release.IsCommand(previous.Release) && s.Environment.Stateless && s.Environment.AutoRollback {
 				r.RecoveryStatus = "failed"
 				log("recovery", "恢复节点上次成功版本与配置")
 				restore := previous.Release
@@ -318,6 +319,7 @@ func (c *Client) execute(parent context.Context, d models.Deployment, s release.
 		r.Images = s.Images
 	}
 	r.Images = s.Images
+	r.Containers = s.Containers
 	r.ScriptsCompleted = s.ScriptsCompleted
 	b, _ := json.Marshal(r)
 	if err := os.WriteFile(reportPath, b, 0600); err != nil {

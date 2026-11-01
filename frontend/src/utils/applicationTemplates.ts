@@ -1,4 +1,5 @@
 import type { ApplicationDefinition, ApplicationTemplate, TemplateParameter } from '@/api/applicationTemplates'
+import type { EnvironmentParameterPair } from '@/utils/applicationDetail'
 import { registryHost, type ReleaseRegistry } from '@/utils/releases'
 export function templateCategory(value?:string) { return value === 'middleware' ? '中间件' : '业务应用' }
 export function templateValues(template: ApplicationTemplate, registry?: ReleaseRegistry): Record<string,string> {
@@ -30,4 +31,9 @@ export function retargetTemplateImages(schema:TemplateParameter[],values:Record<
   const previous=registryHost(oldRegistry),next=registryHost(newRegistry),copy={...values}
   if(previous && next)for(const field of schema)if(field.type==='image' && copy[field.key]?.startsWith(`${previous}/`))copy[field.key]=`${next}/${copy[field.key]!.slice(previous.length+1)}`
   return copy
+}
+
+export function retargetTemplateParameterPairs(schema: TemplateParameter[], pairs: EnvironmentParameterPair[], oldRegistry?: ReleaseRegistry, newRegistry?: ReleaseRegistry): EnvironmentParameterPair[] {
+  const imageKeys = new Set(schema.filter(field => field.type === 'image').map(field => field.key))
+  return pairs.map(pair => imageKeys.has(pair.schemaKey || '') ? { ...pair, value: retargetTemplateImages(schema, { [pair.key]: pair.value }, oldRegistry, newRegistry)[pair.key]! } : pair)
 }

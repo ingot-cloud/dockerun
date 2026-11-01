@@ -23,7 +23,7 @@
     "test:management": "node --test tests/management.test.mjs tests/workspaceDeletion.test.mjs",
     "test:navigation": "node --test tests/navigation.test.mjs",
     "test:unsaved-changes": "node --test tests/unsavedChanges.test.mjs",
-    "test:releases": "node --test tests/releases.test.mjs tests/applicationDetail.test.mjs",
+    "test:releases": "node --test tests/releases.test.mjs tests/applicationDetail.test.mjs tests/deploymentParameters.test.mjs tests/releaseConfigFiles.test.mjs tests/codeLanguage.test.mjs",
     "test:deployments": "node --test tests/deployments.test.mjs",
     "test:templates": "node --test tests/applicationTemplates.test.mjs",
     "type-check": "vue-tsc --noEmit"

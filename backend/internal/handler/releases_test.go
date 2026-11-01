@@ -108,3 +108,75 @@ func TestOldAgentCannotSkipDeploymentScripts(t *testing.T) {
 		t.Fatal("old Agent was allowed to silently skip deployment scripts")
 	}
 }
+
+func TestOldAgentCannotIgnoreCommandExecution(t *testing.T) {
+	db := registryTestDB(t)
+	if err := db.AutoMigrate(&models.Target{}, &models.Deployment{}, &models.TaskLog{}, &models.Environment{}); err != nil {
+		t.Fatal(err)
+	}
+	target := models.Target{ID: 2, Name: "script-only-agent", Enabled: true}
+	db.Create(&target)
+	snapshot, _ := json.Marshal(release.Snapshot{Release: models.Release{Execution: models.DeploymentExecution{Mode: "command", Command: "echo required"}}, Environment: models.Environment{ID: 1, TargetID: target.ID}})
+	task := models.Deployment{Status: "queued", TargetID: target.ID, Snapshot: string(snapshot), IdempotencyKey: "old-execution-agent"}
+	db.Create(&task)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("target", target)
+	requestContext, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	ctx.Request = httptest.NewRequest("GET", "/agent/poll?platform=linux/amd64&scripts=1", nil).WithContext(requestContext)
+	AgentPoll(ctx)
+	db.First(&task, task.ID)
+	if task.Status != "failed" || !strings.Contains(task.Result, "请更新 Agent") {
+		t.Fatal("old Agent could ignore command execution", task.Result)
+	}
+}
+
+func TestOldAgentCannotIgnoreCommandTriggerImage(t *testing.T) {
+	db := registryTestDB(t)
+	if err := db.AutoMigrate(&models.Target{}, &models.Deployment{}, &models.TaskLog{}, &models.Environment{}); err != nil {
+		t.Fatal(err)
+	}
+	target := models.Target{ID: 2, Name: "agent-without-trigger-images", Enabled: true}
+	db.Create(&target)
+	snapshot, _ := json.Marshal(release.Snapshot{Release: models.Release{Source: "registry", Execution: models.DeploymentExecution{Mode: "command", Command: `docker run "$DOCKERUN_IMAGE"`}}, Environment: models.Environment{ID: 1, TargetID: target.ID}})
+	task := models.Deployment{Status: "queued", TargetID: target.ID, Snapshot: string(snapshot), IdempotencyKey: "old-command-image-agent"}
+	db.Create(&task)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("target", target)
+	requestContext, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	ctx.Request = httptest.NewRequest("GET", "/agent/poll?platform=linux/amd64&scripts=1&execution=1", nil).WithContext(requestContext)
+	AgentPoll(ctx)
+	db.First(&task, task.ID)
+	if task.Status != "failed" || !strings.Contains(task.Result, "触发镜像") {
+		t.Fatal("old Agent could ignore the pinned command image", task.Result)
+	}
+}
+
+func TestOldAgentCannotSkipAssociatedContainerReplacement(t *testing.T) {
+	db := registryTestDB(t)
+	if err := db.AutoMigrate(&models.Target{}, &models.Deployment{}, &models.TaskLog{}, &models.Environment{}); err != nil {
+		t.Fatal(err)
+	}
+	target := models.Target{ID: 2, Name: "agent-without-container-policy", Enabled: true}
+	db.Create(&target)
+	snapshot, _ := json.Marshal(release.Snapshot{
+		Release:     models.Release{Source: "registry", Execution: models.DeploymentExecution{Mode: "command", Command: `docker run --name test-nginx "$DOCKERUN_IMAGE"`}},
+		Environment: models.Environment{ID: 1, TargetID: target.ID, ContainerNames: []string{"test-nginx"}, ReplaceContainers: true},
+	})
+	task := models.Deployment{Status: "queued", TargetID: target.ID, Snapshot: string(snapshot), IdempotencyKey: "old-container-policy-agent"}
+	db.Create(&task)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("target", target)
+	requestContext, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	ctx.Request = httptest.NewRequest("GET", "/agent/poll?platform=linux/amd64&scripts=1&execution=1&command_images=1", nil).WithContext(requestContext)
+	AgentPoll(ctx)
+	db.First(&task, task.ID)
+	if task.Status != "failed" || !strings.Contains(task.Result, "关联容器") || !strings.Contains(task.Result, "请更新 Agent") {
+		t.Fatal("old Agent could skip container replacement", task.Result)
+	}
+}

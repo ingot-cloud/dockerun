@@ -6,7 +6,9 @@ export const statusLabels: Record<string, string> = {
 }
 export const sourceLabels: Record<string, string> = { registry: '仓库镜像', local: '本机镜像', bundle: '完整发布包', image: '镜像归档', legacy: '历史脚本', compose: '应用栈', simple: '简单容器', shell: '脚本', 'docker-compose': '应用栈' }
 export const stageLabels: Record<string, string> = { queued: '排队中', blocked: '等待上一台', failed: '执行失败', legacy: '执行历史脚本', preflight: '预检查', prepare: '准备环境', validate: '校验配置', validating: '校验中', pull: '拉取镜像', pulling: '拉取镜像', load: '加载镜像', loading: '加载镜像', deploy: '部署服务', deploying: '部署服务', apply: '应用配置', health: '检查健康', verify: '验证结果', rollback: '恢复版本', recovery: '恢复版本', complete: '已结束', execute: '执行脚本', script: '执行脚本', snapshot: '保存快照', render: '生成配置', images: '准备镜像', start: '启动服务' }
-Object.assign(stageLabels, { before_script: '执行部署前脚本', deploy_script: '执行部署脚本', after_script: '执行部署后脚本' })
+Object.assign(stageLabels, { before_script: '执行部署前脚本', deploy_script: '执行部署命令', after_script: '执行部署后脚本', check_script: '执行部署检查', containers: '替换关联容器', runtime: '核对运行容器' })
+Object.assign(sourceLabels, { command: '命令部署', direct: '镜像地址' })
+Object.assign(statusLabels, { unchecked: '未执行健康检查', missing: '容器不存在', created: '已创建', restarting: '重启中', removing: '删除中', exited: '已退出', dead: '已失效' })
 export function statusLabel(value?: string) { return statusLabels[value || 'unknown'] || `未知状态（${value}）` }
 export function sourceLabel(value?: string) { return sourceLabels[value || ''] || (value ? `其他来源（${value}）` : '—') }
 export function stageLabel(value?: string) { return stageLabels[value || ''] || (value ? `其他阶段（${value}）` : '—') }

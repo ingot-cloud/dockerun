@@ -2,6 +2,7 @@ package apptemplate
 
 import (
 	"dockerun/internal/models"
+	"dockerun/internal/utils"
 	"github.com/distribution/reference"
 	"regexp"
 	"strconv"
@@ -11,7 +12,6 @@ import (
 )
 
 var placeholders = regexp.MustCompile(`(^|[^$])\$\{([A-Za-z_][A-Za-z0-9_]*)([^}]*)\}`)
-var sensitive = regexp.MustCompile(`(?i)(password|passwd|secret|token|credential|private_key)`)
 var identifier = regexp.MustCompile(`[^A-Za-z0-9_]`)
 
 func Parameters(content string, existing []models.ApplicationParameter) []models.ApplicationParameter {
@@ -31,7 +31,7 @@ func Parameters(content string, existing []models.ApplicationParameter) []models
 			p.Default = strings.TrimPrefix(match[3], ":-")
 			p.Required = false
 		}
-		if sensitive.MatchString(key) {
+		if utils.SensitiveParameterName(key) {
 			p.Type = "password"
 			p.Default = ""
 			p.Required = true
@@ -76,7 +76,7 @@ func ReusableDefinition(def models.ApplicationDefinition) (models.ApplicationDef
 		}
 		if env, ok := svc["environment"].(map[string]any); ok {
 			for key, v := range env {
-				if sensitive.MatchString(key) {
+				if utils.SensitiveParameterName(key) {
 					if text, ok := v.(string); !ok || !strings.Contains(text, "${") {
 						env[key] = add(prefix+"_"+identifier.ReplaceAllString(key, "_"), key, "password", "")
 					}
@@ -86,7 +86,7 @@ func ReusableDefinition(def models.ApplicationDefinition) (models.ApplicationDef
 			for i, v := range env {
 				if text, ok := v.(string); ok {
 					key, value, hasValue := strings.Cut(text, "=")
-					if hasValue && sensitive.MatchString(key) && !strings.Contains(value, "${") {
+					if hasValue && utils.SensitiveParameterName(key) && !strings.Contains(value, "${") {
 						env[i] = key + "=" + add(prefix+"_"+identifier.ReplaceAllString(key, "_"), key, "password", "")
 					}
 				}
@@ -120,14 +120,14 @@ func ReusableDefinition(def models.ApplicationDefinition) (models.ApplicationDef
 	def.Compose = encodeYAML(doc)
 	def.Compose = placeholders.ReplaceAllStringFunc(def.Compose, func(match string) string {
 		parts := placeholders.FindStringSubmatch(match)
-		if sensitive.MatchString(parts[2]) {
+		if utils.SensitiveParameterName(parts[2]) {
 			return parts[1] + "${" + parts[2] + ":?请填写此环境的凭据}"
 		}
 		return match
 	})
 	def.Parameters = Parameters(def.Compose, def.Parameters)
 	for i := range def.Parameters {
-		if def.Parameters[i].Type == "password" || sensitive.MatchString(def.Parameters[i].Key) {
+		if def.Parameters[i].Type == "password" || utils.SensitiveParameterName(def.Parameters[i].Key) {
 			def.Parameters[i].Default = ""
 			def.Parameters[i].Type = "password"
 		}
@@ -142,7 +142,7 @@ func RedactParameters(values models.StringMap, schema []models.ApplicationParame
 	copy := models.StringMap{}
 	for k, v := range values {
 		copy[k] = v
-		if sensitive.MatchString(k) {
+		if utils.SensitiveParameterName(k) {
 			copy[k] = "******"
 		}
 	}

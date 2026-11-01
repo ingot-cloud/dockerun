@@ -1,16 +1,18 @@
 <template>
-  <div class="code-editor-wrapper">
-    <div class="editor-label"><span>{{ label || '代码编辑' }}</span><el-button text :aria-label="`${readonly ? '放大查看' : '放大编辑'}：${label || '代码'}`" @click="openExpanded"><el-icon><FullScreen /></el-icon>{{ readonly ? '放大查看' : '放大编辑' }}</el-button></div>
-    <vue-monaco-editor
+  <div class="code-editor-wrapper" :class="{'code-editor-wrapper--fill':fill}" :style="fill ? undefined : {height:typeof height==='number'?`${height}px`:height}">
+    <div class="editor-label"><span :title="label || '代码编辑'">{{ label || '代码编辑' }}</span><el-button text :aria-label="`${readonly ? '放大查看' : '放大编辑'}：${label || '代码'}`" @click="openExpanded"><el-icon><FullScreen /></el-icon>{{ readonly ? '放大查看' : '放大编辑' }}</el-button></div>
+    <div class="code-editor-surface"><vue-monaco-editor
       v-model:value="editorValue"
-      :language="language"
+      :path="modelPath"
+      :language="resolvedLanguage"
       :theme="theme"
       :options="editorOptions"
-      :height="height"
-    />
+      height="100%"
+      @mount="handleMount"
+    /></div>
     <el-dialog v-model="expanded" :title="expandedTitle" class="code-editor-dialog" :style="dialogStyle" append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="false" @opened="expandedEditor?.focus()" @closed="expandedEditor=undefined">
       <p class="code-editor-dialog-help">{{ readonly ? '此内容为只读，可在放大窗口中查看。' : '修改会同步到当前表单，仍需保存或发布后生效。' }} 拖动右下角可调整窗口大小。</p>
-      <div class="code-editor-dialog-content"><vue-monaco-editor v-model:value="editorValue" :language="language" :theme="theme" :options="editorOptions" height="100%" @mount="handleExpandedMount" /></div>
+      <div class="code-editor-dialog-content"><vue-monaco-editor v-model:value="editorValue" :language="resolvedLanguage" :theme="theme" :options="editorOptions" height="100%" @mount="handleExpandedMount" /></div>
       <template #footer><el-button type="primary" @click="expanded=false">{{readonly ? '完成查看' : '完成编辑'}}</el-button></template>
       <button type="button" class="code-editor-resize-handle" aria-label="调整编辑窗口大小" title="拖动调整大小，或使用方向键调整" @pointerdown="startResize" @pointermove="resize" @pointerup="stopResize" @pointercancel="stopResize" @keydown="resizeWithKeyboard"><el-icon><BottomRight /></el-icon></button>
     </el-dialog>
@@ -19,7 +21,8 @@
 
 <script setup lang="ts">
 import "monaco-editor/esm/nls.messages.zh-cn.js";
-import { ref, computed, getCurrentInstance, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, getCurrentInstance, onMounted, onBeforeUnmount, onUnmounted, watch, useId, nextTick } from "vue";
+import { codeLanguage } from '@/utils/codeLanguage';
 import { FullScreen, BottomRight } from '@element-plus/icons-vue';
 import {
   VueMonacoEditor,
@@ -29,23 +32,41 @@ import * as monaco from "monaco-editor/esm/vs/editor/editor.api.js";
 import "monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution";
 import "monaco-editor/esm/vs/basic-languages/shell/shell.contribution";
 import "monaco-editor/esm/vs/basic-languages/dockerfile/dockerfile.contribution";
+import "monaco-editor/esm/vs/basic-languages/ini/ini.contribution";
+import "monaco-editor/esm/vs/basic-languages/xml/xml.contribution";
+import "monaco-editor/esm/vs/basic-languages/html/html.contribution";
+import "monaco-editor/esm/vs/basic-languages/css/css.contribution";
+import "monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution";
+import "monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution";
+import "monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution";
+import "monaco-editor/esm/vs/basic-languages/python/python.contribution";
+import "monaco-editor/esm/vs/basic-languages/java/java.contribution";
+import "monaco-editor/esm/vs/basic-languages/go/go.contribution";
+import "monaco-editor/esm/vs/basic-languages/sql/sql.contribution";
+import "monaco-editor/esm/vs/basic-languages/powershell/powershell.contribution";
+import "monaco-editor/esm/vs/language/json/monaco.contribution";
+import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
+self.MonacoEnvironment = { getWorker: (_moduleId, label) => label === 'json' ? new JsonWorker() : new EditorWorker() };
 const app = getCurrentInstance()?.appContext.app;
 if (app) MonacoInstall(app, { monaco });
+monaco.editor.defineTheme('dockerun-dark', {base:'vs-dark',inherit:true,rules:[],colors:{'editor.background':'#171717','editor.foreground':'#d6d6d6','editorLineNumber.foreground':'#777777','editorLineNumber.activeForeground':'#d6d6d6','editor.lineHighlightBackground':'#202020','editor.selectionBackground':'#24343c','editorCursor.foreground':'#eeeeee'}});
 
 interface Props {
   modelValue: string;
   language?: string;
+  filename?: string;
+  documentKey?: string;
+  preserveContent?: boolean;
   label?: string;
   height?: string | number;
+  fill?: boolean;
   readonly?: boolean;
   minimap?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  language: "shell",
-  height: "400px",
+  height: "clamp(320px, 50dvh, 640px)",
   readonly: false,
   minimap: false,
 });
@@ -53,6 +74,20 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
 }>();
+const resolvedLanguage = computed(() => props.language || (props.filename ? codeLanguage(props.filename) : 'shell'));
+const editorId=useId();
+const modelPath=computed(()=>`inmemory://dockerun/${encodeURIComponent(editorId)}/${encodeURIComponent(props.documentKey || 'main')}`);
+const ownedModels=new Set<string>();
+let inlineEditor:monaco.editor.IStandaloneCodeEditor|undefined;
+watch(modelPath,async path=>{
+  ownedModels.add(path);
+  const value=props.modelValue;
+  await nextTick();
+  const model=inlineEditor?.getModel();
+  if(model && model.uri.toString()===monaco.Uri.parse(path).toString() && props.modelValue===value && model.getValue()!==value)model.setValue(value);
+},{immediate:true});
+function handleMount(editor: monaco.editor.IStandaloneCodeEditor) { inlineEditor=editor;editor.layout(); }
+onUnmounted(()=>{for(const path of ownedModels)monaco.editor.getModel(monaco.Uri.parse(path))?.dispose()});
 
 const editorValue = computed({get: () => props.modelValue || '', set: value => { if (!props.readonly) emit('update:modelValue', value) }});
 const expanded = ref(false);
@@ -92,28 +127,34 @@ function resizeWithKeyboard(event: KeyboardEvent) {
 function handleExpandedMount(editor: monaco.editor.IStandaloneCodeEditor) { expandedEditor = editor; }
 function handleViewportResize() { if(expanded.value)constrainLayout(); }
 onMounted(() => window.addEventListener('resize', handleViewportResize));
-onBeforeUnmount(() => window.removeEventListener('resize', handleViewportResize));
+onBeforeUnmount(() => { inlineEditor=undefined;window.removeEventListener('resize', handleViewportResize); });
 
-const theme = computed(() => "vs-dark");
+const theme = computed(() => "dockerun-dark");
 
 const editorOptions = computed(() => ({
   automaticLayout: true,
-  formatOnType: true,
-  formatOnPaste: true,
+  formatOnType: !props.preserveContent && resolvedLanguage.value !== 'plaintext',
+  formatOnPaste: !props.preserveContent && resolvedLanguage.value !== 'plaintext',
+  ...(props.preserveContent || resolvedLanguage.value === 'plaintext' ? { autoIndent: 'none' as const, trimAutoWhitespace: false, detectIndentation: false } : {}),
   readOnly: props.readonly,
   ariaLabel: props.label || '代码编辑器',
   minimap: {
     enabled: props.minimap,
   },
   scrollBeyondLastLine: false,
-  fontSize: 12,
+  fontSize: 13,
+  lineHeight: 21,
+  padding: {top:8,bottom:8},
   lineNumbers: "on",
   roundedSelection: false,
   scrollbar: {
     verticalScrollbarSize: 10,
     horizontalScrollbarSize: 10,
+    alwaysConsumeMouseWheel: false,
   },
   folding: true,
+  // 避免切换文件时同词查询的延迟任务抛出取消异常；语法高亮及查找保持可用。
+  occurrencesHighlight: 'off' as const,
   renderLineHighlight: "all",
   selectOnLineNumbers: true,
   tabSize: 2,
@@ -124,14 +165,26 @@ const editorOptions = computed(() => ({
 
 <style scoped>
 .code-editor-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius);
   overflow: hidden;
   background: var(--color-bg-3);
 }
+.code-editor-wrapper--fill { flex: 1 1 0; height: 100%; }
+.code-editor-surface { flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; }
+.code-editor-surface :deep(> div) { min-width: 0; min-height: 0; }
 
 .editor-label {
+  flex-shrink: 0;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -143,7 +196,7 @@ const editorOptions = computed(() => ({
   font-size: 12px;
   font-weight: 500;
 }
-.editor-label > span { min-width: 0; overflow-wrap: anywhere; }
+.editor-label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-label .el-button { flex-shrink: 0; margin: 0; }
 </style>
 <style>

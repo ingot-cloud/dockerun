@@ -97,6 +97,14 @@ func Prepare(ctx context.Context, r *models.Release, log func(string)) ([]Image,
 	return PrepareWithAuth(ctx, r, "", log)
 }
 func PrepareWithAuth(ctx context.Context, r *models.Release, auth string, log func(string)) ([]Image, error) {
+	if IsCommand(*r) {
+		if err := ValidateExecution(r.Execution); err != nil {
+			return nil, err
+		}
+		if !RequiresCommandImageAgent(*r) {
+			return nil, nil
+		}
+	}
 	var images []Image
 	if err := json.Unmarshal([]byte(r.Images), &images); err != nil {
 		return nil, err
@@ -135,15 +143,17 @@ func PrepareWithAuth(ctx context.Context, r *models.Release, auth string, log fu
 	}
 	for idx, im := range images {
 		ref := im.Reference
-		if r.Source == "registry" {
-			if im.Digest == "" {
-				return nil, fmt.Errorf("仓库版本缺少不可变 digest: %s", ref)
+		if r.Source == "registry" || r.Source == "direct" {
+			if r.Source == "registry" {
+				if im.Digest == "" {
+					return nil, fmt.Errorf("仓库版本缺少不可变 digest: %s", ref)
+				}
+				n, err := reference.ParseNormalizedNamed(ref)
+				if err != nil {
+					return nil, err
+				}
+				ref = reference.TrimNamed(n).String() + "@" + im.Digest
 			}
-			n, err := reference.ParseNormalizedNamed(ref)
-			if err != nil {
-				return nil, err
-			}
-			ref = reference.TrimNamed(n).String() + "@" + im.Digest
 			stream, err := docker.GetClient().ImagePull(ctx, ref, dockerTypes.ImagePullOptions{RegistryAuth: auth, Platform: platform})
 			if err != nil {
 				return nil, err
@@ -200,6 +210,15 @@ func Render(ctx context.Context, r models.Release, env models.Environment, dir s
 					return nil, fmt.Errorf("镜像尚未加载")
 				}
 				s.Image = im.ID
+				// 标签变化也应触发服务更新，不能仅按相同 Image ID 判定配置未变。
+				if trigger, e := reference.ParseNormalizedNamed(r.TriggerImage); e == nil && r.TriggerDigest != "" && im.Digest == r.TriggerDigest {
+					if source, e := reference.ParseNormalizedNamed(im.Reference); e == nil && source.Name() == trigger.Name() {
+						if s.Labels == nil {
+							s.Labels = types.Labels{}
+						}
+						s.Labels["io.dockerun.image-trigger"] = r.TriggerImage + "@" + r.TriggerDigest
+					}
+				}
 				found = true
 				break
 			}
@@ -303,7 +322,7 @@ func Up(ctx context.Context, p *types.Project, dir string, log func(string)) err
 	}
 	file := filepath.Join(dir, "resolved.json")
 	envFile := filepath.Join(dir, "empty.env")
-	cmd := exec.CommandContext(ctx, "docker", "compose", "--env-file", envFile, "--project-name", p.Name, "--project-directory", dir, "-f", file, "up", "--detach", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "120")
+	cmd := exec.CommandContext(ctx, commandExecutable("docker"), "compose", "--env-file", envFile, "--project-name", p.Name, "--project-directory", dir, "-f", file, "up", "--detach", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "120")
 	cmd.Dir = dir
 	cmd.Env = commandEnvironment()
 	cmd.Stdout = logWriter{log}

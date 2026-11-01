@@ -102,7 +102,12 @@ func ReceiveWebhook(c *gin.Context) {
 			c.JSON(502, gin.H{"error": "无法确认镜像提交结果"})
 			return
 		}
-		key := identity.Hash(fmt.Sprintf("external:%d:%s:%s:%s", cfg.ID, e.Target.Repository, e.Target.Tag, im.Digest))
+		delivery := e.ID + ":" + e.Timestamp
+		if e.ID == "" && e.Timestamp == "" {
+			// 无事件身份时交给环境当前及排队状态去重，不能永久屏蔽切回历史 tag 的新推送。
+			delivery = identity.Random()
+		}
+		key := identity.Hash(fmt.Sprintf("external:%d:%s:%s:%s:%s", cfg.ID, e.Target.Repository, e.Target.Tag, im.Digest, delivery))
 		ev := models.ImageEvent{RegistryID: reg.ID, Repository: e.Target.Repository, Reference: e.Target.Tag, Digest: im.Digest, MediaType: e.Target.MediaType, UserID: owner.ID, Key: key, Committed: true}
 		if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&ev).Error; err != nil {
 			c.Status(503)

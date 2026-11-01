@@ -258,7 +258,8 @@ func Serve(w http.ResponseWriter, r *http.Request) {
 			var reg models.Registry
 			database.DB.Where("kind = ?", "builtin").First(&reg)
 			d := digest.FromBytes(b).String()
-			key := identity.Hash(fmt.Sprintf("%d:%s:%s:%s:%d:%s", reg.ID, repo, ref, d, u.ID, claims.ID))
+			// 每次清单提交独立记账；是否需要部署由环境当前 tag + digest 判断。
+			key := identity.Hash(fmt.Sprintf("%d:%s:%s:%s:%d:%s", reg.ID, repo, ref, d, u.ID, identity.Random()))
 			e := models.ImageEvent{Imported: claims.Origin == "bundle", RegistryID: reg.ID, Repository: repo, Reference: ref, Digest: d, MediaType: r.Header.Get("Content-Type"), UserID: u.ID, Key: key}
 			if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&e).Error; err != nil {
 				http.Error(w, "事件持久化失败", 503)

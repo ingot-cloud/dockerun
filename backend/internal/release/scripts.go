@@ -51,7 +51,7 @@ func ValidateScripts(s models.DeploymentScripts) error {
 var scriptVariable = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func commandEnvironment() []string {
-	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}
+	env := []string{"PATH=" + commandPath(), "HOME=" + os.Getenv("HOME")}
 	for _, key := range []string{"DOCKER_CONFIG", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"} {
 		if v := os.Getenv(key); v != "" {
 			env = append(env, key+"="+v)
@@ -64,7 +64,7 @@ func RunScript(ctx context.Context, content, stage, dir string, s Snapshot, log 
 	if strings.TrimSpace(content) == "" {
 		return nil
 	}
-	if stage != "before_script" && stage != "deploy_script" && stage != "after_script" {
+	if stage != "before_script" && stage != "deploy_script" && stage != "after_script" && stage != "check_script" {
 		return fmt.Errorf("未知脚本阶段")
 	}
 	dir, err := filepath.Abs(dir)
@@ -76,13 +76,18 @@ func RunScript(ctx context.Context, content, stage, dir string, s Snapshot, log 
 		return err
 	}
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-e", "-o", "pipefail", path)
-	cmd.Dir = dir
+	cmd.Dir = scriptWorkingDirectory(dir, s)
 	cmd.Env = commandEnvironment()
 	for k, v := range s.Environment.Parameters {
 		if scriptVariable.MatchString(k) {
 			cmd.Env = append(cmd.Env, k+"="+v)
 		}
 	}
+	imageEnvironment, err := commandImageEnvironment(s.Release)
+	if err != nil {
+		return err
+	}
+	cmd.Env = append(cmd.Env, imageEnvironment...)
 	cmd.Env = append(cmd.Env,
 		"WORK_DIR="+dir, "COMPOSE_FILE="+filepath.Join(dir, "resolved.json"), "COMPOSE_PROJECT_NAME="+ProjectName(s.Environment),
 		fmt.Sprintf("DOCKERUN_APPLICATION_ID=%d", s.Release.ApplicationID), fmt.Sprintf("DOCKERUN_ENVIRONMENT_ID=%d", s.Environment.ID),
@@ -96,18 +101,39 @@ func RunScript(ctx context.Context, content, stage, dir string, s Snapshot, log 
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	cmd.WaitDelay = time.Second
-	output := logWriter{func(m string) { log(stage, m) }}
+	output := &scriptLogWriter{log: func(m string) { log(stage, m) }, secrets: scriptSecrets(s)}
 	cmd.Stdout, cmd.Stderr = output, output
 	log(stage, "开始执行脚本")
-	if err = cmd.Run(); err != nil {
-		return fmt.Errorf("%s执行失败: %w", map[string]string{"before_script": "部署前脚本", "deploy_script": "部署脚本", "after_script": "部署后脚本"}[stage], err)
+	err = cmd.Run()
+	output.Flush()
+	if err != nil {
+		return fmt.Errorf("%s执行失败: %w", map[string]string{"before_script": "部署前脚本", "deploy_script": "部署命令", "after_script": "部署后脚本", "check_script": "部署检查"}[stage], err)
 	}
 	log(stage, "脚本执行完成")
 	return nil
 }
 
+func scriptWorkingDirectory(dir string, s Snapshot) string {
+	if workDir := s.Release.Execution.WorkDir; workDir != "" {
+		workDir = os.Expand(workDir, func(key string) string {
+			if key == "WORK_DIR" {
+				return dir
+			}
+			return s.Environment.Parameters[key]
+		})
+		if !filepath.IsAbs(workDir) {
+			workDir = filepath.Join(dir, workDir)
+		}
+		return workDir
+	}
+	return dir
+}
+
 // Apply 在实际目标主机上运行同一发布流程；预览不执行任何脚本。
 func Apply(ctx context.Context, s Snapshot, dir string, log func(string, string), checkpoint func() error) (actual, health string, updated bool, err error) {
+	if IsCommand(s.Release) {
+		return applyCommand(ctx, s, dir, log, checkpoint)
+	}
 	p, err := Render(ctx, s.Release, s.Environment, dir, s.Images)
 	if err != nil {
 		return "", "", false, err
@@ -127,7 +153,9 @@ func Apply(ctx context.Context, s Snapshot, dir string, log func(string, string)
 	if err = Preflight(ctx, p); err != nil {
 		return "", "", false, fmt.Errorf("预检查失败: %w", err)
 	}
-	if strings.TrimSpace(s.Scripts.Deploy) != "" {
+	if strings.TrimSpace(s.Release.Execution.Command) != "" {
+		err = RunScript(ctx, s.Release.Execution.Command, "deploy_script", dir, s, log)
+	} else if strings.TrimSpace(s.Scripts.Deploy) != "" {
 		err = RunScript(ctx, s.Scripts.Deploy, "deploy_script", dir, s, log)
 	} else {
 		log("deploy", "预检查通过，更新此应用的 Compose project")
@@ -135,6 +163,9 @@ func Apply(ctx context.Context, s Snapshot, dir string, log func(string, string)
 	}
 	if err == nil {
 		actual, health, err = Actual(ctx, p)
+	}
+	if err == nil {
+		err = RunScript(ctx, s.Release.Execution.CheckCommand, "check_script", dir, s, log)
 	}
 	if err == nil {
 		err = RunScript(ctx, s.Scripts.After, "after_script", dir, s, log)

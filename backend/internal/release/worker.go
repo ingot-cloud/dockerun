@@ -8,23 +8,25 @@ import (
 	"dockerun/internal/models"
 	"encoding/json"
 	"fmt"
-	"github.com/distribution/reference"
 	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 )
 
 type Snapshot struct {
-	Release          models.Release           `json:"release"`
-	Environment      models.Environment       `json:"environment"`
-	Images           []Image                  `json:"images"`
-	Scripts          models.DeploymentScripts `json:"scripts"`
-	ScriptsCompleted bool                     `json:"scripts_completed"`
+	Containers          []models.RuntimeContainer `json:"containers,omitempty"`
+	SensitiveParameters []string                  `json:"sensitive_parameters,omitempty"`
+	Release             models.Release            `json:"release"`
+	Environment         models.Environment        `json:"environment"`
+	Images              []Image                   `json:"images"`
+	Scripts             models.DeploymentScripts  `json:"scripts"`
+	ScriptsCompleted    bool                      `json:"scripts_completed"`
 }
 
 var ExecutionGate sync.RWMutex
@@ -87,6 +89,17 @@ func Enqueue(env models.Environment, r models.Release, uid uint, key string, aut
 	if r.ApplicationID != env.ApplicationID {
 		return nil, fmt.Errorf("版本不属于此应用")
 	}
+	policy, err := ContainerSettings(env)
+	if err != nil {
+		return nil, err
+	}
+	currentPolicy, err := ContainerSettings(storedEnvironment)
+	if err != nil || policy.Replace != currentPolicy.Replace || !slices.Equal(policy.Names, currentPolicy.Names) {
+		return nil, fmt.Errorf("环境关联容器配置已变化，请刷新并重新预览")
+	}
+	if err := ValidateContainerBindings(env); err != nil {
+		return nil, err
+	}
 	if err := database.DB.Model(&r).Update("retained", true).Error; err != nil {
 		return nil, err
 	}
@@ -100,8 +113,14 @@ func Enqueue(env models.Environment, r models.Release, uid uint, key string, aut
 		targets = []uint{env.TargetID}
 	}
 	seen := map[uint]bool{}
+	var sensitiveParameters []string
+	for _, parameter := range application.Definition.Parameters {
+		if parameter.Type == "password" {
+			sensitiveParameters = append(sensitiveParameters, parameter.Key)
+		}
+	}
 	var first *models.Deployment
-	err := database.DB.Transaction(func(tx *gorm.DB) error {
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
 		for i, target := range targets {
 			if target == 0 {
 				target = 1
@@ -123,7 +142,7 @@ func Enqueue(env models.Environment, r models.Release, uid uint, key string, aut
 			copyEnv := env
 			copyEnv.TargetID = target
 			copyEnv.CurrentReleaseID = previous
-			snap, _ := json.Marshal(Snapshot{Release: r, Environment: copyEnv, Scripts: EffectiveScripts(r, copyEnv)})
+			snap, _ := json.Marshal(Snapshot{Release: r, Environment: copyEnv, Scripts: EffectiveScripts(r, copyEnv), SensitiveParameters: sensitiveParameters})
 			status := "queued"
 			if i > 0 {
 				status = "blocked"
@@ -220,37 +239,43 @@ func execute(parent context.Context, d *models.Deployment) {
 	if res.RowsAffected != 1 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(parent, Timeout())
-	defer cancel()
 	var snap Snapshot
 	if json.Unmarshal([]byte(d.Snapshot), &snap) != nil {
 		finish(d, "failed", "快照损坏")
 		return
 	}
+	ctx, cancel := context.WithTimeout(parent, ExecutionTimeout(snap.Release, Timeout()))
+	defer cancel()
 	dir := JobDir(d.ID)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		finish(d, "failed", err.Error())
 		return
 	}
-	Log(d, "images", "准备全部镜像；完成前保留当前服务")
-	images, err := Prepare(ctx, &snap.Release, func(s string) { Log(d, "images", s) })
-	if err != nil {
-		finish(d, "failed", err.Error())
-		return
+	if IsCommand(snap.Release) {
+		Log(d, "prepare", "准备部署命令与配置文件")
+	} else {
+		Log(d, "images", "准备全部镜像；完成前保留当前服务")
 	}
-	snap.Images = images
+	actual, health, updated, err := RunDeployment(ctx, &snap, dir, "", func(stage, message string) { Log(d, stage, message) }, func() error {
+		encoded, e := json.Marshal(snap)
+		if e != nil {
+			return e
+		}
+		return database.DB.Model(d).Update("snapshot", string(encoded)).Error
+	})
 	b, _ := json.Marshal(snap)
-	if err = database.DB.Model(d).Update("snapshot", string(b)).Error; err != nil {
-		finish(d, "failed", err.Error())
+	d.Snapshot = string(b)
+	if saveErr := database.DB.Model(d).Update("snapshot", d.Snapshot).Error; saveErr != nil {
+		finish(d, "needs_attention", "执行状态保存失败，请核对实际服务："+saveErr.Error())
 		return
 	}
-	actual, health, updated, err := Apply(ctx, snap, dir, func(stage, m string) { Log(d, stage, m) }, nil)
+
 	if err != nil {
 		Log(d, "failed", err.Error())
 		if updated {
 			RuntimeFailure(d)
 		}
-		if updated && snap.Environment.Stateless && snap.Environment.AutoRollback && d.PreviousReleaseID > 0 {
+		if updated && !IsCommand(snap.Release) && snap.Environment.Stateless && snap.Environment.AutoRollback && d.PreviousReleaseID > 0 {
 			recovery(parent, d)
 		}
 		if parent.Err() != nil {
@@ -268,6 +293,12 @@ func execute(parent context.Context, d *models.Deployment) {
 	success(d, actual, health)
 }
 func success(d *models.Deployment, actual, health string) {
+	var snapshot Snapshot
+	json.Unmarshal([]byte(d.Snapshot), &snapshot)
+	runtime := "running"
+	if IsCommand(snapshot.Release) && len(snapshot.Containers) == 0 {
+		runtime = "unknown"
+	}
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var state models.TargetState
 		tx.Where("environment_id = ? AND target_id = ?", d.EnvironmentID, d.TargetID).First(&state)
@@ -275,14 +306,15 @@ func success(d *models.Deployment, actual, health string) {
 		state.TargetID = d.TargetID
 		state.CurrentReleaseID = d.ReleaseID
 		state.Health = health
-		state.RuntimeState = "running"
+		state.Containers = snapshot.Containers
+		state.RuntimeState = runtime
 		if err := tx.Save(&state).Error; err != nil {
 			return err
 		}
 		var remaining int64
 		tx.Model(&models.Deployment{}).Where("batch = ? AND sequence > ?", d.Batch, d.Sequence).Count(&remaining)
 		if remaining == 0 {
-			if err := tx.Model(&models.Environment{}).Where("id = ?", d.EnvironmentID).Updates(map[string]any{"current_release_id": d.ReleaseID, "runtime_state": "running", "health": health}).Error; err != nil {
+			if err := tx.Model(&models.Environment{}).Where("id = ?", d.EnvironmentID).Updates(map[string]any{"current_release_id": d.ReleaseID, "runtime_state": runtime, "health": health}).Error; err != nil {
 				return err
 			}
 		} else {
@@ -306,6 +338,15 @@ func success(d *models.Deployment, actual, health string) {
 	if health == "unverified" {
 		result = "已启动，未验证健康"
 	}
+	if IsCommand(snapshot.Release) {
+		result = "部署命令执行完成，未验证服务状态"
+		if len(snapshot.Containers) > 0 {
+			result = "关联容器已启动，未验证健康"
+		}
+		if health == "healthy" {
+			result = "部署命令执行完成，部署检查通过"
+		}
+	}
 	finish(d, "success", result)
 }
 func recovery(parent context.Context, d *models.Deployment) {
@@ -316,6 +357,9 @@ func recovery(parent context.Context, d *models.Deployment) {
 	var s Snapshot
 	if err == nil {
 		err = json.Unmarshal([]byte(previous.Snapshot), &s)
+	}
+	if err == nil && IsCommand(s.Release) {
+		err = fmt.Errorf("上次为命令部署，无法自动恢复，请人工核对")
 	}
 	ctx, cancel := context.WithTimeout(parent, Timeout())
 	defer cancel()
@@ -366,8 +410,12 @@ func reconcile(ctx context.Context) {
 		if s.Environment.TargetID > 1 {
 			continue
 		}
-		if HasScripts(s.Scripts) && !s.ScriptsCompleted {
+		if (HasScripts(s.Scripts) || RequiresExecutionAgent(s.Release)) && !s.ScriptsCompleted {
 			finish(d, "needs_attention", "脚本执行被中断；不会自动重跑，请核对脚本和服务状态后重新发布")
+			continue
+		}
+		if IsCommand(s.Release) {
+			success(d, "", "unchecked")
 			continue
 		}
 		if len(s.Images) == 0 {
@@ -421,37 +469,27 @@ func processEvents(ctx context.Context) {
 			if env.TagPattern != "" && !matched {
 				continue
 			}
-			base, err := AutomationBase(env)
-			if err != nil {
+			unchanged, equalityErr := SameAutomaticImage(env, e)
+			if equalityErr != nil {
+				complete = false
 				continue
 			}
-			var imgs []Image
-			json.Unmarshal([]byte(base.Images), &imgs)
-			changed := false
-			for i, im := range imgs {
-				named, err := reference.ParseNormalizedNamed(im.Reference)
-				if err == nil && reference.Path(named) == e.Repository {
-					imgs[i].Digest = e.Digest
-					imgs[i].ID = ""
-					changed = true
-				}
+			if unchanged {
+				continue
 			}
-			if !changed {
+			base, err := AutomationBase(env)
+			if err != nil {
 				continue
 			}
 			key := fmt.Sprintf("image-event-%d-env-%d", e.ID, env.ID)
 			var r models.Release
 			if database.DB.Where("application_id = ? AND version = ?", env.ApplicationID, key).First(&r).Error != nil {
-				r = base
-				r.ID = 0
+				r, err = automaticRelease(ctx, base, env, e)
+				if err != nil {
+					complete = false
+					continue
+				}
 				r.CreatedAt = time.Time{}
-				r.Version = key
-				r.PublisherID = e.UserID
-				r.Source = "registry"
-				r.RegistryID = e.RegistryID
-				r.BundleID = 0
-				r.Images = stringJSON(imgs)
-				r.Retained = true
 				var app models.Application
 				if database.DB.First(&app, env.ApplicationID).Error != nil {
 					complete = false
@@ -535,6 +573,16 @@ func refreshRetention(environmentID uint) {
 }
 
 func RuntimeFailure(d *models.Deployment) {
+	var snapshot Snapshot
+	if json.Unmarshal([]byte(d.Snapshot), &snapshot) == nil && snapshot.Containers != nil {
+		var state models.TargetState
+		database.DB.Where("environment_id = ? AND target_id = ?", d.EnvironmentID, d.TargetID).First(&state)
+		state.EnvironmentID = d.EnvironmentID
+		state.TargetID = d.TargetID
+		state.Containers = snapshot.Containers
+		database.DB.Save(&state)
+	}
+
 	database.DB.Model(&models.TargetState{}).Where("environment_id = ? AND target_id = ?", d.EnvironmentID, d.TargetID).Updates(map[string]any{"runtime_state": "degraded", "health": "unknown"})
 	database.DB.Model(&models.Environment{}).Where("id = ?", d.EnvironmentID).Updates(map[string]any{"runtime_state": "partial", "health": "unknown"})
 }
@@ -545,7 +593,7 @@ func Recovered(d *models.Deployment, releaseID uint) {
 
 func reconcileRuntime(parent context.Context) {
 	var states []models.TargetState
-	database.DB.Where("target_id = ? AND current_release_id > ?", 1, 0).Find(&states)
+	database.DB.Where("target_id = ?", 1).Find(&states)
 	for _, state := range states {
 		var active int64
 		database.DB.Model(&models.Deployment{}).Where("environment_id = ? AND target_id = ? AND status = ?", state.EnvironmentID, 1, "running").Count(&active)
@@ -553,28 +601,61 @@ func reconcileRuntime(parent context.Context) {
 			continue
 		}
 		var last models.Deployment
-		if database.DB.Where("environment_id = ? AND target_id = ? AND release_id = ? AND status = ?", state.EnvironmentID, 1, state.CurrentReleaseID, "success").Order("id DESC").First(&last).Error != nil {
+		if database.DB.Where("environment_id = ? AND target_id = ? AND status NOT IN ?", state.EnvironmentID, 1, []string{"queued", "running", "blocked"}).Order("id DESC").First(&last).Error != nil {
 			continue
 		}
 		var s Snapshot
 		if json.Unmarshal([]byte(last.Snapshot), &s) != nil {
 			continue
 		}
+		var env models.Environment
+		if database.DB.First(&env, state.EnvironmentID).Error != nil {
+			continue
+		}
+		if IsCommand(s.Release) {
+			s.Environment.ContainerNames = env.ContainerNames
+			s.Environment.ReplaceContainers = env.ReplaceContainers
+			s.Environment.Parameters = env.Parameters
+		}
 		ctx, cancel := context.WithTimeout(parent, 10*time.Second)
-		p, err := Render(ctx, s.Release, s.Environment, JobDir(last.ID), s.Images)
+		rows, observeErr := RuntimeContainers(ctx, s)
 		health, runtime := "unknown", "degraded"
-		if err == nil {
-			_, health, err = Actual(ctx, p)
+		if IsCommand(s.Release) {
+			if len(env.ContainerNames) == 0 {
+				runtime = "unknown"
+			} else if observeErr == nil {
+				health, runtime = "unverified", "running"
+				for _, row := range rows {
+					if row.State != "running" {
+						runtime = "stopped"
+						health = "unknown"
+					}
+					if row.Health == "unhealthy" {
+						health = "unhealthy"
+						runtime = "degraded"
+					}
+				}
+			}
+		} else {
+			p, err := Render(ctx, s.Release, s.Environment, JobDir(last.ID), s.Images)
 			if err == nil {
-				runtime = "running"
+				_, health, err = Actual(ctx, p)
+				if err == nil {
+					runtime = "running"
+				}
 			}
 		}
 		cancel()
-		database.DB.Model(&state).Updates(map[string]any{"health": health, "runtime_state": runtime})
-		var env models.Environment
-		if database.DB.First(&env, state.EnvironmentID).Error == nil && (env.TargetIDs == "" || env.TargetIDs == "[]") {
+		updates := map[string]any{"health": health, "runtime_state": runtime}
+		if observeErr == nil {
+			encoded, _ := json.Marshal(rows)
+			updates["containers"] = string(encoded)
+		}
+		database.DB.Model(&state).Updates(updates)
+		if env.TargetIDs == "" || env.TargetIDs == "[]" {
 			database.DB.Model(&env).Updates(map[string]any{"health": health, "runtime_state": runtime})
 		}
+
 	}
 }
 

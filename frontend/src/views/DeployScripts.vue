@@ -7,17 +7,17 @@
       <template #feedback><div v-if="actionError" class="management-error" role="alert"><span>{{actionError}}</span><el-button link @click="actionError=''">关闭</el-button></div></template><template #count><span v-if="selectedScripts.length">已选 {{selectedScripts.length}} 项</span></template>
     </ResourceList>
     <p class="management-description">此入口用于兼容已有独立脚本。部署新服务请使用应用模板；执行中的脚本暂不可编辑或删除。<router-link to="/application-templates">前往应用模板</router-link></p>
-    <FormDialog v-model="dialogVisible" :draft="form" :title="isEdit?'编辑脚本':'添加脚本'" :icon="Document" :loading="saving" @confirm="handleSave" @cancel="dialogVisible=false" extra-wide>
+    <FormDialog v-model="dialogVisible" editor :draft="form" :title="isEdit?'编辑脚本':'添加脚本'" :icon="Document" :loading="saving" @confirm="handleSave" @cancel="dialogVisible=false" extra-wide>
       <div v-if="formError" class="management-error management-feedback" role="alert">{{formError}}</div>
-      <el-form :model="form" label-position="top" :disabled="saving" @submit.prevent="handleSave">
-        <div class="form-section"><h3>基本信息</h3><el-form-item label="脚本名称" required><el-input v-model="form.name" placeholder="例如：部署网关服务" maxlength="100" /></el-form-item><el-form-item label="说明"><el-input v-model="form.description" placeholder="填写脚本用途（可选）" /></el-form-item><el-form-item label="工作目录"><el-input v-model="form.work_dir" placeholder="例如：/ingot-data/dockerun/my-app" /><p class="management-form-help">脚本及文件保存在该目录；目录不存在时由服务端按执行规则创建。</p></el-form-item></div>
-        <div class="form-section"><h3>执行方式</h3><p class="management-form-help">历史脚本仅支持手动执行。镜像推送自动发布请在应用的环境配置中开启。</p></div>
-        <div class="form-section"><h3>主执行脚本</h3><CodeEditor v-model="form.main_script" :label="`${form.name || '未命名脚本'} · 主执行脚本`" language="shell" height="360px" :readonly="saving" /><p class="management-form-help">负责准备目录、复制配置和启动服务；请确认脚本实际执行的操作。</p></div>
-        <div class="form-section"><div class="script-section-heading"><h3>附加文件</h3><el-button :icon="Plus" @click="addFile">添加文件</el-button></div><div class="script-files-scroll"><el-table :data="form.files" empty-text="暂无附加文件" max-height="360"><el-table-column label="文件名称" min-width="180"><template #default="{row}"><el-input v-model="row.file_name" placeholder="例如：docker-compose.yml" aria-label="文件名称" /></template></el-table-column><el-table-column label="相对路径" min-width="190"><template #default="{row}"><el-input v-model="row.file_path" placeholder="例如：./docker-compose.yml" aria-label="文件相对路径" /></template></el-table-column><el-table-column label="类型" width="140"><template #default="{row}"><el-select v-model="row.file_type" aria-label="文件类型"><el-option label="应用栈定义" value="compose" /><el-option label="配置文件" value="config" /><el-option label="执行脚本" value="script" /><el-option label="其他文件" value="other" /></el-select></template></el-table-column><el-table-column label="说明" min-width="170"><template #default="{row}"><el-input v-model="row.description" placeholder="文件用途（可选）" aria-label="文件说明" /></template></el-table-column><el-table-column label="操作" width="130" fixed="right"><template #default="{row,$index}"><el-button link :aria-label="`编辑 ${row.file_name || '文件'} 内容`" @click="editFileContent(row)">编辑</el-button><el-button link type="danger" :aria-label="`移除 ${row.file_name || '文件'}`" @click="form.files?.splice($index,1)">移除</el-button></template></el-table-column></el-table></div></div>
-        <div class="form-section"><div class="script-section-heading"><h3>环境变量</h3><el-button :icon="Plus" @click="addEnvVar">添加变量</el-button></div><div v-for="(_,key) in form.env_vars" :key="key" class="script-env-row"><el-input :model-value="key" @change="updateEnvKey(key,$event)" placeholder="变量名称" aria-label="环境变量名称" /><el-input v-model="form.env_vars![key]" type="password" show-password placeholder="变量值" aria-label="环境变量值" /><el-button :icon="Delete" :aria-label="`移除变量 ${key}`" @click="deleteEnvVar(key)" /></div><p v-if="!Object.keys(form.env_vars || {}).length" class="management-description">暂无环境变量</p></div><button type="submit" hidden>保存脚本</button>
+      <el-form class="script-editor-form" :model="form" label-position="top" :disabled="saving" @submit.prevent="handleSave"><el-tabs v-model="scriptEditorTab"><el-tab-pane label="基本配置" name="basic" /><el-tab-pane label="主执行脚本" name="main" /><el-tab-pane label="附加文件" name="files" /><el-tab-pane label="环境变量" name="environment" /></el-tabs>
+        <div v-show="scriptEditorTab==='basic'" class="form-section script-form-panel script-form-scroll"><h3>基本信息</h3><el-form-item label="脚本名称" required><el-input v-model="form.name" placeholder="例如：部署网关服务" maxlength="100" /></el-form-item><el-form-item label="说明"><el-input v-model="form.description" placeholder="填写脚本用途（可选）" /></el-form-item><el-form-item label="工作目录"><el-input v-model="form.work_dir" placeholder="例如：/ingot-data/dockerun/my-app" /><p class="management-form-help">脚本及文件保存在该目录；目录不存在时由服务端按执行规则创建。</p></el-form-item></div>
+        <div v-show="scriptEditorTab==='basic'" class="script-execution-help"><h3>执行方式</h3><p class="management-form-help">历史脚本仅支持手动执行。镜像推送自动发布请在应用的环境配置中开启。</p></div>
+        <div v-show="scriptEditorTab==='main'" class="form-section script-form-panel script-code-panel"><h3>主执行脚本</h3><CodeEditor v-model="form.main_script" :label="`${form.name || '未命名脚本'} · 主执行脚本`" language="shell" fill :readonly="saving" /><p class="management-form-help">负责准备目录、复制配置和启动服务；请确认脚本实际执行的操作。</p></div>
+        <div v-show="scriptEditorTab==='files'" class="form-section script-form-panel script-form-scroll"><div class="script-section-heading"><h3>附加文件</h3><el-button :icon="Plus" @click="addFile">添加文件</el-button></div><div class="script-files-scroll"><el-table :data="form.files" empty-text="暂无附加文件" max-height="360"><el-table-column label="文件名称" min-width="180"><template #default="{row}"><el-input v-model="row.file_name" placeholder="例如：docker-compose.yml" aria-label="文件名称" /></template></el-table-column><el-table-column label="相对路径" min-width="190"><template #default="{row}"><el-input v-model="row.file_path" placeholder="例如：./docker-compose.yml" aria-label="文件相对路径" /></template></el-table-column><el-table-column label="类型" width="140"><template #default="{row}"><el-select v-model="row.file_type" aria-label="文件类型"><el-option label="应用栈定义" value="compose" /><el-option label="配置文件" value="config" /><el-option label="执行脚本" value="script" /><el-option label="其他文件" value="other" /></el-select></template></el-table-column><el-table-column label="说明" min-width="170"><template #default="{row}"><el-input v-model="row.description" placeholder="文件用途（可选）" aria-label="文件说明" /></template></el-table-column><el-table-column label="操作" width="130" fixed="right"><template #default="{row,$index}"><el-button link :aria-label="`编辑 ${row.file_name || '文件'} 内容`" @click="editFileContent(row)">编辑</el-button><el-button link type="danger" :aria-label="`移除 ${row.file_name || '文件'}`" @click="form.files?.splice($index,1)">移除</el-button></template></el-table-column></el-table></div></div>
+        <div v-show="scriptEditorTab==='environment'" class="form-section script-form-panel script-form-scroll"><div class="script-section-heading"><h3>环境变量</h3><el-button :icon="Plus" @click="addEnvVar">添加变量</el-button></div><div v-for="(_,key) in form.env_vars" :key="key" class="script-env-row"><el-input :model-value="key" @change="updateEnvKey(key,$event)" placeholder="变量名称" aria-label="环境变量名称" /><el-input v-model="form.env_vars![key]" type="password" show-password placeholder="变量值" aria-label="环境变量值" /><el-button :icon="Delete" :aria-label="`移除变量 ${key}`" @click="deleteEnvVar(key)" /></div><p v-if="!Object.keys(form.env_vars || {}).length" class="management-description">暂无环境变量</p></div><button type="submit" hidden>保存脚本</button>
       </el-form>
     </FormDialog>
-    <FormDialog v-model="fileDialogVisible" :draft="currentFile" :title="`编辑文件：${currentFile.file_name || '未命名文件'}`" extra-wide confirm-text="应用到脚本" @confirm="applyFile" @cancel="fileDialogVisible=false"><CodeEditor v-model="currentFile.content" :label="currentFile.file_name || '未命名文件'" :language="getFileLanguage(currentFile)" height="400px" /><p class="management-form-help">应用后仍需保存整个脚本，文件内容才会提交到服务端。</p></FormDialog>
+    <FormDialog v-model="fileDialogVisible" editor :draft="currentFile" :title="`编辑文件：${currentFile.file_name || '未命名文件'}`" extra-wide confirm-text="应用到脚本" @confirm="applyFile" @cancel="fileDialogVisible=false"><CodeEditor v-model="currentFile.content" :label="currentFile.file_name || '未命名文件'" :language="deploymentFileLanguage(currentFile)" :document-key="currentFile.file_path || currentFile.file_name" :readonly="saving" fill preserve-content /><p class="management-form-help">应用后仍需保存整个脚本，文件内容才会提交到服务端。</p></FormDialog>
     <FormDialog v-model="outputVisible" title="脚本执行输出" extra-wide :show-footer="false"><el-input ref="outputTextarea" v-model="output" type="textarea" :rows="18" readonly aria-label="脚本执行日志" class="script-output" /><p class="management-form-help">关闭输出不会停止服务端任务，可在部署记录中继续查看。</p><template #footer><router-link v-if="executionTask" :to="`/deployments/${executionTask}`">查看持久化部署记录</router-link><el-button @click="outputVisible=false">关闭输出</el-button></template></FormDialog>
     <FormDialog v-model="templatesVisible" title="选择脚本模板" :show-footer="false" extra-wide><div v-if="templatesError" class="management-error management-feedback" role="alert"><span>{{templatesError}}</span><el-button link @click="showTemplates">重试</el-button></div><div v-loading="templatesLoading" class="script-template-grid"><button v-for="template in templates" :key="template.id" class="script-template" @click="useTemplate(template)"><el-icon><DocumentCopy /></el-icon><span><strong>{{template.name}}</strong><small>{{template.description}}</small></span></button><p v-if="!templates.length && !templatesLoading && !templatesError" class="management-description">暂无可用模板</p></div></FormDialog>
     <ManagementDeleteDialog v-model="deleteVisible" :items="selectedScripts.map(script=>({id:script.id!,name:script.name}))" kind="脚本" endpoint="/deploy-scripts" warning="将删除脚本配置及附加文件记录，此操作无法撤销。" @removed="onRemoved" />
@@ -36,6 +36,8 @@ import { errorText } from '@/api/workspace'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import FormDialog from '@/components/FormDialog.vue'
+import { deploymentFileLanguage } from '@/utils/codeLanguage'
+const scriptEditorTab=ref('main')
 const CodeEditor=defineAsyncComponent(()=>import('@/components/CodeEditor.vue'))
 
 const auth=useAuthStore(),router=useRouter()
@@ -718,6 +720,7 @@ const formatDate = (dateStr: string) => {
 }
 
 const handleCreate = () => {
+  scriptEditorTab.value='basic'
   if(busy.value)return;formError.value='';
   isEdit.value = false
   form.name = ''
@@ -759,6 +762,7 @@ const handleCreate = () => {
 }
 
 const handleEdit = async (script: DeployScript) => {
+  scriptEditorTab.value='main'
   if(busy.value)return;formError.value='';
   editing.value=true
   isEdit.value = true
@@ -789,7 +793,7 @@ const handleEdit = async (script: DeployScript) => {
 
 const handleSave = async () => {
   if(saving.value)return;formError.value='';
-  if(!form.name.trim() || !form.main_script.trim()){formError.value='请填写脚本名称和主执行脚本';return}
+  if(!form.name.trim() || !form.main_script.trim()){scriptEditorTab.value=!form.name.trim()?'basic':'main';formError.value='请填写脚本名称和主执行脚本';return}
   saving.value=true;
   try {const payload={...form,name:form.name.trim()};if(isEdit.value)await deployApi.update(currentId.value,payload);else await deployApi.create(payload);ElMessage.success('脚本已保存');dialogVisible.value=false;await loadScripts()}
   catch(cause){formError.value=errorText(cause)}finally{saving.value=false}
@@ -847,75 +851,6 @@ const deleteEnvVar = (key: string) => {
   delete form.env_vars![key]
 }
 
-// 根据文件类型和文件名自动判断语言
-const getFileLanguage = (file: DeployScriptFile) => {
-  if (!file) return 'plaintext'
-  
-  // 根据文件类型判断
-  if (file.file_type === 'compose') {
-    return 'yaml'
-  }
-  if (file.file_type === 'script') {
-    return 'shell'
-  }
-  
-  // 根据文件扩展名判断
-  const fileName = file.file_name?.toLowerCase() || ''
-  const filePath = file.file_path?.toLowerCase() || ''
-  const fullName = fileName || filePath
-  
-  if (fullName.endsWith('.yml') || fullName.endsWith('.yaml')) {
-    return 'yaml'
-  }
-  if (fullName.endsWith('.sh')) {
-    return 'shell'
-  }
-  if (fullName.endsWith('.json')) {
-    return 'json'
-  }
-  if (fullName.endsWith('.xml')) {
-    return 'xml'
-  }
-  if (fullName.endsWith('.properties') || fullName.endsWith('.conf') || fullName.endsWith('.config')) {
-    return 'ini'
-  }
-  if (fullName.endsWith('.env')) {
-    return 'shell'
-  }
-  if (fullName.endsWith('.js') || fullName.endsWith('.mjs')) {
-    return 'javascript'
-  }
-  if (fullName.endsWith('.ts')) {
-    return 'typescript'
-  }
-  if (fullName.endsWith('.py')) {
-    return 'python'
-  }
-  if (fullName.endsWith('.java')) {
-    return 'java'
-  }
-  if (fullName.endsWith('.go')) {
-    return 'go'
-  }
-  if (fullName.endsWith('.sql')) {
-    return 'sql'
-  }
-  if (fullName.endsWith('.md') || fullName.endsWith('.markdown')) {
-    return 'markdown'
-  }
-  if (fullName.endsWith('.html') || fullName.endsWith('.htm')) {
-    return 'html'
-  }
-  if (fullName.endsWith('.css')) {
-    return 'css'
-  }
-  if (fullName.endsWith('.dockerfile') || fullName === 'dockerfile') {
-    return 'dockerfile'
-  }
-  
-  // 默认使用纯文本
-  return 'plaintext'
-}
 
 // 显示模版选择
 const showTemplates = async () => {
@@ -934,6 +869,7 @@ const showTemplates = async () => {
 
 // 使用模版
 const useTemplate = (template: ScriptTemplate) => {
+  scriptEditorTab.value='basic'
   form.name = template.name
   form.description = template.description
   form.script_type = 'shell'
@@ -962,4 +898,14 @@ onMounted(() => {
 
 <style scoped>
 .script-section-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px; }.script-section-heading h3 { margin:0; }.script-files-scroll { overflow:auto; }.script-files-scroll .el-table { min-width:820px; }.script-env-row { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px;gap:10px;margin-bottom:12px; }.script-env-row .el-button { margin:0;padding:0; }.script-template-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-height:100px; }.script-template { display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid #414141;border-radius:6px;background:#242424;color:#ddd;text-align:left;cursor:pointer; }.script-template:hover { border-color:#35acd7;background:#22343c; }.script-template .el-icon { font-size:22px;color:#9cbac7; }.script-template strong { display:block;font-size:14px;font-weight:500; }.script-template small { display:block;margin-top:8px;font-size:12px;color:#999;line-height:20px; }.script-output :deep(textarea) { font:12px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace; }@media(max-width:600px){.script-template-grid { grid-template-columns:minmax(0,1fr); }.script-env-row { grid-template-columns:minmax(0,1fr) 32px; }.script-env-row > .el-input:nth-child(2) { grid-column:1;grid-row:2; }.script-env-row > .el-button { grid-column:2;grid-row:1 / 3; }}
+
+.script-editor-form{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow:hidden}
+.script-editor-form>.el-tabs,.script-execution-help{flex-shrink:0}
+.script-editor-form>.script-form-panel{flex:1;min-height:0;min-width:0;margin:0;padding:0;border:0}
+.script-form-scroll{overflow:auto;scrollbar-width:thin}
+.script-code-panel{display:flex;flex-direction:column;overflow:hidden}
+.script-code-panel>h3,.script-code-panel>.management-form-help{flex-shrink:0}
+.script-code-panel>.management-form-help{margin-bottom:0}
+.script-execution-help{font-size:12px;margin-top:12px}
+.script-execution-help h3{font-size:13px;font-weight:500;margin:0}
 </style>
