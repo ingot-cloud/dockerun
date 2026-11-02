@@ -43,7 +43,7 @@ Dockerun 将 Docker 资源管理、内置镜像仓库、应用发布和离线交
 
 Dockerfile 使用 Go 1.26.0、Node 22.17.0、pnpm 10.12.4 多阶段构建，运行镜像包含 Docker CLI 29.1.3、Compose 和所需工具。支持 Linux AMD64 / ARM64，每个完整业务发布包对应一个平台。
 
-默认容器数据根目录为 `/var/lib/dockerun`，需与宿主保持同一绝对路径；源码开发使用仓库 `data/local`。MySQL 只替换元数据库，不替代 Registry 及材料文件存储。初始化密钥自动持久化，恢复必须保留匹配的密钥与元数据。
+容器内数据根目录固定为 `/var/lib/dockerun`，默认使用命名卷，也支持宿主目录绑定。Docker SDK、Compose 和应用脚本的默认 Docker 连接会转换数据目录内的绑定源，读取文件仍使用容器内路径；源码开发使用仓库 `data/local`。MySQL 只替换元数据库，不替代 Registry 及材料文件存储。初始化密钥自动持久化，恢复必须保留匹配的密钥与元数据。
 
 ## 继续阅读
 

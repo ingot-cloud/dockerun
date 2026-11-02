@@ -26,6 +26,8 @@ make dev-backend DATABASE_TYPE=mysql
 | `SERVER_ADDR` | `:8080` | 服务监听地址；镜像使用 `:8080`，本地 Make 使用 `127.0.0.1:8080` |
 | `PUBLIC_URL` | `http://localhost:8080` | 对外根地址，也是 Registry token realm 的来源；本地 Make 使用 `http://host.docker.internal:8080` |
 | `DATA_DIR` | `./data`，启动时转绝对路径 | 镜像及 Compose 使用 `/var/lib/dockerun`，本地 Make 使用仓库 `data/local` |
+| `HOST_DATA_DIR` | 空 | 后端容器连接本机 Docker 时，目录绑定对应的宿主绝对路径；与 `DATA_VOLUME` 互斥 |
+| `DATA_VOLUME` | 空 | 后端挂载的数据命名卷名称；启动时从 Docker 读取真实挂载点，用于转换业务容器的绑定源 |
 | `DATABASE_TYPE` | `sqlite` | 仅支持 `sqlite` 或 `mysql` |
 | `DATABASE_PATH` | `${DATA_DIR}/dockerun.db` | SQLite 文件；完整备份以数据库快照保存，恢复后默认文件名为 `dockerun.db` |
 | `MYSQL_DSN` | 空 | MySQL 模式必填，示例见下文 |
@@ -75,7 +77,9 @@ services:
       IMPORT_DIR: /var/lib/dockerun/imports
 ```
 
-此片段需合并进现有配置，保留原有环境变量及挂载。宿主与容器的数据根目录必须使用同一绝对路径；修改数据根目录时同时调整挂载、相关路径及原有持久化配置。
+此片段需合并进现有配置，保留原有环境变量及挂载。默认 Compose 使用 `DATA_VOLUME=dockerun-data` 的命名卷。目录绑定在 `.env` 中设置 `COMPOSE_FILE=docker-compose.yml:docker-compose.bind.yml`、`DATA_DIR=/ingot-data/dockerun`，并提前创建该宿主目录。覆盖文件会清空后端的 `DATA_VOLUME`，传入 `HOST_DATA_DIR`，仍挂载到 `/var/lib/dockerun`。这里 `.env` 的 `DATA_DIR` 供 Compose 插值，容器内实际 `DATA_DIR` 固定，不随宿主路径变化。
+
+自行编写 `docker run` 时，必须让 `HOST_DATA_DIR` 或 `DATA_VOLUME` 与实际挂载一致，两者只选一个。服务不会根据名称创建数据卷，也不会硬编码 `/var/lib/docker/volumes`；卷不存在或挂载点不可用会阻止启动。原生进程和旧版同路径绑定未设置这两个变量时沿用原路径。服务在容器临时目录 `/tmp/dockerun-api-*/docker.sock` 创建 Docker 路径代理，退出时清理，不写入持久化数据，也无需备份。路径转换范围见[应用脚本](INTEGRATED_DEPLOYMENT.md#应用和环境的部署脚本)。
 
 ## 本地开发参数
 

@@ -24,10 +24,11 @@ func main() {
 		log.Fatal(err)
 	}
 	cfg := config.Load()
-	if err := database.Init(cfg.DatabasePath); err != nil {
+	if err := docker.Init(); err != nil {
 		log.Fatal(err)
 	}
-	if err := docker.Init(); err != nil {
+	defer docker.Close()
+	if err := database.Init(cfg.DatabasePath); err != nil {
 		log.Fatal(err)
 	}
 	if err := builtin.Init(); err != nil {

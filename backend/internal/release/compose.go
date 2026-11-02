@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"dockerun/internal/docker"
 	"encoding/json"
 	"fmt"
 	"github.com/compose-spec/compose-go/v2/loader"
@@ -89,6 +90,11 @@ func Parse(ctx context.Context, content, dir, project string, parameters map[str
 		return nil, fmt.Errorf("应用至少需要一个服务")
 	}
 	for n, s := range p.Services {
+		for i := range s.Volumes {
+			if s.Volumes[i].Type == types.VolumeTypeBind {
+				s.Volumes[i].Source = docker.LocalDataPath(s.Volumes[i].Source)
+			}
+		}
 		if s.Image == "" {
 			return nil, fmt.Errorf("服务 %s 缺少 image", n)
 		}
@@ -105,9 +111,24 @@ func Parse(ctx context.Context, content, dir, project string, parameters map[str
 		s.Labels["io.dockerun.managed"] = "true"
 		p.Services[n] = s
 	}
-	for _, c := range p.Configs {
+	for name, c := range p.Configs {
+		if c.File != "" {
+			c.File = docker.LocalDataPath(c.File)
+			p.Configs[name] = c
+		}
 		if c.File != "" && !inside(dir, c.File) {
 			return nil, fmt.Errorf("配置文件须包含在发布材料中: %s", c.File)
+		}
+	}
+	for name, volume := range p.Volumes {
+		if volume.Driver == "" || volume.Driver == "local" {
+			for _, flag := range strings.Split(volume.DriverOpts["o"], ",") {
+				if flag == "bind" || flag == "rbind" {
+					volume.DriverOpts["device"] = docker.LocalDataPath(volume.DriverOpts["device"])
+					p.Volumes[name] = volume
+					break
+				}
+			}
 		}
 	}
 	for _, s := range p.Secrets {

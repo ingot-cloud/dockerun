@@ -23,7 +23,7 @@ Docker Desktop 本地开发时，宿主机 Go 服务与虚拟机中的 daemon �
 | `backups/` | 完整备份及升级前数据库快照 |
 | `imports/` | 管理员可指定导入的服务器文件目录 |
 
-目录需持久化；使用绑定卷时保持 Dockerun 和宿主路径一致。不要只备份数据库后将其当作完整镜像备份。`REGISTRY_ENABLED=false` 可以关闭内置引擎，不删除内容。原有外部 Registry 及默认选项保留。
+目录需持久化，默认使用命名卷，也支持宿主目录绑定，容器内目录固定为 `/var/lib/dockerun`。两种模式均在发往本机 Docker 的请求中转换数据目录内的绑定源，兼容 Compose 相对路径、`configs.file` 和本地卷驱动的 bind 选项；业务容器的挂载目标不变。不要只备份数据库后将其当作完整镜像备份。`REGISTRY_ENABLED=false` 可以关闭内置引擎，不删除内容。原有外部 Registry 及默认选项保留。
 
 ## 用户与凭据
 
@@ -84,13 +84,17 @@ Nacos 三节点模板在一台主机部署三个 Nacos 节点及独立 MySQL，M
 
 部署脚本留空时系统运行 Compose；填写后由脚本接管启动步骤，系统仍要求应用栈中的服务运行且镜像身份一致。部署前脚本可创建挂载目录或准备外部资源，部署后脚本可追加检查；任一脚本退出码非零会使任务失败，失败命令或管道不会继续执行后续脚本。预检查页面只展示脚本，不执行。
 
-脚本工作目录为当前任务目录，`configs/` 中包含该版本的非敏感配置。环境参数作为环境变量传入，另提供 `WORK_DIR`、`COMPOSE_FILE`、`COMPOSE_PROJECT_NAME`、`DOCKERUN_APPLICATION_ID`、`DOCKERUN_ENVIRONMENT_ID`、`DOCKERUN_ENVIRONMENT`、`DOCKERUN_VERSION`。系统变量以实际任务为准。自定义部署脚本的最小示例：
+脚本工作目录为当前任务目录，`configs/` 中包含该版本的非敏感配置。环境参数作为环境变量传入，另提供 `WORK_DIR`、`HOST_WORK_DIR`、`COMPOSE_FILE`、`COMPOSE_PROJECT_NAME`、`DOCKERUN_APPLICATION_ID`、`DOCKERUN_ENVIRONMENT_ID`、`DOCKERUN_ENVIRONMENT`、`DOCKERUN_VERSION`。系统变量以实际任务为准。自定义部署脚本的最小示例：
 
 ```bash
 docker compose --env-file "$WORK_DIR/empty.env" \
   --project-name "$COMPOSE_PROJECT_NAME" --project-directory "$WORK_DIR" \
   -f "$COMPOSE_FILE" up -d --pull never --no-build --wait --wait-timeout 120
 ```
+
+`WORK_DIR` 用于在执行环境中读取配置、切换目录；`HOST_WORK_DIR` 是同一目录在目标 Docker 主机上的路径，供明确需要宿主路径的工具使用。默认 Docker 连接已由执行器设置，脚本中的 `docker run -v "$WORK_DIR/configs/app.conf:/app.conf:ro"`、`--mount type=bind` 和 Compose 会自动转换绑定源，无需手动拼卷挂载点。脚本正文、环境变量值和业务容器内路径不会被全局替换；显式指定其他 `--host`、`--context`、自行覆盖 Docker 连接或调用其他容器运行时的脚本需自行对齐路径。
+
+兼容旧目录绑定配置中保存的数据根路径，受管 Compose 的绑定源、配置文件和脚本工作目录会归一到容器内路径。旧 Shell 若直接用宿主绝对路径读取文件，应改用 `WORK_DIR` 或 `/var/lib/dockerun` 下的容器路径；数据根之外的宿主绑定源按原样交给 Docker。远程 Agent 按自身数据目录执行，不使用控制台命名卷的挂载点。
 
 所有阶段共享任务超时，日志按阶段持久化。脚本执行被进程重启打断时标记为「需要核对」，不会自动重跑。持久数据应放在环境指定的挂载路径；任务目录属于单次发布。自动恢复只恢复上一成功版本的服务和配置，不重跑其脚本，也不撤销脚本修改的数据库或外部系统。恢复历史成功配置时同时恢复当时的环境参数和有效脚本。历史脚本入口继续保留；已有脚本可人工迁移到应用或环境配置，附加配置文件放入发布版本的 `configs/`。
 

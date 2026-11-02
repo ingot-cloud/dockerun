@@ -15,7 +15,7 @@ Dockerun 部署与管理
 用法：./deploy.sh [命令]
   start             启动容器（默认）；已有容器沿用其原配置
   update            按当前配置重建容器，保留停止的旧容器
-  check             检查配置、本地镜像、网络和 Docker socket
+  check             检查配置、存储、本地镜像、网络和 Docker socket
   pull              显式拉取配置的镜像
   stop              停止容器
   restart           重启已有容器；修改配置后请使用 update
@@ -34,7 +34,7 @@ HELP
 
 is_config_key() {
   case "$1" in
-    CONTAINER_NAME|IMAGE_NAME|DOCKER_NETWORK|ADDITIONAL_NETWORKS|DATA_DIR|DOCKER_SOCKET|HOST_BIND_IP|HOST_PORT|PUBLIC_URL|DATABASE_TYPE|MYSQL_DSN|VIRTUAL_HOST|LETSENCRYPT_HOST|LETSENCRYPT_EMAIL|RESTART_POLICY|PULL_POLICY|STARTUP_TIMEOUT|STOP_TIMEOUT|LOG_TAIL|JWT_SECRET|REGISTRY_SECRET|REGISTRY_HTTP_SECRET|CREDENTIALS_SECRET|AES_KEY|AES_IV) return 0 ;;
+    CONTAINER_NAME|IMAGE_NAME|DOCKER_NETWORK|ADDITIONAL_NETWORKS|DATA_MOUNT_TYPE|DATA_VOLUME|DATA_DIR|DOCKER_SOCKET|HOST_BIND_IP|HOST_PORT|PUBLIC_URL|DATABASE_TYPE|MYSQL_DSN|VIRTUAL_HOST|LETSENCRYPT_HOST|LETSENCRYPT_EMAIL|RESTART_POLICY|PULL_POLICY|STARTUP_TIMEOUT|STOP_TIMEOUT|LOG_TAIL|JWT_SECRET|REGISTRY_SECRET|REGISTRY_HTTP_SECRET|CREDENTIALS_SECRET|AES_KEY|AES_IV) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -75,7 +75,17 @@ load_config() {
   IMAGE_NAME="${IMAGE_NAME:-dockerun:$version}"
   DOCKER_NETWORK="${DOCKER_NETWORK:-ingot-net}"
   ADDITIONAL_NETWORKS="${ADDITIONAL_NETWORKS:-}"
+  storage_auto=0
+  if [[ -z "${DATA_MOUNT_TYPE:-}" ]]; then
+    if [[ -n "${DATA_DIR:-}" ]]; then
+      DATA_MOUNT_TYPE=bind
+    else
+      DATA_MOUNT_TYPE=volume
+      [[ -n "${DATA_VOLUME:-}" ]] || storage_auto=1
+    fi
+  fi
   DATA_DIR="${DATA_DIR:-/var/lib/dockerun}"
+  DATA_VOLUME="${DATA_VOLUME:-dockerun-data}"
   DOCKER_SOCKET="${DOCKER_SOCKET:-/var/run/docker.sock}"
   HOST_BIND_IP="${HOST_BIND_IP:-127.0.0.1}"
   HOST_PORT="${HOST_PORT-}"
@@ -105,10 +115,34 @@ check_docker() {
 container_exists() { docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; }
 container_running() { [[ "$(docker container inspect --format '{{.State.Running}}' "$CONTAINER_NAME")" == true ]]; }
 
+resolve_storage() {
+  # 旧配置未选择存储类型时，优先复用原容器的数据挂载，不能升级成一个空的新卷。
+  if [[ "$storage_auto" == 1 ]] && container_exists; then
+    local mounts kind source name destination
+    mounts="$(docker container inspect --format '{{range .Mounts}}{{printf "%s|%s|%s|%s\n" .Type .Source .Name .Destination}}{{end}}' "$CONTAINER_NAME")"
+    while IFS='|' read -r kind source name destination; do
+      [[ "$destination" == /var/lib/dockerun ]] || continue
+      case "$kind" in
+        bind) DATA_MOUNT_TYPE=bind; DATA_DIR="$source" ;;
+        volume) DATA_MOUNT_TYPE=volume; DATA_VOLUME="$name" ;;
+      esac
+      break
+    done <<< "$mounts"
+  fi
+}
+
 validate_deployment() {
-  DATA_DIR="${DATA_DIR%/}"
-  [[ "$DATA_DIR" == /* && "$DATA_DIR" != / && "$DATA_DIR" != *:* && "$DATA_DIR" != *,* ]] || fail 'DATA_DIR 必须是非根目录的绝对路径，不能包含冒号或逗号。'
-  case "$DATA_DIR/" in *'/../'*|*'/./'*|*'//'*) fail 'DATA_DIR 请使用不含 .、.. 或重复斜杠的绝对路径。' ;; esac
+  case "$DATA_MOUNT_TYPE" in
+    bind)
+      DATA_DIR="${DATA_DIR%/}"
+      [[ "$DATA_DIR" == /* && "$DATA_DIR" != / && "$DATA_DIR" != *:* && "$DATA_DIR" != *,* && "$DATA_DIR" != *'|'* ]] || fail 'DATA_DIR 必须是非根目录的宿主绝对路径，不能包含冒号、逗号或竖线。'
+      case "$DATA_DIR/" in *'/../'*|*'/./'*|*'//'*) fail 'DATA_DIR 请使用不含 .、.. 或重复斜杠的绝对路径。' ;; esac
+      ;;
+    volume)
+      [[ "$DATA_VOLUME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]] || fail 'DATA_VOLUME 必须是有效的命名卷名称。'
+      ;;
+    *) fail 'DATA_MOUNT_TYPE 仅支持 volume 或 bind。' ;;
+  esac
   [[ "$DOCKER_SOCKET" == /* && -S "$DOCKER_SOCKET" ]] || fail 'DOCKER_SOCKET 必须指向部署主机上的 Docker socket。'
   [[ "$PUBLIC_URL" =~ ^https?://[^/@?#[:space:]]+/?$ ]] || fail 'PUBLIC_URL 必须是完整的 http(s) 根地址，不含路径或凭据。'
   case "$DATABASE_TYPE" in
@@ -169,19 +203,27 @@ prepare_image() {
 
 create_candidate() {
   local candidate="$1" key network
-  mkdir -p -m 700 "$DATA_DIR" || fail '无法创建数据目录，请检查权限。'
   local args=(create --name "$candidate" --network "$DOCKER_NETWORK" --restart "$RESTART_POLICY"
     --label io.dockerun.deployment=script --expose 8080
     --mount "type=bind,src=$DOCKER_SOCKET,dst=/var/run/docker.sock"
-    --mount "type=bind,src=$DATA_DIR,dst=$DATA_DIR"
+    --env DATA_DIR=/var/lib/dockerun
     --health-cmd 'curl --fail --silent --max-time 5 http://127.0.0.1:8080/health || exit 1'
     --health-interval 5s --health-timeout 6s --health-start-period "${STARTUP_TIMEOUT}s" --health-retries 3)
   if [[ -n "$HOST_PORT" ]]; then
     args+=(--publish "$HOST_BIND_IP:$HOST_PORT:8080")
   fi
-  export PUBLIC_URL DATA_DIR DATABASE_TYPE MYSQL_DSN
+  if [[ "$DATA_MOUNT_TYPE" == volume ]]; then
+    if ! docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1; then
+      docker volume create --label io.dockerun.deployment=script "$DATA_VOLUME" >/dev/null || fail '创建数据命名卷失败，原容器未修改。'
+    fi
+    args+=(--mount "type=volume,src=$DATA_VOLUME,dst=/var/lib/dockerun" --env "DATA_VOLUME=$DATA_VOLUME")
+  else
+    mkdir -p -m 700 "$DATA_DIR" || fail '无法创建数据目录，请检查权限。'
+    args+=(--mount "type=bind,src=$DATA_DIR,dst=/var/lib/dockerun" --env "HOST_DATA_DIR=$DATA_DIR")
+  fi
+  export PUBLIC_URL DATABASE_TYPE MYSQL_DSN
   export VIRTUAL_HOST LETSENCRYPT_HOST LETSENCRYPT_EMAIL
-  for key in PUBLIC_URL DATA_DIR DATABASE_TYPE MYSQL_DSN; do
+  for key in PUBLIC_URL DATABASE_TYPE MYSQL_DSN; do
     args+=(--env "$key")
   done
   if [[ -n "$VIRTUAL_HOST" ]]; then
@@ -223,8 +265,10 @@ wait_healthy() {
 }
 
 deploy_container() {
+  resolve_storage
   validate_deployment
   prepare_image
+  info "存储模式：${DATA_MOUNT_TYPE}；存储源：$([[ "$DATA_MOUNT_TYPE" == volume ]] && printf '%s' "$DATA_VOLUME" || printf '%s' "$DATA_DIR")；容器目录：/var/lib/dockerun"
   local suffix="$(date +%Y%m%d%H%M%S)-$$"
   local candidate="$CONTAINER_NAME-pending-$suffix" previous=''
   create_candidate "$candidate"
@@ -269,9 +313,13 @@ main() {
   check_docker
   case "$action" in
     check)
+      resolve_storage
       validate_deployment
       docker image inspect "$IMAGE_NAME" >/dev/null 2>&1 || fail '本地镜像不存在；check 不会拉取镜像。'
       check_image_platform
+      if [[ "$DATA_MOUNT_TYPE" == volume ]] && ! docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1; then
+        info "命名卷尚未创建，将在 start/update 时创建：$DATA_VOLUME"
+      fi
       info '配置、本地镜像与平台、网络及 Docker socket 检查通过；未启动容器或修改数据库。'
       ;;
     pull) docker pull "$IMAGE_NAME" ;;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"dockerun/internal/config"
 	"dockerun/internal/database"
+	"dockerun/internal/docker"
 	"dockerun/internal/identity"
 	"dockerun/internal/models"
 	"encoding/json"
@@ -39,6 +40,7 @@ func executeLegacy(parent context.Context, d *models.Deployment) {
 		dir = filepath.Join(config.Load().DataDir, "jobs", fmt.Sprintf("legacy-%d", s.ID))
 	}
 	dir, _ = filepath.Abs(dir)
+	dir = docker.LocalDataPath(dir)
 	err := os.MkdirAll(dir, 0700)
 	if err == nil {
 		for _, f := range s.Files {
@@ -81,10 +83,17 @@ func executeLegacy(parent context.Context, d *models.Deployment) {
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "WORK_DIR="+dir, "DOCKER_NETWORK="+config.Load().NetworkName)
+	cmd.Env = os.Environ()
 	for k, v := range s.EnvVars {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
+	hostDir, err := docker.HostDataPath(dir)
+	if err != nil {
+		finish(d, "failed", err.Error())
+		return
+	}
+	cmd.Env = append(cmd.Env, "WORK_DIR="+dir, "HOST_WORK_DIR="+hostDir, "DOCKER_NETWORK="+config.Load().NetworkName)
+	cmd.Env = docker.CommandEnvironment(cmd.Env)
 	output := logWriter{func(m string) { Log(d, "legacy", m) }}
 	cmd.Stdout = output
 	cmd.Stderr = output

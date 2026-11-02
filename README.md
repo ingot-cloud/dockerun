@@ -27,7 +27,7 @@ Dockerun 是面向自托管 Docker 环境的轻量部署与运行管理平台，
 
 - 运行中的 Linux Docker Engine，支持 API 1.44+（Docker 25+），以及 Docker Compose v2。
 - 交付镜像支持 `linux/amd64`、`linux/arm64`，镜像与目标主机架构需匹配。容器内置 Docker CLI 29.1.3 和 Compose。
-- 可使用 Docker socket，并能读写持久化目录 `/var/lib/dockerun`。该目录在容器和宿主机上必须保持同一绝对路径，以便宿主 Docker 找到 Compose 的配置及挂载文件。
+- 可使用 Docker socket。默认使用 `dockerun-data` 命名卷，也支持宿主目录绑定；容器内数据目录固定为 `/var/lib/dockerun`，应用发布时自动转换 Docker 挂载源路径。
 - 从源码构建镜像需要联网拉取基础镜像和依赖；仅运行交付镜像无需安装 Node、pnpm 或 Go。目标主机仍须预先安装 Docker Engine。
 
 Docker socket 赋予 Dockerun 管理宿主容器和挂载目录的能力，应只向可信管理员开放管理入口。正式部署使用 HTTPS，并在开放入口前完成管理员初始化。
@@ -40,7 +40,6 @@ Docker socket 赋予 Dockerun 管理宿主容器和挂载目录的能力，应�
 git clone https://github.com/ingot-cloud/dockerun.git
 cd dockerun
 cp .env.example .env
-sudo install -d -m 700 /var/lib/dockerun
 ```
 
 编辑 `.env`，将 `PUBLIC_URL` 改为浏览器、Docker 客户端及 Docker daemon 都能访问的实际入口。首次在受控网络内用 HTTP 体验时，可使用：
@@ -63,6 +62,8 @@ curl --fail http://127.0.0.1:8080/health
 ```
 
 在浏览器打开配置的地址，例如 `http://服务器IP:8080`。首次访问为 `admin` 设置密码，再登录管理页面；没有预设管理员密码。`/health` 返回 `{"status":"ok"}` 说明 HTTP 服务可用，登录后还需在系统页面确认 Docker 连接正常。
+
+默认数据保存在 `dockerun-data` 命名卷，重建容器会保留数据。沿用已有宿主目录时使用 `docker-compose.bind.yml`，配置与迁移见[持久化说明](docs/DEPLOYMENT.md#持久化与权限)。
 
 默认 Compose 将宿主 `8080` 映射到容器 `8080`，网页、`/api/`、`/v2/`、`/registry/token`、Agent 和 Webhook 共用入口。修改宿主端口时，同时修改 Compose 的 `ports` 与 `PUBLIC_URL`。
 

@@ -240,7 +240,7 @@ func Preflight(ctx context.Context, p *types.Project) error {
 	for name, s := range p.Services {
 		for _, v := range s.Volumes {
 			if v.Type == "bind" {
-				if _, err := os.Stat(v.Source); err != nil {
+				if _, err := os.Stat(docker.LocalDataPath(v.Source)); err != nil {
 					return fmt.Errorf("服务 %s 挂载不存在: %s", name, v.Source)
 				}
 			}

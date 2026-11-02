@@ -98,3 +98,30 @@ export OCI_RESULTS_DIR=./results
 - 浏览器实际核对列表未使用标记及在用镜像不显示该标记；进入在用镜像和未标记镜像详情，核对标签、完整 ID、大小、创建时间、平台、Labels、Dockerfile 和使用状态；验证无效标签输入及删除确认后取消，没有修改标签或删除镜像。
 - 浏览器验证返回列表仍保持第 2 页及原首项，搜索 nginx 后进入详情再返回仍为过滤结果；详情在 1280×720、1440×900、1920×1080 和 1000×720 下没有整体或横向溢出。
 - 后端重启前验证了历史接口未生效时的独立错误状态；重启后浏览器已显示 Python 镜像的 9 条真实构建历史。序号列在桌面端与窄屏下分别加宽至 96px 和 80px，表头禁止换行，浏览器确认序号文字与排序图标保持同一行。用户确认测试通过。
+
+
+## 命名卷与目录绑定（2026-11-02）
+
+- 后端全量测试、`go vet ./...` 及 `go test -race ./internal/docker ./internal/release` 通过。新增启动校验覆盖无映射原生进程、旧版同路径绑定、映射配置冲突、命名卷缺失及无挂载点；路径测试覆盖边界、符号链接、JSON 整数精度、流式响应和 Docker exec 双向连接。
+- 部署脚本 28 项模拟测试通过，覆盖默认命名卷、创建与复用卷、旧配置和原挂载识别、显式配置优先级、固定容器路径及失败时保留原容器。构建脚本原有 14 项测试通过。Compose 配置实际合并后，两种模式都只有一个 `/var/lib/dockerun` 数据挂载，目录绑定覆盖文件会清空 `DATA_VOLUME` 并设置 `HOST_DATA_DIR`。
+- 在 Docker Desktop Linux ARM64 上，使用已有镜像内的 Docker CLI/Compose 和交叉编译的最新测试程序，分别挂载独立命名卷及临时宿主目录，运行 `TestDockerStoragePathDeployment`。验证相对 `configs.file`、旧宿主绝对绑定源、本地卷驱动 bind、脚本 `docker run -v`/`--mount` 及 `docker exec` 均读取到正确内容；重复 Compose up 保持容器 ID。测试资源已清理，没有构建或推送镜像。
+- 临时路径代理 socket 存放在容器 `/tmp`，避免 Docker Desktop 共享目录不支持 socket chmod；持久化目录不保存代理 socket。真实双架构 Linux 主机及已有业务数据的生产迁移仍需按停机备份流程核对。
+
+存储集成测试默认跳过。复现时先将测试二进制交叉编译为 Docker daemon 的 Linux 架构，并在专用辅助容器内执行，不能直接将生产目录作为测试数据：
+
+```bash
+cd backend
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go test -c ./internal/release -o /tmp/dockerun-storage.test
+# 数据卷使用本次验证专用且未使用的名称，镜像需已存在本地。
+docker volume create dockerun-storage-validation
+docker run --rm --pull never --network none --entrypoint /storage-test \
+  --mount type=bind,src=/tmp/dockerun-storage.test,dst=/storage-test,readonly \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=volume,src=dockerun-storage-validation,dst=/var/lib/dockerun \
+  --env DATA_DIR=/var/lib/dockerun --env DATA_VOLUME=dockerun-storage-validation \
+  --env DOCKERUN_STORAGE_TESTS=1 \
+  dockerun:2.0.0 -test.run '^TestDockerStoragePathDeployment$' -test.v -test.timeout 150s
+docker volume rm dockerun-storage-validation
+```
+
+预先准备同架构的 `nginx:1.28-alpine`，测试不会主动拉取镜像。AMD64 将编译架构改为 `amd64`。目录绑定验证将数据卷挂载替换为测试专用宿主空目录，去掉 `DATA_VOLUME`，设置 `HOST_DATA_DIR` 为该目录的真实绝对路径；容器内 `DATA_DIR` 不变。业务测试项目使用 `dockerun-a987655-*` 名称，不发布宿主端口，结束时移除项目容器、网络和测试卷。

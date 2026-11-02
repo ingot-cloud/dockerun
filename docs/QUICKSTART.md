@@ -20,7 +20,6 @@ docker info --format '{{.OSType}}/{{.Architecture}}'
 git clone https://github.com/ingot-cloud/dockerun.git
 cd dockerun
 cp .env.example .env
-sudo install -d -m 700 /var/lib/dockerun
 ```
 
 编辑 `.env`，例如：
@@ -40,6 +39,8 @@ docker compose up -d --no-build --pull never
 docker compose ps
 curl --fail http://127.0.0.1:8080/health
 ```
+
+默认使用 `dockerun-data` 命名卷，无需提前创建宿主目录；容器内部目录固定为 `/var/lib/dockerun`。已有目录绑定安装请先按[持久化说明](DEPLOYMENT.md#持久化与权限)保留原挂载配置。
 
 浏览器打开配置的入口，首次为 `admin` 设置密码并登录，没有默认密码。进入系统页面确认 Docker 连接正常；HTTP 健康接口成功不代表 Docker 资源及业务应用健康。
 

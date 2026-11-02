@@ -12,7 +12,6 @@
 git clone https://github.com/ingot-cloud/dockerun.git
 cd dockerun
 cp .env.example .env
-sudo install -d -m 700 /var/lib/dockerun
 ```
 
 编辑 `.env`，确定 `PUBLIC_URL`、`DOCKERUN_IMAGE` 和数据库类型，再选择下面的 HTTPS 方案。`PUBLIC_URL` 必须是客户端及目标 Docker daemon 可达的根地址，不含路径、凭据或查询参数。已有反向代理时，不设置 `TLS_CERT`、`TLS_KEY`，由代理终止 TLS。
@@ -105,7 +104,7 @@ curl --fail https://dockerun.example.com/health
 
 ## 直接启用 TLS
 
-服务也可直接提供 HTTPS。将证书链和私钥放到持久化目录，例如宿主 `/var/lib/dockerun/keys/tls.crt`、`tls.key`，并限制私钥读取权限。保持仓库默认的 `8080:8080` 映射，在 `.env` 设置：
+服务也可直接提供 HTTPS。将证书链和私钥放到数据卷或绑定目录中的 `keys/` 下，容器内路径例如 `/var/lib/dockerun/keys/tls.crt`、`tls.key`，并限制私钥读取权限。保持仓库默认的 `8080:8080` 映射，在 `.env` 设置：
 
 ```dotenv
 PUBLIC_URL=https://dockerun.example.com:8080
@@ -146,7 +145,7 @@ Dockerun 自身镜像归档与业务应用的完整发布包是两种材料。�
 docker buildx build --platform linux/amd64 --tag dockerun:2.0.0 --load .
 mkdir -p dist/dockerun-install
 docker save --output dist/dockerun-install/dockerun-2.0.0-amd64.tar dockerun:2.0.0
-cp docker-compose.yml .env.example dist/dockerun-install/
+cp docker-compose.yml docker-compose.bind.yml .env.example dist/dockerun-install/
 ```
 
 交付 `dist/dockerun-install/` 以及实际使用的代理配置、证书和说明。模板及前端静态资源已在镜像中，离线目标无需源码或构建工具链。安装配置中的密码、私钥和环境密钥应通过受控渠道交付。
@@ -158,7 +157,6 @@ cp docker-compose.yml .env.example dist/dockerun-install/
 ```bash
 docker load --input dockerun-2.0.0-amd64.tar
 cp .env.example .env
-sudo install -d -m 700 /var/lib/dockerun
 ```
 
 编辑 `.env`，设置真实入口及交付标签：
@@ -182,13 +180,16 @@ docker compose ps
 
 ## 持久化与权限
 
-仓库 Compose 挂载：
+默认使用 `dockerun-data` 命名卷，由 Docker 管理宿主存储位置；容器内数据目录始终为 `/var/lib/dockerun`。新安装无需创建宿主目录，在 `.env` 用 `DATA_VOLUME` 自定义卷名。
 
-```yaml
-volumes:
-  - /var/run/docker.sock:/var/run/docker.sock
-  - /var/lib/dockerun:/var/lib/dockerun
+沿用已有宿主目录时，在 `.env` 设置：
+
+```dotenv
+COMPOSE_FILE=docker-compose.yml:docker-compose.bind.yml
+DATA_DIR=/ingot-data/dockerun
 ```
+
+确保该目录存在、可写且包含原数据，再运行 `docker compose config` 核对挂载。覆盖文件将宿主目录绑定到固定容器路径，并传入 `HOST_DATA_DIR`，后端在应用发布时转换 Docker 挂载源。**已有 Compose 目录绑定安装升级时必须保留原目录并启用这个覆盖文件，不能直接切到默认空卷。** `deploy.sh` 的旧配置只设置 `DATA_DIR` 时自动沿用绑定模式。
 
 | 数据 | 默认位置或用途 |
 | --- | --- |
@@ -200,7 +201,7 @@ volumes:
 | `backups/` | 完整备份及迁移前数据库快照 |
 | `imports/` | 服务器目录导入入口，默认只读取该目录内的文件 |
 
-宿主路径与容器路径保持相同，不能直接沿用旧的 `/app/data` 挂载。需要迁移旧安装时，先停机备份，核对原数据库、数据目录和密钥配置；新版本不会自动寻找并迁移任意旧目录。MySQL 模式同样需要持久化文件目录。
+MySQL 模式同样需要持久化文件数据。两种模式都保留密钥、仓库及任务材料；更改卷名或宿主目录不会自动复制原数据。数据查看、模式切换和注意事项见[数据存储指南](DATA_STORAGE.md)。
 
 Docker socket 提供高权限管理能力。不要通过开放 socket 的全局写权限解决连接问题，按服务身份配置访问。当前安装方式按单个控制台实例设计，不要通过增加副本共享同一数据目录实现高可用。
 
@@ -210,33 +211,21 @@ Docker socket 提供高权限管理能力。不要通过开放 socket 的全局�
 
 完整备份包含元数据、密钥、内置仓库、发布材料和任务材料；**不包含业务数据卷、外部 Registry 内容及整个安装目录**。另外保存业务备份、`.env`、Compose、代理配置和显式设置的外部密钥；`imports/` 中尚未导入的文件及历史备份也应按需另存。
 
-恢复时先停止 Dockerun，目标必须是新的空目录。已具备 CLI 时可运行：
+恢复时先停止 Dockerun，目标必须是新的空目录或空卷。下面使用命名卷；备份文件实际位于宿主 `/backup/dockerun/dockerun-backup.tar.gz`，镜像标签与安装一致，`dockerun-restored` 必须是尚未使用的新卷名：
 
 ```bash
 docker compose stop dockerun
-dockerun restore --file /backup/dockerun/dockerun-backup.tar.gz --data-dir /var/lib/dockerun-restored
-```
-
-也可直接使用交付镜像内的 CLI，不需要挂载 Docker socket。下面假定备份文件实际位于宿主 `/backup/dockerun/dockerun-backup.tar.gz`，镜像标签与安装一致：
-
-```bash
-sudo install -d -m 700 /var/lib/dockerun-restored
+docker volume create dockerun-restored
 docker run --rm --pull never --network none --entrypoint dockerun \
   --mount type=bind,src=/backup/dockerun,dst=/restore,readonly \
-  --mount type=bind,src=/var/lib/dockerun-restored,dst=/var/lib/dockerun-restored \
+  --mount type=volume,src=dockerun-restored,dst=/var/lib/dockerun \
   dockerun:2.0.0 restore \
-  --file /restore/dockerun-backup.tar.gz --data-dir /var/lib/dockerun-restored
+  --file /restore/dockerun-backup.tar.gz --data-dir /var/lib/dockerun
 ```
 
-SQLite 恢复成功后，保留原目录，再将恢复目录切换到安装使用的同一路径。以下备份目录名必须尚未存在：
+SQLite 恢复成功后，将 `.env` 的 `DATA_VOLUME` 改为 `dockerun-restored`，再运行 `docker compose up -d --no-build --pull never`；保留原卷以便核对。目录绑定恢复时，先创建新宿主空目录，将示例的第二个挂载改为 `type=bind,src=/ingot-data/dockerun-restored,dst=/var/lib/dockerun`，成功后保持 bind 覆盖文件，将 `.env` 的 `DATA_DIR` 指向恢复目录。使用 `deploy.sh` 时修改对应的 `DATA_VOLUME` 或 `DATA_DIR` 后执行 `./deploy.sh update`。
 
-```bash
-sudo mv /var/lib/dockerun /var/lib/dockerun-before-restore
-sudo mv /var/lib/dockerun-restored /var/lib/dockerun
-docker compose up -d --no-build --pull never
-```
-
-MySQL 恢复命令会解出 `metadata.sql` 并返回需手动恢复数据库的提示及非零退出码；这一步只恢复材料。将 SQL 恢复到专用数据库、配置正确的 `MYSQL_DSN` 后再切换目录和启动。保留原安装通过环境变量提供的密钥，否则令牌或保存的仓库凭据可能失效。恢复详情见[数据库指南](MYSQL_SETUP.md)。
+MySQL 恢复命令会解出卷或目录中的 `metadata.sql`，并返回需手动恢复数据库的提示及非零退出码；这一步只恢复材料。将 SQL 恢复到专用数据库、配置正确的 `MYSQL_DSN` 后再切换存储并启动。可通过只读辅助容器取出 SQL，见[数据存储指南](DATA_STORAGE.md)。保留原安装通过环境变量提供的密钥，否则令牌或保存的仓库凭据可能失效。恢复详情见[数据库指南](MYSQL_SETUP.md)。
 
 ## 升级与检查
 

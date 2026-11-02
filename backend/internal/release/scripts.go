@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"dockerun/internal/docker"
 	"dockerun/internal/models"
 	"fmt"
 	"os"
@@ -57,7 +58,7 @@ func commandEnvironment() []string {
 			env = append(env, key+"="+v)
 		}
 	}
-	return env
+	return docker.CommandEnvironment(env)
 }
 
 func RunScript(ctx context.Context, content, stage, dir string, s Snapshot, log func(string, string)) error {
@@ -93,6 +94,12 @@ func RunScript(ctx context.Context, content, stage, dir string, s Snapshot, log 
 		fmt.Sprintf("DOCKERUN_APPLICATION_ID=%d", s.Release.ApplicationID), fmt.Sprintf("DOCKERUN_ENVIRONMENT_ID=%d", s.Environment.ID),
 		"DOCKERUN_ENVIRONMENT="+s.Environment.Name, "DOCKERUN_VERSION="+s.Release.Version,
 	)
+	hostDir, err := docker.HostDataPath(dir)
+	if err != nil {
+		return err
+	}
+	cmd.Env = append(cmd.Env, "HOST_WORK_DIR="+hostDir)
+	cmd.Env = docker.CommandEnvironment(cmd.Env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
@@ -124,7 +131,7 @@ func scriptWorkingDirectory(dir string, s Snapshot) string {
 		if !filepath.IsAbs(workDir) {
 			workDir = filepath.Join(dir, workDir)
 		}
-		return workDir
+		return docker.LocalDataPath(workDir)
 	}
 	return dir
 }

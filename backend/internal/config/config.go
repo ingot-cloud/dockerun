@@ -16,6 +16,8 @@ type Config struct {
 	Mode            string
 	TemplateDir     string
 	DataDir         string
+	HostDataDir     string
+	DataVolume      string
 	PublicURL       string
 	RegistrySecret  string
 	RegistryEnabled bool
@@ -42,6 +44,7 @@ func Load() *Config {
 		JWTSecret:      secret("JWT_SECRET", filepath.Join(dataDir, "keys", "web.key")),
 		RegistrySecret: secret("REGISTRY_SECRET", filepath.Join(dataDir, "keys", "registry.key")),
 		DataDir:        dataDir, PublicURL: getEnv("PUBLIC_URL", "http://localhost:8080"), RegistryEnabled: getEnv("REGISTRY_ENABLED", "true") == "true",
+		HostDataDir: os.Getenv("HOST_DATA_DIR"), DataVolume: os.Getenv("DATA_VOLUME"),
 		TLSCert: os.Getenv("TLS_CERT"), TLSKey: os.Getenv("TLS_KEY"), ImportDir: getEnv("IMPORT_DIR", filepath.Join(dataDir, "imports")),
 		Mode:        getEnv("GIN_MODE", "debug"),
 		TemplateDir: getEnv("TEMPLATE_DIR", "./templates"),
@@ -69,6 +72,12 @@ func secret(env, path string) string {
 // Initialize creates persistent, independent signing keys before accepting requests.
 func Initialize() error {
 	cfg := Load()
+	if cfg.HostDataDir != "" && cfg.DataVolume != "" {
+		return fmt.Errorf("HOST_DATA_DIR 与 DATA_VOLUME 不能同时设置")
+	}
+	if cfg.HostDataDir != "" && (!filepath.IsAbs(cfg.HostDataDir) || filepath.Clean(cfg.HostDataDir) == "/") {
+		return fmt.Errorf("HOST_DATA_DIR 必须是非根目录的宿主机绝对路径")
+	}
 	u, err := url.Parse(cfg.PublicURL)
 	if err != nil || u.Host == "" || u.Scheme != "http" && u.Scheme != "https" || u.User != nil || u.Path != "" && u.Path != "/" || u.RawQuery != "" || u.Fragment != "" {
 		return fmt.Errorf("PUBLIC_URL 必须是完整 http(s) 入口地址，不含路径或凭据")
@@ -88,8 +97,15 @@ func Initialize() error {
 		}
 	}
 	for name, env := range map[string]string{"web.key": "JWT_SECRET", "registry.key": "REGISTRY_SECRET", "http.key": "REGISTRY_HTTP_SECRET", "credentials.key": "CREDENTIALS_SECRET"} {
-		if v:=os.Getenv(env);v!="" {
- if name=="credentials.key"{key,err:=hex.DecodeString(v);if err!=nil||len(key)!=32{return fmt.Errorf("CREDENTIALS_SECRET 必须是 64 位十六进制密钥")}}else if len(v)<32{return fmt.Errorf("%s 至少需要 32 字节",env)}
+		if v := os.Getenv(env); v != "" {
+			if name == "credentials.key" {
+				key, err := hex.DecodeString(v)
+				if err != nil || len(key) != 32 {
+					return fmt.Errorf("CREDENTIALS_SECRET 必须是 64 位十六进制密钥")
+				}
+			} else if len(v) < 32 {
+				return fmt.Errorf("%s 至少需要 32 字节", env)
+			}
 			continue
 		}
 		path := filepath.Join(cfg.DataDir, "keys", name)

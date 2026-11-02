@@ -36,6 +36,13 @@ if args[:2] == ['network', 'inspect']:
     done(1 if args[-1] == os.environ.get('MOCK_MISSING_NETWORK') else 0)
 if args[:2] == ['network', 'connect']:
     done(1 if os.environ.get('MOCK_CONNECT_FAIL') else 0)
+if args[:2] == ['volume', 'inspect']:
+    done(0 if args[-1] in state.get('volumes', []) else 1)
+if args[:2] == ['volume', 'create']:
+    if os.environ.get('MOCK_VOLUME_CREATE_FAIL'):
+        done(1)
+    state.setdefault('volumes', []).append(args[-1])
+    done()
 if args[:2] == ['container', 'inspect']:
     container = containers.get(args[-1])
     if container is None:
@@ -45,6 +52,8 @@ if args[:2] == ['container', 'inspect']:
     template = args[args.index('--format') + 1]
     if template == '{{.State.Running}}':
         done(output='true' if container['running'] else 'false')
+    if 'range .Mounts' in template:
+        done(output=state.get('old_mounts', ''))
     status = 'running' if container['running'] else 'exited'
     health = os.environ.get('MOCK_HEALTH', 'healthy')
     done(output=status + ' ' + health)
@@ -168,7 +177,9 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(create['dsn'], self.values['MYSQL_DSN'])
         self.assertNotIn(self.values['MYSQL_DSN'], ' '.join(create['args']) + result.stdout + result.stderr)
         self.assertFalse(marker.exists())
-        self.assertIn(f"type=bind,src={self.values['DATA_DIR']},dst={self.values['DATA_DIR']}", create['args'])
+        self.assertIn(f"type=bind,src={self.values['DATA_DIR']},dst=/var/lib/dockerun", create['args'])
+        self.assertIn('DATA_DIR=/var/lib/dockerun', create['args'])
+        self.assertIn('HOST_DATA_DIR=' + self.values['DATA_DIR'], create['args'])
         self.assertIn('127.0.0.1:19000:8080', create['args'])
         self.assertIn('VIRTUAL_PORT=8080', create['args'])
         self.assertEqual(Path(self.values['DATA_DIR']).stat().st_mode & 0o777, 0o700)
@@ -229,6 +240,95 @@ class DeployTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 self.run_script('update', success=False, **invalid)
                 self.assert_old_untouched()
+
+    def test_new_install_defaults_to_named_volume_and_fixed_internal_directory(self):
+        self.values.pop('DATA_DIR')
+        self.write_config()
+        self.run_script('start')
+        calls = [c['args'] for c in self.calls()]
+        create = next(c for c in calls if c[0] == 'create')
+        self.assertIn('type=volume,src=dockerun-data,dst=/var/lib/dockerun', create)
+        self.assertIn('DATA_DIR=/var/lib/dockerun', create)
+        self.assertIn('DATA_VOLUME=dockerun-data', create)
+        self.assertFalse(any('HOST_DATA_DIR=' in a for a in create))
+        self.assertLess(next(i for i, a in enumerate(calls) if a[:2] == ['volume', 'create']),
+                        next(i for i, a in enumerate(calls) if a[0] == 'create'))
+
+    def test_existing_named_volume_is_reused_and_remove_keeps_it(self):
+        self.values.update(DATA_MOUNT_TYPE='volume', DATA_VOLUME='dockerun-existing')
+        self.write_config()
+        state = json.loads(self.state_file.read_text())
+        state['volumes'] = ['dockerun-existing']
+        self.state_file.write_text(json.dumps(state))
+        self.run_script('start')
+        self.run_script('remove')
+        self.assertEqual(json.loads(self.state_file.read_text())['volumes'], ['dockerun-existing'])
+        self.assertFalse(any(c['args'][:2] == ['volume', 'create'] for c in self.calls()))
+
+    def test_new_volume_check_is_read_only(self):
+        self.values.pop('DATA_DIR')
+        self.write_config()
+        self.run_script('check')
+        self.assertFalse(any(c['args'][:2] == ['volume', 'create'] for c in self.calls()))
+
+    def test_failed_volume_create_keeps_old_running(self):
+        self.set_state(existing=True)
+        self.values['DATA_MOUNT_TYPE'] = 'volume'
+        self.write_config()
+        self.run_script('update', success=False, MOCK_VOLUME_CREATE_FAIL='1')
+        self.assert_old_untouched()
+
+    def test_legacy_container_mount_is_detected_without_storage_config(self):
+        self.values.pop('DATA_DIR')
+        self.write_config()
+        self.set_state(existing=True)
+        old = self.work / 'previous data'
+        old.mkdir()
+        state = json.loads(self.state_file.read_text())
+        state['old_mounts'] = f'bind|{old}||/var/lib/dockerun'
+        self.state_file.write_text(json.dumps(state))
+        self.run_script('update')
+        create = next(c['args'] for c in self.calls() if c['args'][0] == 'create')
+        self.assertIn(f'type=bind,src={old},dst=/var/lib/dockerun', create)
+        self.assertFalse(any(c['args'][:2] == ['volume', 'create'] for c in self.calls()))
+
+    def test_explicit_bind_mode_uses_fixed_container_path(self):
+        self.values['DATA_MOUNT_TYPE'] = 'bind'
+        self.write_config()
+        self.run_script('start')
+        create = next(c['args'] for c in self.calls() if c['args'][0] == 'create')
+        self.assertIn(f"type=bind,src={self.values['DATA_DIR']},dst=/var/lib/dockerun", create)
+
+    def test_existing_named_volume_is_detected_without_storage_config(self):
+        self.values.pop('DATA_DIR')
+        self.write_config()
+        self.set_state(existing=True)
+        state = json.loads(self.state_file.read_text())
+        state['old_mounts'] = 'volume|/engine/volumes/previous/_data|previous|/var/lib/dockerun'
+        state['volumes'] = ['previous']
+        self.state_file.write_text(json.dumps(state))
+        self.run_script('update')
+        create = next(c['args'] for c in self.calls() if c['args'][0] == 'create')
+        self.assertIn('type=volume,src=previous,dst=/var/lib/dockerun', create)
+        self.assertFalse(any(c['args'][:2] == ['volume', 'create'] for c in self.calls()))
+
+    def test_explicit_volume_name_overrides_automatic_mount_detection(self):
+        self.values.pop('DATA_DIR')
+        self.values['DATA_VOLUME'] = 'chosen-volume'
+        self.write_config()
+        self.set_state(existing=True)
+        state = json.loads(self.state_file.read_text())
+        state['old_mounts'] = 'bind|/previous/data||/var/lib/dockerun'
+        self.state_file.write_text(json.dumps(state))
+        self.run_script('update')
+        create = next(c['args'] for c in self.calls() if c['args'][0] == 'create')
+        self.assertIn('type=volume,src=chosen-volume,dst=/var/lib/dockerun', create)
+
+    def test_invalid_storage_mode_and_volume_name_are_rejected(self):
+        for invalid in ({'DATA_MOUNT_TYPE': 'other'}, {'DATA_MOUNT_TYPE': 'volume', 'DATA_VOLUME': '/host/path'}):
+            with self.subTest(invalid=invalid):
+                self.run_script('check', success=False, **invalid)
+                self.assertFalse(any(c['args'][:2] == ['volume', 'create'] for c in self.calls()))
 
     def test_failed_create_keeps_old_container_running(self):
         self.set_state(existing=True)

@@ -1,0 +1,12 @@
+# 与 docker-compose.yml 合并使用；同一 target 的挂载会替换默认命名卷。
+services:
+  dockerun:
+    environment:
+      DATA_VOLUME: ""
+      HOST_DATA_DIR: ${DATA_DIR:-/var/lib/dockerun}
+    volumes:
+      - type: bind
+        source: ${DATA_DIR:-/var/lib/dockerun}
+        target: /var/lib/dockerun
+        bind:
+          create_host_path: false

@@ -9,6 +9,7 @@
 | [快速开始](QUICKSTART.md) | 启动控制台、初始化管理员和发布首个 Compose 应用 |
 | [部署与运维](DEPLOYMENT.md) | HTTPS、离线安装、数据目录、备份恢复和升级 |
 | [单容器部署脚本](DEPLOY_SCRIPT.md) | 沿用 MySQL 与 nginx-proxy，独立环境配置和容器升级 |
+| [数据存储与迁移](DATA_STORAGE.md) | 命名卷、目录绑定、查看数据和停机迁移 |
 | [配置参考](CONFIGURATION.md) | 环境变量、自动生成密钥、Compose 与开发配置差异 |
 | [一体化操作与接口](INTEGRATED_DEPLOYMENT.md) | 应用与环境、模板、发布、自动化、离线包、CLI 和 Agent |
 | [仓库指南](REGISTRY_GUIDE.md) | 内置及外部仓库、登录推送、权限、删除和维护 |

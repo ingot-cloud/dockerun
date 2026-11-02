@@ -1,6 +1,6 @@
 # 构建与交付
 
-本文区分本地二进制构建、Dockerun 安装镜像和业务应用发布包。服务安装步骤见[部署指南](DEPLOYMENT.md)，业务发布流程见[一体化操作指南](INTEGRATED_DEPLOYMENT.md)。所有命令默认从仓库根目录执行。
+本文区分本地二进制构建、Dockerun 安装镜像和业务应用发布包。服务安装步骤见[部署指南](DEPLOYMENT.md)，命名卷和目录绑定见[数据存储指南](DATA_STORAGE.md)，业务发布流程见[一体化操作指南](INTEGRATED_DEPLOYMENT.md)。所有命令默认从仓库根目录执行。
 
 ## 本地构建二进制
 

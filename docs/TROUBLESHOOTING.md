@@ -20,7 +20,7 @@ curl -i http://127.0.0.1:8080/health
 
 - 查看日志中的 `PUBLIC_URL` 校验、数据库连接、密钥、证书或文件权限错误。
 - `PUBLIC_URL` 必须是完整 HTTP(S) 根地址，不能带路径或凭据；`TLS_CERT`、`TLS_KEY` 必须同时提供。
-- 默认数据目录是 `/var/lib/dockerun`，Compose 将该路径原样绑定到宿主；旧的 `/app/data` 或 `backend/data` 不会自动迁移。
+- 容器内数据目录固定为 `/var/lib/dockerun`，默认挂载 `dockerun-data` 命名卷。目录绑定需启用 `docker-compose.bind.yml` 并设置宿主 `DATA_DIR`；旧的 `/app/data` 或 `backend/data` 不会自动迁移。原用户或密钥突然消失时，先检查是否误切到空卷，停止写入并恢复原挂载配置。
 - 切换 `DATABASE_TYPE` 或 `MYSQL_DSN` 会连接另一份元数据，不会复制旧数据库。
 - 检查宿主 `8080` 是否占用；改端口后同步修改 `PUBLIC_URL`。源码前端默认是 `5999`，不是 `5173`。
 - 修改 `.env` 后执行 `docker compose up -d --no-build --pull never`，单纯重启不能加载新环境变量。
@@ -50,7 +50,7 @@ docker compose exec dockerun docker compose version
 
 确认挂载 `/var/run/docker.sock:/var/run/docker.sock`，服务身份具有访问权限。不要把 socket 改成全局可写。原生进程和远程 Agent 应检查自身运行环境的 Docker CLI、Compose、Bash、PATH 和依赖，不能只检查浏览器所在机器。
 
-本机脚本在 Dockerun 进程或容器中运行，Agent 脚本在对应目标执行环境运行；执行器不加载交互式 Shell 配置。挂载或配置找不到时，同时核对宿主与执行器中相同的绝对路径。
+本机脚本在 Dockerun 进程或容器中运行，Agent 脚本在对应目标执行环境运行；执行器不加载交互式 Shell 配置。数据目录内的绑定源会自动转换；挂载或配置找不到时，核对数据卷名称或 `HOST_DATA_DIR` 与实际挂载一致、文件在容器内存在。数据目录外的宿主文件仍需自行准备；脚本读取任务文件应使用 `WORK_DIR`。
 
 ## 网页能访问，docker login 却失败
 

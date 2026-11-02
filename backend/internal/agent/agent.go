@@ -81,6 +81,7 @@ func Run(ctx context.Context, base, token, dir string) error {
 	if err = docker.Init(); err != nil {
 		return err
 	}
+	defer docker.Close()
 	instancePath := filepath.Join(dir, "instance-id")
 	instance, e := os.ReadFile(instancePath)
 	if os.IsNotExist(e) {

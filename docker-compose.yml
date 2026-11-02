@@ -8,11 +8,15 @@ services:
     environment:
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
       DATA_DIR: /var/lib/dockerun
+      DATA_VOLUME: ${DATA_VOLUME:-dockerun-data}
       DATABASE_TYPE: ${DATABASE_TYPE:-sqlite}
       MYSQL_DSN: ${MYSQL_DSN:-}
       TLS_CERT: ${TLS_CERT:-}
       TLS_KEY: ${TLS_KEY:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      # Same absolute path lets the host Docker resolve Compose bind/config mounts.
-      - /var/lib/dockerun:/var/lib/dockerun
+      - dockerun-data:/var/lib/dockerun
+
+volumes:
+  dockerun-data:
+    name: ${DATA_VOLUME:-dockerun-data}

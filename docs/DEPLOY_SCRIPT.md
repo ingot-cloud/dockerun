@@ -39,7 +39,9 @@ CONFIG_FILE=/etc/dockerun/deploy.env ./deploy.sh check
 | `DOCKER_NETWORK` | 已存在的 Docker 网络，默认 `ingot-net`；与 nginx-proxy 共享 |
 | `ADDITIONAL_NETWORKS` | 可选的附加网络，用空格分隔，例如 MySQL 所在网络 |
 | `DOCKER_SOCKET` | 默认 `/var/run/docker.sock`；须是目标主机的 Unix socket |
-| `DATA_DIR` | 默认 `/var/lib/dockerun`；同一绝对路径挂载到容器内 |
+| `DATA_MOUNT_TYPE` | 新安装默认 `volume`；可选 `bind`，旧配置只填 `DATA_DIR` 时自动选 `bind` |
+| `DATA_VOLUME` | 命名卷名称，默认 `dockerun-data`；首次部署不存在时创建 |
+| `DATA_DIR` | 仅在 `bind` 模式表示宿主机目录，默认 `/var/lib/dockerun`；容器内始终挂载到 `/var/lib/dockerun` |
 | `PUBLIC_URL` | 客户端与 Docker daemon 可达的完整根地址，例如 `https://dockerun.example.com` |
 | `VIRTUAL_HOST` | nginx-proxy 使用的单个域名，与 `PUBLIC_URL` 的域名一致 |
 | `LETSENCRYPT_HOST` | acme-companion 2.6 自动证书域名；与 `VIRTUAL_HOST` 一致，已有证书可留空 |
@@ -53,9 +55,11 @@ CONFIG_FILE=/etc/dockerun/deploy.env ./deploy.sh check
 | `LOG_TAIL` | 日志初始显示行数，默认 100 |
 | `RESTART_POLICY` | 默认 `unless-stopped` |
 
-签名和凭据密钥默认生成并保存在 `DATA_DIR/keys`。原安装显式设置过 `JWT_SECRET`、`REGISTRY_SECRET`、`REGISTRY_HTTP_SECRET`、`CREDENTIALS_SECRET`、`AES_KEY` 或 `AES_IV` 时，继续在配置中填写原值。它们会按名称传给 Docker，不把值拼到命令行。
+签名和凭据密钥默认生成并保存在容器 `/var/lib/dockerun/keys`，随数据卷或目录持久化。原安装显式设置过 `JWT_SECRET`、`REGISTRY_SECRET`、`REGISTRY_HTTP_SECRET`、`CREDENTIALS_SECRET`、`AES_KEY` 或 `AES_IV` 时，继续在配置中填写原值。它们会按名称传给 Docker，不把值拼到命令行。
 
-使用 MySQL 仍需保留整个 `DATA_DIR`，其中包含内置仓库镜像、密钥、上传材料和任务文件。原来使用 `/ingot-data/dockerun` 的安装可以继续设置相同的 `DATA_DIR`，不必仅为路径名称搬迁。历史脚本依赖的其他宿主文件和目录仍应单独核对。
+使用 MySQL 仍需保留整个数据卷或绑定目录，其中包含内置仓库镜像、密钥、上传材料和任务文件。原来使用 `/ingot-data/dockerun` 的安装继续设置 `DATA_MOUNT_TYPE=bind`、`DATA_DIR=/ingot-data/dockerun`；旧配置未设置模式时同样按 bind 处理，无需搬迁。
+
+如果未指定模式、`DATA_DIR` 和 `DATA_VOLUME`，脚本会检查同名现有容器挂载到 `/var/lib/dockerun` 的数据源，并继续使用原目录或卷；没有该挂载时才使用默认命名卷。显式设置的配置优先，不自动复制数据。查看数据和迁移方法见[数据存储指南](DATA_STORAGE.md)，应用发布的路径处理见[脚本说明](INTEGRATED_DEPLOYMENT.md#应用和环境的部署脚本)。
 
 ## 沿用 nginx-proxy
 
@@ -74,7 +78,7 @@ proxy_read_timeout 3600s;
 proxy_send_timeout 3600s;
 ```
 
-按实际代理容器名称检查并加载，不要覆盖生成的 `location /`：
+修改已经被 include 的域名文件后，检查并 reload 即可。新增文件时，先按现有 nginx-proxy 部署方式触发 docker-gen 重新生成配置，确认 `nginx -T` 中出现对应 include 后再加载；仅 reload 不会补出缺少的 include。不要覆盖生成的 `location /`：
 
 ```bash
 docker exec nginx-proxy nginx -t
@@ -105,7 +109,7 @@ docker login dockerun.example.com
 
 从旧版本升级时，先独立备份原 MySQL、原文件数据目录和部署配置，在数据库副本验证迁移。不要同时让新旧 Dockerun 实例连接同一原数据库进行升级测试；旧版 `scripts/backup.sh` 不会备份 MySQL。新版本包含首次迁移前的 SQL 备份，但不能代替独立备份和恢复验证。迁移会保留旧脚本记录并关闭旧脚本自动部署，新自动发布规则在应用环境中配置。
 
-确认 `CONTAINER_NAME`、`MYSQL_DSN`、`DATA_DIR` 与原安装一致，加载目标架构的镜像，然后执行：
+确认 `CONTAINER_NAME`、`MYSQL_DSN` 和数据卷或宿主目录与原安装一致，加载目标架构的镜像，然后执行：
 
 ```bash
 docker load --input docker-packages/dockerun-2.0.0-amd64.tar
@@ -115,7 +119,7 @@ docker load --input docker-packages/dockerun-2.0.0-amd64.tar
 
 ARM64 使用对应的 `dockerun-2.0.0-arm64.tar`。若原镜像也使用其他仓库前缀，修改 `IMAGE_NAME` 或先把加载的镜像重新标记为配置的名称。
 
-`check` 不拉取镜像、不创建数据目录、不启动容器，也不连接或迁移 MySQL；它验证配置、本地镜像及其与 Docker 服务的平台匹配、Docker socket 和网络。`update` 先准备镜像、创建尚未启动的新容器并连接附加网络，再停止原容器，将其保留为 `容器名-previous-时间-进程号`，最后启动新版并等待 HTTP 健康检查。原容器、镜像及持久化数据不会被自动删除。
+`check` 不拉取镜像、不创建数据卷或目录、不启动容器，也不连接或迁移 MySQL；它验证配置、本地镜像及其与 Docker 服务的平台匹配、Docker socket 和网络。`update` 先准备镜像、创建尚未启动的新容器并连接附加网络，再停止原容器，将其保留为 `容器名-previous-时间-进程号`，最后启动新版并等待 HTTP 健康检查。原容器、镜像及持久化数据不会被自动删除。
 
 若新版本启动或健康检查失败，会保留失败现场和停止的原容器，不会自动切回旧程序，因为数据库可能已经迁移。先核对日志和迁移结果，必要时配合数据库及文件备份恢复。只恢复旧容器或旧镜像不等于恢复数据库。健康检查通过仅确认 HTTP 服务就绪；MySQL 中的原用户和配置、Docker 连接、代理及仓库登录仍需实际核对。
 
@@ -132,7 +136,7 @@ ARM64 使用对应的 `dockerun-2.0.0-arm64.tar`。若原镜像也使用其他�
 ./deploy.sh remove-image
 ```
 
-`remove` 仅删除配置指向的容器，不删除持久化目录或 MySQL 数据。`remove-image` 只删除配置的镜像；仍被容器引用时由 Docker 拒绝，不自动停止或删除容器。
+`remove` 仅删除配置指向的容器，不删除命名卷、持久化目录或 MySQL 数据。`remove-image` 只删除配置的镜像；仍被容器引用时由 Docker 拒绝，不自动停止或删除容器。
 
 脚本回归测试使用临时 Unix socket 和模拟 Docker，不连接真实 Docker 或数据库：
 
