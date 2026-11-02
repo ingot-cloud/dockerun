@@ -1,5 +1,7 @@
 # Webhook 自动部署功能
 
+> 适用范围：外部 Registry 回调及历史脚本集成。当前镜像自动发布按应用环境显式配置监听规则和触发授权，旧安装升级时不会直接沿用历史脚本自动执行，操作以[一体化操作指南](INTEGRATED_DEPLOYMENT.md#自动发布授权)为准。
+
 DockeRun 的 Webhook 功能允许您在 Docker Registry 收到镜像推送事件时自动触发部署脚本，实现完整的 CI/CD 自动化流程。
 
 ---

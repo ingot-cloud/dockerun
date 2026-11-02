@@ -1,204 +1,83 @@
-# 快速开始指南
+# 快速开始
 
-本指南将帮助你在5分钟内快速启动DockeRun。
+本指南帮助你在受控网络内启动 Dockerun，并完成一次 Compose 应用发布。正式环境的 HTTPS、离线安装和备份方案见[部署指南](DEPLOYMENT.md)。
 
-## 前置要求
+## 准备环境
 
-- Docker已安装并运行
-- Docker Compose已安装（v2.0+）
-
-### 本地开发环境
-- Node.js 20+
-- pnpm 8+
-- Go 1.21+
-
-## 快速部署
-
-### 1. 克隆项目
+准备 Linux Docker Engine（API 1.44+，Docker 25+）和 Docker Compose v2，确认以下命令可用：
 
 ```bash
-git clone <repository-url>
+docker version
+docker compose version
+docker info --format '{{.OSType}}/{{.Architecture}}'
+```
+
+目标架构为 `linux/amd64` 或 `linux/arm64`。以下从源码构建镜像，需要联网；宿主机无需安装 Go、Node 或 pnpm。
+
+## 启动并初始化
+
+```bash
+git clone https://github.com/ingot-cloud/dockerun.git
 cd dockerun
-```
-
-### 2. 配置环境变量（可选）
-
-```bash
-# 复制环境变量示例文件
 cp .env.example .env
-
-# 编辑.env文件，修改JWT密钥（推荐）
-# JWT_SECRET=your-random-secret-key
+sudo install -d -m 700 /var/lib/dockerun
 ```
 
-### 3. 启动服务
+编辑 `.env`，例如：
+
+```dotenv
+PUBLIC_URL=http://服务器IP:8080
+DOCKERUN_IMAGE=dockerun:local
+DATABASE_TYPE=sqlite
+```
+
+替换实际 IP；仅在服务器本机访问时可用 `http://localhost:8080`。`PUBLIC_URL` 也是内置仓库认证令牌的入口，必须能从客户端和 Docker daemon 所在环境访问。使用域名和 HTTPS 时，先按[部署指南](DEPLOYMENT.md#https-反向代理)配置代理。
 
 ```bash
-# 使用Docker Compose启动
-docker-compose up -d
-
-# 查看服务状态
-docker-compose ps
-
-# 查看日志
-docker-compose logs -f
+docker compose config --quiet
+docker compose build
+docker compose up -d --no-build --pull never
+docker compose ps
+curl --fail http://127.0.0.1:8080/health
 ```
 
-### 4. 访问应用
+浏览器打开配置的入口，首次为 `admin` 设置密码并登录，没有默认密码。进入系统页面确认 Docker 连接正常；HTTP 健康接口成功不代表 Docker 资源及业务应用健康。
 
-打开浏览器访问: `http://localhost:8080`
+## 发布一个 Compose 应用
 
-### 5. 初始设置
+以下使用公开镜像地址，需要目标执行节点能够拉取镜像。选择未被占用的 `18080` 端口，避免占用 Dockerun 的 `8080`。
 
-首次访问会自动跳转到初始设置页面：
+1. 在发布工作区创建名为 `demo-nginx` 的应用，添加 `test` 环境，目标选择「本机」。
+2. 点击「发布应用」，选择 Compose 部署和按镜像地址拉取，填写以下内容：
 
-1. 设置管理员密码（至少6位）
-2. 点击"设置密码"
-3. 使用 `admin` 和你设置的密码登录
+   ```yaml
+   services:
+     web:
+       image: nginx:1.28-alpine
+       ports:
+         - "18080:80"
+       restart: unless-stopped
+       healthcheck:
+         test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+         interval: 10s
+         timeout: 3s
+         retries: 5
+   ```
 
-## 常用命令
+3. 点击「预览发布」，检查镜像、端口与目标，再「确认发布」。保存配置与预览不会启动容器。
+4. 在发布任务中等待完成，检查日志、运行状态和健康结果。
+5. 打开 `http://服务器IP:18080`，确认 Nginx 页面；如有防火墙，只开放实际需要的访问范围。
 
-```bash
-# 启动服务
-docker-compose up -d
+按镜像地址拉取会在执行时确定镜像身份；需要发布前锁定摘要时，将镜像准备到内置或外部仓库并选择对应仓库来源。如何推送内置仓库见[仓库指南](REGISTRY_GUIDE.md)。HTTP 仓库需要额外配置 Docker daemon 的 `insecure-registries`，这与浏览器访问网页是两件事。
 
-# 停止服务
-docker-compose down
+也可以从「应用模板」创建 MySQL、Redis、Nacos 等服务。模板默认使用内置仓库，需先准备镜像；填写参数后仍需预览并确认发布。业务数据保留在环境对应的数据卷中。
 
-# 重启服务
-docker-compose restart
+## 后续操作
 
-# 查看日志
-docker-compose logs -f
+- 更新应用：编辑部署配置或准备新镜像，重新预览和发布；在任务中确认结果。
+- 多环境：新增环境并填写各自参数，可将已有版本部署或晋升到目标环境。
+- 离线发布：先导入镜像归档或完整发布包，再创建版本和任务；导入本身不替换服务。
+- 备份：从「仓库与维护」创建完整备份并下载，另行备份业务数据卷。
+- 停止 Dockerun：执行 `docker compose stop dockerun`；已部署业务容器不会随控制台停止。
 
-# 查看服务状态
-docker-compose ps
-
-# 进入容器
-docker exec -it dockerun sh
-
-# 备份数据
-./scripts/backup.sh
-
-# 更新服务
-./scripts/update.sh
-```
-
-## 功能概览
-
-### 1. 容器管理
-- 查看所有容器
-- 启动/停止/重启容器
-- 查看容器日志
-- 删除容器
-
-### 2. 镜像管理
-- 查看镜像列表
-- 拉取新镜像
-- 删除镜像
-- 镜像打标签
-
-### 3. 网络管理
-- 查看网络列表
-- 创建/删除网络
-- 连接/断开容器
-
-### 4. 卷管理
-- 查看卷列表
-- 创建/删除卷
-
-### 5. 部署脚本
-- 创建部署脚本
-- 执行脚本部署容器
-- 查看执行输出
-
-### 6. 系统管理
-- 查看系统信息
-- 检测Docker状态
-- Docker安装（支持在线/离线）
-
-## 部署脚本示例
-
-创建一个简单的Nginx部署脚本：
-
-```bash
-#!/usr/bin/env bash
-
-SERVICE_NAME=my-nginx
-IMAGE_NAME=nginx:latest
-
-# 停止旧容器
-docker ps -q --filter name="${SERVICE_NAME}" | xargs -r docker rm -f
-
-# 启动新容器
-docker run -d \
-  --name ${SERVICE_NAME} \
-  --restart always \
-  -p 8080:80 \
-  ${IMAGE_NAME}
-
-# 输出容器ID
-docker ps -q --filter name="${SERVICE_NAME}"
-```
-
-保存并执行此脚本即可部署Nginx容器。
-
-## 故障排查
-
-### 服务无法启动
-
-```bash
-# 检查Docker是否运行
-systemctl status docker
-
-# 检查端口占用
-netstat -tlnp | grep 8080
-
-# 查看详细日志
-docker logs dockerun
-```
-
-### 无法连接到Docker
-
-确保Docker socket已正确挂载：
-
-```yaml
-volumes:
-  - /var/run/docker.sock:/var/run/docker.sock
-```
-
-### 前端无法访问
-
-1. 检查防火墙设置
-2. 确认容器正常运行
-3. 查看浏览器控制台错误
-
-## 安全建议
-
-1. **立即修改默认密码**
-2. **更改JWT密钥**（生产环境必须）
-3. **使用HTTPS**（配置Nginx反向代理）
-4. **限制访问IP**（通过防火墙或Nginx）
-5. **定期备份数据**
-
-## 下一步
-
-- 阅读完整[README.md](README.md)了解详细功能
-- 查看[DEPLOYMENT.md](DEPLOYMENT.md)了解生产部署
-- 配置Nginx反向代理启用HTTPS
-- 设置定时备份任务
-
-## 获取帮助
-
-- 查看[常见问题](README.md#常见问题)
-- 提交[Issue](https://github.com/your-repo/issues)
-- 阅读[部署指南](DEPLOYMENT.md)
-
-## 更新日志
-
-查看[CHANGELOG.md](CHANGELOG.md)了解最新更新。
-
----
-
-**享受使用DockeRun！** 🚀
-
+完整操作、权限、自动发布及 Agent 见[一体化操作指南](INTEGRATED_DEPLOYMENT.md)。启动、认证或拉取失败时见[故障排查](TROUBLESHOOTING.md)。

@@ -1,11 +1,13 @@
 # Dockerun Agent 分布式架构设计文档
 
+> 本文是早期架构设计，保留规划背景，不能将下文目标当作已实现能力。当前 Agent 采用主动连接、绑定节点及固定主机组顺序发布，不自动改派离线任务；实际配置与限制见[一体化操作指南](INTEGRATED_DEPLOYMENT.md#cli-与-agent)。
+
 ## 📋 文档信息
 
 - **版本**: v1.0
 - **创建日期**: 2025-01-07
 - **状态**: 设计阶段
-- **相关文档**: [ROADMAP.md](./ROADMAP.md)
+- **相关文档**: [ROADMAP.md](../ROADMAP.md)
 
 ---
 
@@ -1138,8 +1140,8 @@ sequenceDiagram
 
 ## 📚 相关文档
 
-- [ROADMAP.md](./ROADMAP.md) - 开发路线图
-- [API.md](./docs/API.md) - API 文档（待创建）
+- [ROADMAP.md](../ROADMAP.md) - 开发路线图
+- [当前接口摘要](INTEGRATED_DEPLOYMENT.md#api-摘要) - 已实现接口及其行为
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - 部署指南
 - [SECURITY.md](./SECURITY.md) - 安全指南
 

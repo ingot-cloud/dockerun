@@ -1,227 +1,40 @@
-# DockeRun 文档整理说明
+# Dockerun 文档维护说明
 
-## 📝 整理日期
-2026-01-17
+项目入口是 [README.md](README.md)，完整导航是 [docs/README.md](docs/README.md)。文档按当前安装与使用、专题资料和历史记录组织，避免将早期设计或脚本命令当成现版本操作步骤。
 
-## 👥 团队信息
-- **团队**: Ingot Cloud
-- **维护者**: JY
+## 文档职责
 
----
+| 文档 | 维护内容 |
+| --- | --- |
+| [README](README.md) | 项目定位、核心能力、可执行的部署入口、首次使用和文档导航 |
+| [快速开始](docs/QUICKSTART.md) | 新用户从安装到首次应用发布的最短流程 |
+| [部署指南](docs/DEPLOYMENT.md) | 正式 HTTPS、离线安装、持久化、备份恢复和升级 |
+| [配置参考](docs/CONFIGURATION.md) | 后端变量、密钥、Compose 插值及开发默认值 |
+| [一体化操作指南](docs/INTEGRATED_DEPLOYMENT.md) | 当前应用发布、权限、自动化、离线包、Agent 和接口语义 |
+| [开发指南](docs/DEVELOPMENT.md) / [构建交付](docs/BUILD_AND_DEPLOY.md) | 工具链、启动、检查、产物和脚本参数 |
+| [项目架构](docs/PROJECT_SUMMARY.md) | 当前组件职责和源码导航，不维护易失真的文件数量统计 |
+| [验证记录](docs/VALIDATION.md) | 实际执行的检查、日期、结果和验证边界 |
+| [更新日志](CHANGELOG.md) / [路线记录](ROADMAP.md) | 历史版本与分阶段实施情况，保留当时语境 |
 
-## 📁 文档结构
+## 更新依据
 
-### 根目录（3个核心文档）
+维护文档时先核对实际实现：
 
-```
-dockerun/
-├── README.md          ✅ 项目入口说明
-├── CHANGELOG.md       ✅ 更新日志
-└── ROADMAP.md         ✅ 开发路线图
-```
+- 后端环境变量及密钥：`backend/internal/config/config.go`。
+- 容器默认值、挂载、端口及健康检查：`Dockerfile`、`docker-compose.yml`、`.env.example`。
+- 本地数据、端口、构建产物与依赖命令：根目录及后端 `Makefile`、`frontend/vite.config.ts`、`frontend/package.json`、`backend/go.mod`。
+- 交付脚本的环境变量、架构后缀和归档名：`build.sh`、`run.sh`。
+- 实际路由、权限及 CLI 参数：`backend/internal/router/`、`middleware/`、`backend/cmd/dockerun/`。
 
-### docs/ 目录（详细文档）
+代码与配置变更时同步修改对应操作指南和 README 摘要。历史资料保留时明确标注适用范围，当前流程在文档索引中优先展示。没有实际执行的测试或交付演练，不写成已经通过。
 
-```
-dockerun/docs/
-├── README.md                              # 文档索引
-│
-├── 快速开始
-│   ├── QUICKSTART.md                      # 快速开始指南
-│   ├── DEPLOYMENT.md                       # 部署指南
-│   └── CONFIGURATION.md                    # 配置说明
-│
-├── 功能指南
-│   ├── DEPLOY_SCRIPT_GUIDE.md              # 部署脚本指南
-│   ├── DEPLOY_SCRIPT_DOCKER_MANAGER_GUIDE.md # Docker 管理脚本
-│   ├── WEBHOOK_GUIDE.md                    # Webhook 自动部署
-│   ├── WEBHOOK_REFACTOR_GUIDE.md           # Webhook 重构说明
-│   ├── REGISTRY_GUIDE.md                   # Registry 管理
-│   ├── NETWORK_GUIDE.md                    # 网络管理
-│   └── TEMPLATE_GUIDE.md                   # 模板使用
-│
-├── 高级特性
-│   ├── CODE_EDITOR_FEATURE.md              # 代码编辑器
-│   ├── AGENT_ARCHITECTURE_DESIGN.md        # Agent 架构设计
-│   ├── UI_OPTIMIZATION_GUIDE.md            # UI 优化指南
-│   └── UI_DESIGN.md                        # UI 设计说明
-│
-├── 安全与运维
-│   ├── SECURITY.md                         # 安全指南
-│   ├── REGISTRY_PASSWORD_ENCRYPTION.md     # 密码加密
-│   ├── DEPLOYMENT_PERMISSIONS.md           # 部署权限
-│   ├── TROUBLESHOOTING.md                  # 故障排查
-│   ├── MYSQL_SETUP.md                      # MySQL 配置
-│   ├── INSECURE_REGISTRY.md                # HTTP Registry
-│   ├── QUICK_FIX_INSECURE_REGISTRY.md      # Registry 快速修复
-│   └── SELF_SIGNED_CERTIFICATE.md          # 自签名证书
-│
-└── 构建与开发
-    ├── BUILD_AND_DEPLOY.md                 # 构建和部署
-    ├── DEVELOPMENT.md                      # 开发指南
-    ├── PROJECT_SUMMARY.md                  # 项目总结
-    ├── OPTIMIZATION_SUMMARY.md             # 优化总结
-    └── PNPM_MIGRATION.md                   # PNPM 迁移
-```
+## 文档检查
 
----
+1. 检查项目内相对链接及章节锚点，示例路径应存在或明确为需要创建的交付材料。
+2. 核对命令与工具参数，区分宿主、Dockerun 容器、开发机和远程 Agent 的执行位置。
+3. 使用 `docker compose config --quiet` 检查安装配置，避免输出包含真实凭据的完整配置。
+4. 核对工具链、默认端口、镜像标签、数据目录、HTTPS 健康检查及 `.env` 加载方式。
+5. 示例使用占位域名和非敏感内容，明确替换要求，不写入真实密码、令牌或密钥。
+6. 真实部署及恢复验证使用隔离资源，保留原业务数据；结果只记录实际完成的范围。
 
-## 📚 文档说明
-
-### 核心文档（根目录）
-
-#### 1. README.md
-**用途**: 项目入口和概览
-- 项目简介
-- 核心特性
-- 快速开始
-- 技术栈
-- 基本配置
-- 文档索引
-
-**目标读者**: 所有用户
-
-#### 2. CHANGELOG.md
-**用途**: 版本更新记录
-- 版本历史
-- 新增功能
-- Bug 修复
-- 技术改进
-- 破坏性变更
-
-**目标读者**: 所有用户
-
-**格式**: 遵循 Keep a Changelog 标准
-
-#### 3. ROADMAP.md
-**用途**: 未来规划
-- 开发计划
-- 功能路线图
-- 版本里程碑
-- 时间表
-- 技术演进
-
-**目标读者**: 开发者、贡献者、项目规划者
-
----
-
-### 详细文档（docs/ 目录）
-
-#### 快速开始类
-- **面向**: 新用户、运维人员
-- **特点**: 简明扼要、步骤清晰
-- **目的**: 快速上手和部署
-
-#### 功能指南类
-- **面向**: 功能使用者
-- **特点**: 详细完整、示例丰富
-- **目的**: 深入了解和高效使用
-
-#### 高级特性类
-- **面向**: 高级用户、开发者
-- **特点**: 技术深度、架构设计
-- **目的**: 理解原理、扩展功能
-
-#### 安全与运维类
-- **面向**: 运维人员、安全工程师
-- **特点**: 最佳实践、问题解决
-- **目的**: 安全部署、稳定运行
-
-#### 构建与开发类
-- **面向**: 开发者、贡献者
-- **特点**: 技术细节、开发规范
-- **目的**: 参与开发、代码贡献
-
----
-
-## 🎯 文档使用建议
-
-### 新手用户
-1. 阅读 `README.md` 了解项目
-2. 按照 `docs/QUICKSTART.md` 快速部署
-3. 根据需求查阅功能指南
-
-### 运维人员
-1. `README.md` - 项目概览
-2. `docs/DEPLOYMENT.md` - 生产部署
-3. `docs/SECURITY.md` - 安全配置
-4. `docs/TROUBLESHOOTING.md` - 问题排查
-
-### 开发者
-1. `README.md` - 项目介绍
-2. `docs/DEVELOPMENT.md` - 开发环境
-3. `docs/PROJECT_SUMMARY.md` - 架构了解
-4. `ROADMAP.md` - 未来规划
-
-### 贡献者
-1. `ROADMAP.md` - 了解方向
-2. `docs/DEVELOPMENT.md` - 开发规范
-3. `docs/BUILD_AND_DEPLOY.md` - 构建流程
-4. `CHANGELOG.md` - 版本历史
-
----
-
-## ✨ 文档维护原则
-
-### 1. 简洁原则
-- 根目录仅保留 3 个核心文档
-- 详细文档统一放在 docs/ 目录
-- 避免文档冗余和重复
-
-### 2. 分类原则
-- 按照用途和读者分类
-- 文件命名清晰明确
-- 目录结构合理清晰
-
-### 3. 更新原则
-- 代码变更同步更新文档
-- 重大变更记录在 CHANGELOG
-- 版本发布前检查文档完整性
-
-### 4. 规范原则
-- 使用 Markdown 格式
-- 遵循统一的文档模板
-- 包含必要的代码示例
-
----
-
-## 📋 文档检查清单
-
-### 每次发布前
-- [ ] README.md 功能列表是否最新
-- [ ] CHANGELOG.md 是否记录所有变更
-- [ ] ROADMAP.md 进度是否更新
-- [ ] 新功能是否有对应文档
-- [ ] 配置变更是否更新文档
-- [ ] API 变更是否更新文档
-- [ ] 示例代码是否可运行
-
-### 文档质量标准
-- [ ] 语法正确无误
-- [ ] 步骤清晰可操作
-- [ ] 代码示例完整
-- [ ] 截图清晰准确
-- [ ] 链接有效可访问
-- [ ] 格式统一规范
-
----
-
-## 🔄 文档更新流程
-
-1. **功能开发** → 编写功能文档
-2. **代码审查** → 审查文档完整性
-3. **功能发布** → 更新 CHANGELOG
-4. **版本规划** → 更新 ROADMAP
-5. **定期维护** → 检查文档时效性
-
----
-
-## 📞 联系方式
-
-如发现文档问题或需要补充，请：
-- 提交 Issue: https://github.com/ingot-cloud/dockerun/issues
-- 提交 PR: https://github.com/ingot-cloud/dockerun/pulls
-
----
-
-**Maintained by Ingot Cloud Team - JY**
+新增项目说明使用简体中文，代码标识符、接口字段、品牌、命令及资源原始名称按项目约定保留。前端相关变更遵循 [Dockerun 前端规范](.agents/skills/dockerun-frontend/SKILL.md)。

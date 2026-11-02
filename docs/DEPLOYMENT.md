@@ -1,556 +1,248 @@
-# 部署指南
+# 部署与运维指南
 
-本文档详细说明了如何在不同环境中部署DockeRun。
+本文部署的是 Dockerun 控制台。业务应用的发布、离线包和 Agent 操作见[一体化操作指南](INTEGRATED_DEPLOYMENT.md)，首次体验见[快速开始](QUICKSTART.md)。所有 Compose 命令在安装目录执行。
 
-## 目录
+## 安装方式与前置条件
 
-- [生产环境部署](#生产环境部署)
-- [使用Nginx反向代理](#使用nginx反向代理)
-- [系统服务配置](#系统服务配置)
-- [离线部署](#离线部署)
-- [集群部署](#集群部署)
-- [监控和维护](#监控和维护)
+使用 Linux Docker Engine（API 1.44+，Docker 25+）和 Docker Compose v2。支持 `linux/amd64`、`linux/arm64`；构建机与目标平台不同时，使用具有对应平台构建能力的 Buildx builder。
 
-## 生产环境部署
-
-### 1. 准备工作
+默认交付为一个容器，内含网页、API、Distribution、Docker CLI、Compose 和数据库备份工具。默认 SQLite，不需要独立 Registry 或数据库容器。MySQL 可选，见[数据库配置](MYSQL_SETUP.md)。Docker Engine 必须提前安装，运行时不会自动安装依赖或从 CDN 加载前端资源。
 
 ```bash
-# 创建项目目录
-mkdir -p /opt/dockerun
-cd /opt/dockerun
-
-# 下载项目文件
-git clone <repository-url> .
-
-# 创建数据目录
-mkdir -p data docker-packages
+git clone https://github.com/ingot-cloud/dockerun.git
+cd dockerun
+cp .env.example .env
+sudo install -d -m 700 /var/lib/dockerun
 ```
 
-### 2. 配置环境变量
-
-创建`.env`文件：
+编辑 `.env`，确定 `PUBLIC_URL`、`DOCKERUN_IMAGE` 和数据库类型，再选择下面的 HTTPS 方案。`PUBLIC_URL` 必须是客户端及目标 Docker daemon 可达的根地址，不含路径、凭据或查询参数。已有反向代理时，不设置 `TLS_CERT`、`TLS_KEY`，由代理终止 TLS。
 
 ```bash
-cat > .env << EOF
-# 服务配置
-GIN_MODE=release
-SERVER_ADDR=:8080
-
-# 安全配置
-JWT_SECRET=$(openssl rand -base64 32)
-
-# 数据库配置
-DATABASE_PATH=/app/data/dockerun.db
-EOF
+docker compose config --quiet
+docker compose build
+docker compose up -d --no-build --pull never
+docker compose ps
+docker compose logs --tail=100 dockerun
 ```
 
-### 3. 使用Docker Compose部署
+仓库没有在此文档中约定可直接拉取的公共发布镜像。使用自行构建或交付的实际标签，不要把示例域名或版本当作已发布地址。仅内网 HTTP 体验可使用 `PUBLIC_URL=http://服务器IP:8080`，但 Docker 仓库客户端还需配置 HTTP 信任，见[开发指南](DEVELOPMENT.md#本地-http-仓库调试)。
 
-```bash
-# 启动服务
-docker-compose up -d
+## HTTPS 反向代理
 
-# 查看日志
-docker-compose logs -f
+以下假定 Nginx 在同一宿主机运行，域名为 `dockerun.example.com`，DNS 已指向服务器，并已准备覆盖该域名的证书和私钥。
 
-# 查看服务状态
-docker-compose ps
+在 `.env` 设置：
+
+```dotenv
+PUBLIC_URL=https://dockerun.example.com
+DOCKERUN_IMAGE=dockerun:local
+DATABASE_TYPE=sqlite
 ```
 
-### 4. 验证部署
+将 `docker-compose.yml` 原有的端口映射**替换**为以下内容，避免绕过代理直接访问管理入口；不要在覆盖文件中简单追加另一条映射：
 
-```bash
-# 检查容器运行状态
-docker ps | grep dockerun
-
-# 测试API
-curl http://localhost:8080/api/auth/check-setup
-
-# 查看日志
-docker logs dockerun
+```yaml
+services:
+  dockerun:
+    ports:
+      - "127.0.0.1:8080:8080"
 ```
 
-## 使用Nginx反向代理
-
-### 1. 安装Nginx
-
-```bash
-# Ubuntu/Debian
-apt-get update
-apt-get install nginx
-
-# CentOS/RHEL
-yum install nginx
-```
-
-### 2. 配置Nginx
-
-创建配置文件`/etc/nginx/sites-available/dockerun`：
+以下是 Nginx `http` 上下文中的配置示例，替换证书路径后使用。若 Nginx 在独立容器或其他主机中运行，需按实际网络修改上游地址，容器内的 `127.0.0.1` 不指向宿主 Dockerun。
 
 ```nginx
-server {
-    listen 80;
-    server_name dockerun.example.com;
-
-    # 强制重定向到HTTPS
-    return 301 https://$server_name$request_uri;
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
 }
 
 server {
-    listen 443 ssl http2;
+    listen 80;
     server_name dockerun.example.com;
+    return 301 https://$host$request_uri;
+}
 
-    # SSL证书配置
-    ssl_certificate /etc/nginx/ssl/dockerun.crt;
-    ssl_certificate_key /etc/nginx/ssl/dockerun.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
+server {
+    listen 443 ssl;
+    server_name dockerun.example.com;
+    ssl_certificate /etc/nginx/certs/dockerun.fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/dockerun.key;
 
-    # 客户端上传大小限制
-    client_max_body_size 100M;
+    client_max_body_size 0;
+    client_body_timeout 3600s;
 
-    # 日志配置
-    access_log /var/log/nginx/dockerun-access.log;
-    error_log /var/log/nginx/dockerun-error.log;
-
-    # 代理配置
     location / {
         proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket支持
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        # 超时设置
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
     }
 }
 ```
 
-### 3. 启用配置
+代理整个根入口，覆盖网页、`/api/`、`/v2/`、`/registry/token`、`/agent/` 和 `/webhooks/`。保留客户端的 `Authorization` 和上游的 `WWW-Authenticate`、`Location` 响应头，不为 Registry 路由追加独立网页登录认证。上传大小、超时和流式响应设置也需在前置网关中保持一致。
 
 ```bash
-# 创建符号链接
-ln -s /etc/nginx/sites-available/dockerun /etc/nginx/sites-enabled/
-
-# 测试配置
-nginx -t
-
-# 重启Nginx
-systemctl restart nginx
-
-# 设置开机自启
-systemctl enable nginx
+# 在安装 Nginx 的宿主机检查配置后加载
+sudo nginx -t
+sudo systemctl reload nginx
+# 在安装目录应用 Compose 配置
+docker compose up -d --no-build --pull never
+curl --fail https://dockerun.example.com/health
 ```
 
-### 4. 配置SSL证书（Let's Encrypt）
+首次从受控入口初始化 `admin`。初始化后，`curl -i https://dockerun.example.com/v2/` 未带认证应返回带 `WWW-Authenticate` 的 `401`，其中 realm 应为 `https://dockerun.example.com/registry/token`。再执行 `docker login -u admin dockerun.example.com` 验证仓库认证。
 
-```bash
-# 安装certbot
-apt-get install certbot python3-certbot-nginx
+## 直接启用 TLS
 
-# 获取证书
-certbot --nginx -d dockerun.example.com
+服务也可直接提供 HTTPS。将证书链和私钥放到持久化目录，例如宿主 `/var/lib/dockerun/keys/tls.crt`、`tls.key`，并限制私钥读取权限。保持仓库默认的 `8080:8080` 映射，在 `.env` 设置：
 
-# 自动续期
-certbot renew --dry-run
+```dotenv
+PUBLIC_URL=https://dockerun.example.com:8080
+TLS_CERT=/var/lib/dockerun/keys/tls.crt
+TLS_KEY=/var/lib/dockerun/keys/tls.key
 ```
 
-## 系统服务配置
-
-### 使用Systemd管理服务
-
-创建服务文件`/etc/systemd/system/dockerun.service`：
-
-```ini
-[Unit]
-Description=DockeRun - Docker Management Platform
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/dockerun
-ExecStart=/usr/local/bin/docker-compose up
-ExecStop=/usr/local/bin/docker-compose down
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启用服务：
-
-```bash
-# 重载systemd配置
-systemctl daemon-reload
-
-# 启动服务
-systemctl start dockerun
-
-# 设置开机自启
-systemctl enable dockerun
-
-# 查看服务状态
-systemctl status dockerun
-
-# 查看日志
-journalctl -u dockerun -f
-```
-
-## 离线部署
-
-### 1. 准备离线安装包
-
-在有网络的环境中：
-
-```bash
-# 导出Docker镜像
-docker save dockerun:latest -o dockerun-image.tar
-
-# 下载Docker安装包
-# x86_64
-wget https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz
-
-# aarch64
-wget https://download.docker.com/linux/static/stable/aarch64/docker-24.0.7.tgz
-
-# 下载docker-compose
-wget https://github.com/docker/compose/releases/download/v2.23.0/docker-compose-linux-x86_64
-chmod +x docker-compose-linux-x86_64
-
-# 注意：如果需要本地构建前端，请确保安装了pnpm
-npm install -g pnpm
-```
-
-### 2. 传输到离线环境
-
-```bash
-# 打包所有文件
-tar czf dockerun-offline.tar.gz \
-    dockerun-image.tar \
-    docker-24.0.7.tgz \
-    docker-compose-linux-x86_64 \
-    docker-compose.yml \
-    .env
-
-# 传输到目标服务器
-scp dockerun-offline.tar.gz user@target-server:/opt/
-```
-
-### 3. 离线环境安装
-
-```bash
-# 解压
-cd /opt
-tar xzf dockerun-offline.tar.gz
-
-# 安装Docker（如果未安装）
-tar xzf docker-24.0.7.tgz
-cp docker/* /usr/bin/
-
-# 创建Docker服务（参考系统服务配置）
-
-# 安装docker-compose
-mv docker-compose-linux-x86_64 /usr/local/bin/docker-compose
-
-# 加载镜像
-docker load -i dockerun-image.tar
-
-# 启动服务
-docker-compose up -d
-```
-
-## 集群部署
-
-### 使用Docker Swarm
-
-```bash
-# 初始化Swarm
-docker swarm init
-
-# 部署服务
-docker stack deploy -c docker-compose.yml dockerun
-
-# 查看服务
-docker service ls
-
-# 扩展服务
-docker service scale dockerun_dockerun=3
-
-# 更新服务
-docker service update --image dockerun:latest dockerun_dockerun
-```
-
-### Docker Stack配置
-
-创建`docker-stack.yml`：
+证书需覆盖实际域名。当前 Dockerfile 默认用 HTTP 探测 `/health`，直接启用 TLS 时，必须在 `docker-compose.yml` 的 `dockerun` 服务中增加 HTTPS 健康检查，否则服务正常也会显示不健康：
 
 ```yaml
-version: '3.8'
-
 services:
   dockerun:
-    image: dockerun:latest
-    ports:
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - dockerun-data:/app/data
-    environment:
-      - GIN_MODE=release
-      - JWT_SECRET=${JWT_SECRET}
-    networks:
-      - dockerun-net
-    deploy:
-      replicas: 3
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-      update_config:
-        parallelism: 1
-        delay: 10s
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--resolve", "dockerun.example.com:8080:127.0.0.1", "https://dockerun.example.com:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+```
 
-networks:
-  dockerun-net:
-    driver: overlay
+此处域名用于证书校验，`--resolve` 仅让容器内探测连接回环地址。私有 CA 场景需将 CA 证书放入容器可读位置，在探测命令中追加 `--cacert` 及 CA 路径，并让浏览器、Docker daemon、Buildx 和 Agent 分别信任该 CA。不要以跳过校验替代证书信任。
 
+```bash
+docker compose config --quiet
+docker compose up -d --no-build --pull never
+curl --fail https://dockerun.example.com:8080/health
+docker login -u admin dockerun.example.com:8080
+```
+
+## 离线安装
+
+Dockerun 自身镜像归档与业务应用的完整发布包是两种材料。安装控制台用 `docker save` / `docker load`；业务发布包由 Dockerun CLI 打包并在网页或 CLI 导入。
+
+### 联网机器准备
+
+以下为目标 `linux/amd64` 的示例；ARM64 将平台改为 `linux/arm64`、标签与文件名中的 `amd64` 改为 `arm64`。
+
+```bash
+docker buildx build --platform linux/amd64 --tag dockerun:offline-amd64 --load .
+mkdir -p dist/dockerun-install
+docker save --output dist/dockerun-install/dockerun-amd64.tar dockerun:offline-amd64
+cp docker-compose.yml .env.example dist/dockerun-install/
+```
+
+交付 `dist/dockerun-install/` 以及实际使用的代理配置、证书和说明。模板及前端静态资源已在镜像中，离线目标无需源码或构建工具链。安装配置中的密码、私钥和环境密钥应通过受控渠道交付。
+
+### 目标机器启动
+
+目标已安装可用的 Docker Engine 和 Compose v2。进入交付目录：
+
+```bash
+docker load --input dockerun-amd64.tar
+cp .env.example .env
+sudo install -d -m 700 /var/lib/dockerun
+```
+
+编辑 `.env`，设置真实入口及交付标签：
+
+```dotenv
+PUBLIC_URL=https://dockerun.example.com
+DOCKERUN_IMAGE=dockerun:offline-amd64
+DATABASE_TYPE=sqlite
+```
+
+按前文配置 HTTPS 代理或直接 TLS，再启动：
+
+```bash
+docker image inspect dockerun:offline-amd64 --format '{{.Os}}/{{.Architecture}}'
+docker compose config --quiet
+docker compose up -d --no-build --pull never
+docker compose ps
+```
+
+即使交付目录没有 Dockerfile，只要镜像已加载且标签匹配，`--no-build --pull never` 也不会构建或联网拉取。业务应用的镜像仍需单独准备，不能据此认为所有应用依赖都已离线就绪。
+
+## 持久化与权限
+
+仓库 Compose 挂载：
+
+```yaml
 volumes:
-  dockerun-data:
+  - /var/run/docker.sock:/var/run/docker.sock
+  - /var/lib/dockerun:/var/lib/dockerun
 ```
 
-## 监控和维护
+| 数据 | 默认位置或用途 |
+| --- | --- |
+| SQLite 元数据 | `/var/lib/dockerun/dockerun.db` |
+| `keys/` | 自动生成的网页、Registry、HTTP 状态和凭据加密密钥；也可放置 TLS 文件 |
+| `registry/` | 内置 Registry 镜像内容和上传状态 |
+| `uploads/`、`releases/` | 已上传归档与解包的发布材料 |
+| `jobs/` | 任务快照、渲染配置和恢复材料 |
+| `backups/` | 完整备份及迁移前数据库快照 |
+| `imports/` | 服务器目录导入入口，默认只读取该目录内的文件 |
 
-### 1. 日志管理
+宿主路径与容器路径保持相同，不能直接沿用旧的 `/app/data` 挂载。需要迁移旧安装时，先停机备份，核对原数据库、数据目录和密钥配置；新版本不会自动寻找并迁移任意旧目录。MySQL 模式同样需要持久化文件目录。
+
+Docker socket 提供高权限管理能力。不要通过开放 socket 的全局写权限解决连接问题，按服务身份配置访问。当前安装方式按单个控制台实例设计，不要通过增加副本共享同一数据目录实现高可用。
+
+## 备份与恢复
+
+管理员从「仓库与维护」创建完整备份，等待任务成功并下载文件。备份窗口暂停相关本机执行及导入，Registry 只读；任务离开页面后继续运行。SQLite 使用一致性快照，MySQL 使用 `mysqldump --single-transaction`。
+
+完整备份包含元数据、密钥、内置仓库、发布材料和任务材料；**不包含业务数据卷、外部 Registry 内容及整个安装目录**。另外保存业务备份、`.env`、Compose、代理配置和显式设置的外部密钥；`imports/` 中尚未导入的文件及历史备份也应按需另存。
+
+恢复时先停止 Dockerun，目标必须是新的空目录。已具备 CLI 时可运行：
 
 ```bash
-# 查看容器日志
-docker logs -f dockerun
-
-# 限制日志大小
-docker-compose down
-# 修改docker-compose.yml，添加：
-# logging:
-#   driver: "json-file"
-#   options:
-#     max-size: "10m"
-#     max-file: "3"
-docker-compose up -d
-
-# 使用logrotate管理日志
-cat > /etc/logrotate.d/dockerun << EOF
-/var/log/dockerun/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    notifempty
-    create 0644 root root
-    sharedscripts
-    postrotate
-        docker kill -s USR1 dockerun
-    endscript
-}
-EOF
+docker compose stop dockerun
+dockerun restore --file /backup/dockerun/dockerun-backup.tar.gz --data-dir /var/lib/dockerun-restored
 ```
 
-### 2. 备份策略
+也可直接使用交付镜像内的 CLI，不需要挂载 Docker socket。下面假定备份文件实际位于宿主 `/backup/dockerun/dockerun-backup.tar.gz`，镜像标签与安装一致：
 
 ```bash
-# 创建备份脚本
-cat > /opt/dockerun/backup.sh << 'EOF'
-#!/bin/bash
-
-BACKUP_DIR="/backup/dockerun"
-DATE=$(date +%Y%m%d_%H%M%S)
-
-# 创建备份目录
-mkdir -p ${BACKUP_DIR}
-
-# 备份数据库
-cp /opt/dockerun/data/dockerun.db ${BACKUP_DIR}/dockerun-${DATE}.db
-
-# 压缩备份
-tar czf ${BACKUP_DIR}/dockerun-backup-${DATE}.tar.gz \
-    /opt/dockerun/data \
-    /opt/dockerun/.env \
-    /opt/dockerun/docker-compose.yml
-
-# 删除30天前的备份
-find ${BACKUP_DIR} -name "dockerun-backup-*.tar.gz" -mtime +30 -delete
-
-echo "Backup completed: ${BACKUP_DIR}/dockerun-backup-${DATE}.tar.gz"
-EOF
-
-chmod +x /opt/dockerun/backup.sh
-
-# 添加到crontab（每天凌晨2点备份）
-echo "0 2 * * * /opt/dockerun/backup.sh" | crontab -
+sudo install -d -m 700 /var/lib/dockerun-restored
+docker run --rm --pull never --network none --entrypoint dockerun \
+  --mount type=bind,src=/backup/dockerun,dst=/restore,readonly \
+  --mount type=bind,src=/var/lib/dockerun-restored,dst=/var/lib/dockerun-restored \
+  dockerun:local restore \
+  --file /restore/dockerun-backup.tar.gz --data-dir /var/lib/dockerun-restored
 ```
 
-### 3. 恢复数据
+SQLite 恢复成功后，保留原目录，再将恢复目录切换到安装使用的同一路径。以下备份目录名必须尚未存在：
 
 ```bash
-# 停止服务
-docker-compose down
-
-# 恢复数据
-tar xzf /backup/dockerun/dockerun-backup-20231201.tar.gz -C /
-
-# 启动服务
-docker-compose up -d
+sudo mv /var/lib/dockerun /var/lib/dockerun-before-restore
+sudo mv /var/lib/dockerun-restored /var/lib/dockerun
+docker compose up -d --no-build --pull never
 ```
 
-### 4. 性能监控
+MySQL 恢复命令会解出 `metadata.sql` 并返回需手动恢复数据库的提示及非零退出码；这一步只恢复材料。将 SQL 恢复到专用数据库、配置正确的 `MYSQL_DSN` 后再切换目录和启动。保留原安装通过环境变量提供的密钥，否则令牌或保存的仓库凭据可能失效。恢复详情见[数据库指南](MYSQL_SETUP.md)。
 
-```bash
-# 查看容器资源使用
-docker stats dockerun
+## 升级与检查
 
-# 使用Prometheus监控（可选）
-# 添加监控配置到docker-compose.yml
-```
+1. 暂停新的发布操作，完成并下载完整备份，同时备份业务数据及安装配置。
+2. 保留当前源码版本、安装配置和旧镜像标签。联网环境检出计划升级的代码版本后构建新标签；离线环境导入交付的新镜像。
+3. 在 `.env` 更新 `DOCKERUN_IMAGE`，执行 `docker compose config --quiet` 和 `docker compose up -d --no-build --pull never`。
+4. 检查服务日志、`/health`、网页登录、仓库登录，以及应用与任务记录。
 
-### 5. 更新升级
+启动可能执行数据库迁移。失败时核对日志；仅切回旧镜像不保证旧程序能读取迁移后的数据库，需要时使用升级前完整备份恢复。旧 `scripts/backup.sh`、`restore.sh`、`update.sh` 基于旧目录和 Compose 命令，不作为当前一体化版本的运维入口。
 
-```bash
-# 拉取最新代码
-cd /opt/dockerun
-git pull
-
-# 备份当前数据
-./backup.sh
-
-# 重新构建镜像
-docker-compose build
-
-# 重启服务
-docker-compose down
-docker-compose up -d
-
-# 验证更新
-docker logs dockerun
-```
-
-## 安全加固
-
-### 1. 防火墙配置
-
-```bash
-# Ubuntu/Debian (ufw)
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw enable
-
-# CentOS/RHEL (firewalld)
-firewall-cmd --permanent --add-service=ssh
-firewall-cmd --permanent --add-service=http
-firewall-cmd --permanent --add-service=https
-firewall-cmd --reload
-```
-
-### 2. 限制访问
-
-```nginx
-# 在Nginx配置中添加IP白名单
-location / {
-    allow 192.168.1.0/24;
-    deny all;
-    
-    proxy_pass http://127.0.0.1:8080;
-    # ... 其他配置
-}
-```
-
-### 3. 定期安全检查
-
-```bash
-# 检查容器安全
-docker scan dockerun:latest
-
-# 更新系统
-apt-get update && apt-get upgrade -y
-
-# 检查服务状态
-systemctl status dockerun nginx
-```
-
-## 故障排查
-
-### 常见问题
-
-1. **服务无法启动**
-   - 检查端口占用：`netstat -tlnp | grep 8080`
-   - 检查Docker服务：`systemctl status docker`
-   - 查看错误日志：`docker logs dockerun`
-
-2. **无法连接Docker**
-   - 确认Docker socket挂载正确
-   - 检查容器权限配置
-
-3. **前端无法访问**
-   - 检查Nginx配置
-   - 检查防火墙规则
-   - 验证SSL证书
-
-## 性能优化
-
-### 1. 数据库优化
-
-```bash
-# 定期优化SQLite数据库
-sqlite3 /opt/dockerun/data/dockerun.db "VACUUM;"
-```
-
-### 2. Nginx缓存配置
-
-```nginx
-# 添加静态资源缓存
-location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-    expires 1y;
-    add_header Cache-Control "public, immutable";
-}
-```
-
-### 3. 容器资源限制
-
-在`docker-compose.yml`中添加：
-
-```yaml
-services:
-  dockerun:
-    # ... 其他配置
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 1G
-        reservations:
-          cpus: '1'
-          memory: 512M
-```
-
-## 支持
-
-如有部署问题，请参考[README.md](README.md)或提交Issue。
-
+更多排查见[故障排查](TROUBLESHOOTING.md)，完整变量见[配置参考](CONFIGURATION.md)。

@@ -2,17 +2,19 @@
 
 ## 安装与持久化
 
+首次安装、HTTPS、离线控制台镜像、升级及恢复命令见[部署指南](DEPLOYMENT.md)，完整环境变量见[配置参考](CONFIGURATION.md)。本文主要说明安装后的应用发布及接口行为。
+
 统一镜像内含 Go 服务、网页、Distribution v3.1.2、Docker CLI、Compose 和数据库备份工具。运行时不启动额外 Registry 容器。入口为 `/`、`/api/`、`/v2/`、`/registry/token`（GET 与 BuildKit OAuth POST）。
 
 设置 `PUBLIC_URL` 为客户端及 Docker daemon 可达的根地址；不能带路径、账号或查询参数。默认禁止匿名访问，初始化管理员前仓库不可用。直接 HTTPS 使用 `TLS_CERT`、`TLS_KEY`；已有反向代理需保留 Authorization、WWW-Authenticate、Location 等协议头，并允许大文件及流式响应。HTTP 本机验证与正式 HTTPS 配置应分别管理；Docker daemon 对 HTTP Registry 的要求沿用 Docker 标准配置。
 
-Docker Desktop 本地开发时，宿主机 Go 服务与虚拟机中的 daemon 不在同一网络环境。本地 Make 命令默认设置 `PUBLIC_URL=http://host.docker.internal:8080`，执行 `make dev-backend` 即可使用该认证入口，无需额外传参。若 `docker login localhost:8080` 超时，但宿主机执行 `curl http://localhost:8080/v2/` 正常返回带 `WWW-Authenticate` 的 401，应从 daemon 环境检查宿主访问地址。使用 `host.docker.internal:8080` 登录时，认证令牌地址也必须使用此入口；已有后端进程需重启以应用配置。仅本地 HTTP 调试时，把该地址合并到 Docker Desktop 的 `insecure-registries` 并 Apply & Restart；已有配置应保留。Linux 本机 Docker Engine 可用 `make dev-backend PUBLIC_URL=http://localhost:8080` 覆盖，正式容器部署仍通过 `.env` 指定实际入口。步骤见 README 的本地开发部分。
+Docker Desktop 本地开发时，宿主机 Go 服务与虚拟机中的 daemon 不在同一网络环境。本地 Make 命令默认设置 `PUBLIC_URL=http://host.docker.internal:8080`，执行 `make dev-backend` 即可使用该认证入口，无需额外传参。若 `docker login localhost:8080` 超时，但宿主机执行 `curl http://localhost:8080/v2/` 正常返回带 `WWW-Authenticate` 的 401，应从 daemon 环境检查宿主访问地址。使用 `host.docker.internal:8080` 登录时，认证令牌地址也必须使用此入口；已有后端进程需重启以应用配置。仅本地 HTTP 调试时，把该地址合并到 Docker Desktop 的 `insecure-registries` 并 Apply & Restart；已有配置应保留。Linux 本机 Docker Engine 可用 `make dev-backend PUBLIC_URL=http://localhost:8080` 覆盖，正式容器部署仍通过 `.env` 指定实际入口。步骤见[本地开发指南](DEVELOPMENT.md#本地-http-仓库调试)。
 
 `DATA_DIR` 默认 `./data`，容器中为 `/var/lib/dockerun`：
 
 | 目录 | 内容 |
 |---|---|
-| `keys/` | 网页、Registry、上传 HMAC 及凭据加密密钥 |
+| `keys/` | 网页、Registry、Distribution HTTP 状态及凭据加密密钥 |
 | `registry/` | Distribution 管理的镜像内容与上传状态 |
 | `dockerun.db` | 默认 SQLite 元数据；可切换专用 MySQL 数据库 |
 | `uploads/` | 上传分块及已导入归档 |
@@ -29,7 +31,7 @@ Docker Desktop 本地开发时，宿主机 Go 服务与虚拟机中的 daemon �
 
 网页旧 AES 密码传输入口保留兼容，存储仍为 bcrypt。Docker 使用标准账号密码交换令牌，不使用网页加密格式。网页和 Registry JWT 的密钥、用途及 audience 独立；Registry 默认 300 秒，无刷新令牌。禁用、改密和授权更新递增认证版本，后续请求立即重新检查。已开始的数据流不强制中断。
 
-新外部仓库凭据使用持久化密钥进行 AES-GCM 加密，兼容读取历史 AES-CBC 数据。若历史安装自定义过 `AES_KEY` / `AES_IV`，升级和恢复时保留相同配置，重新保存连接后会写入新格式。显式通过环境变量提供的签名或加密密钥也应纳入安装配置备份。
+新外部仓库凭据使用持久化密钥进行 AES-GCM 加密，兼容读取历史 AES-CBC 数据。若历史安装自定义过 `AES_KEY` / `AES_IV`，升级和恢复时保留相同配置，重新录入并保存凭据后会写入新格式。显式通过环境变量提供的签名或加密密钥也应纳入安装配置备份。
 
 自动化令牌在个人页面创建，最长 90 天，默认 30 天，只显示一次。可选择 pull、push、deploy，不能超出当前账号授权；普通用户不能取得 deploy。自动化令牌不能管理账号、签发子令牌或管理宿主和系统。可通过 `docker login -u 用户名 --password-stdin` 将 Registry 令牌作为密码使用；页面命令不嵌入凭据。
 

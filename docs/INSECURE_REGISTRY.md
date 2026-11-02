@@ -1,5 +1,7 @@
 # 配置 Docker 使用不安全的私有仓库（Insecure Registry）
 
+> 本文保留外部 Registry 与历史 HTTP 排查场景。Dockerun 内置仓库的 `PUBLIC_URL`、Docker Desktop 入口及现有 daemon 配置合并步骤见[本地开发指南](DEVELOPMENT.md#本地-http-仓库调试)；正式安装使用[HTTPS 部署](DEPLOYMENT.md#https-反向代理)。
+
 ## 问题描述
 
 当使用 HTTP 协议的私有 Docker Registry 时，可能会遇到以下错误：

@@ -1,5 +1,7 @@
 # Deploy Script 功能使用指南
 
+> 适用范围：历史独立脚本与多文件执行模式。新应用使用发布工作区，当前前后置脚本、参数、预览和恢复行为见[一体化操作指南](INTEGRATED_DEPLOYMENT.md)；服务安装见[部署指南](DEPLOYMENT.md)。
+
 ## 概述
 
 Deploy Script 功能现已完全重构，支持更复杂的部署场景：

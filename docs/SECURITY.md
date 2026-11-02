@@ -1,453 +1,52 @@
-# 安全功能说明
-
-## 🔐 密码加密传输
-
-### 概述
-本系统实现了完整的密码加密传输机制，确保密码在前后端传输过程中的安全性。
-
-### 加密流程
-
-```
-┌─────────────────────────────────────────┐
-│  前端 (Browser)                          │
-│  ┌───────────────────────────────────┐  │
-│  │  用户输入: password123            │  │
-│  └────────────┬──────────────────────┘  │
-│               │                          │
-│  ┌────────────▼──────────────────────┐  │
-│  │  AES-256-CBC 加密                 │  │
-│  │  Key: 32字节                      │  │
-│  │  IV:  16字节                      │  │
-│  └────────────┬──────────────────────┘  │
-│               │                          │
-│  ┌────────────▼──────────────────────┐  │
-│  │  Base64 编码                      │  │
-│  │  输出: U2FsdGVkX1...              │  │
-│  └────────────┬──────────────────────┘  │
-└───────────────┼──────────────────────────┘
-                │ HTTPS
-                │
-┌───────────────▼──────────────────────────┐
-│  后端 (Server)                            │
-│  ┌───────────────────────────────────┐   │
-│  │  接收加密密码                      │   │
-│  └────────────┬──────────────────────┘   │
-│               │                           │
-│  ┌────────────▼──────────────────────┐   │
-│  │  Base64 解码                      │   │
-│  └────────────┬──────────────────────┘   │
-│               │                           │
-│  ┌────────────▼──────────────────────┐   │
-│  │  AES-256-CBC 解密                 │   │
-│  │  使用相同的 Key 和 IV             │   │
-│  └────────────┬──────────────────────┘   │
-│               │                           │
-│  ┌────────────▼──────────────────────┐   │
-│  │  Bcrypt 哈希验证                  │   │
-│  │  (数据库存储)                     │   │
-│  └───────────────────────────────────┘   │
-└──────────────────────────────────────────┘
-```
-
-### 技术实现
-
-#### 前端 (TypeScript + crypto-js)
-
-**文件**: `frontend/src/utils/crypto.ts`
-
-```typescript
-// AES-256-CBC 加密
-export function encryptPassword(password: string): string {
-  const key = CryptoJS.enc.Utf8.parse(AES_KEY)
-  const iv = CryptoJS.enc.Utf8.parse(AES_IV)
-  
-  const encrypted = CryptoJS.AES.encrypt(password, key, {
-    iv: iv,
-    mode: CryptoJS.mode.CBC,
-    padding: CryptoJS.pad.Pkcs7
-  })
-  
-  return encrypted.toString() // Base64
-}
-```
-
-**使用场景**:
-- 登录 (`Login.vue` → `auth.ts`)
-- 初始密码设置 (`Setup.vue`)
-- 修改密码 (待实现)
-
-#### 后端 (Go + crypto/aes)
-
-**文件**: `backend/internal/utils/crypto.go`
-
-```go
-// AES-256-CBC 解密
-func AESDecrypt(cipherText string) (string, error) {
-    // 1. Base64 解码
-    cipherData, _ := base64.StdEncoding.DecodeString(cipherText)
-    
-    // 2. AES 解密
-    key := []byte(GetAESKey())  // 32 bytes
-    iv := []byte(GetAESIV())    // 16 bytes
-    
-    block, _ := aes.NewCipher(key)
-    mode := cipher.NewCBCDecrypter(block, iv)
-    mode.CryptBlocks(plainData, cipherData)
-    
-    // 3. PKCS7 去填充
-    plainData, _ := pkcs7Unpad(plainData)
-    
-    return string(plainData), nil
-}
-```
-
-**使用位置**:
-- `Login()` - 登录验证
-- `SetInitialPassword()` - 初始密码设置
-- `ChangePassword()` - 修改密码
-
-### 密钥配置
-
-#### 前端配置
-
-创建 `frontend/.env.local` 文件：
-
-```env
-VITE_AES_KEY=your-secret-key-32-bytes-long
-VITE_AES_IV=your-iv-16-bytes
-```
-
-#### 后端配置
-
-环境变量：
-
-```bash
-export AES_KEY="your-secret-key-32-bytes-long"
-export AES_IV="your-iv-16-bytes"
-```
-
-Docker 运行：
-
-```bash
-docker run -d \
-  -e AES_KEY="your-secret-key-32-bytes-long" \
-  -e AES_IV="your-iv-16-bytes" \
-  ...
-```
-
-### 默认密钥
-
-**⚠️ 安全警告**: 默认密钥仅用于开发测试，生产环境必须修改！
-
-```
-AES_KEY: "dockerun-aes-key-2025-secret-key"  (32 bytes)
-AES_IV:  "dockerun-aes-iv16"                  (16 bytes)
-```
-
-### 安全特性
-
-| 特性 | 说明 | 状态 |
-|------|------|------|
-| **传输加密** | AES-256-CBC | ✅ |
-| **存储加密** | Bcrypt (cost=10) | ✅ |
-| **密钥独立** | 前后端分离配置 | ✅ |
-| **IV 随机化** | 固定 IV (可改进) | ⚠️ |
-| **密钥轮换** | 支持环境变量配置 | ✅ |
-| **HTTPS** | 建议生产环境启用 | 📋 |
-
-### 多层安全保护
-
-```
-用户密码: "password123"
-    ↓
-1. 前端 AES 加密 → "U2FsdGVkX1..."  (传输层保护)
-    ↓
-2. HTTPS 加密      → 双重保护         (网络层保护)
-    ↓
-3. 后端 AES 解密   → "password123"    (还原明文)
-    ↓
-4. Bcrypt 哈希     → "$2a$10$..."    (存储层保护)
-    ↓
-数据库存储: 只存储 Bcrypt 哈希值
-```
+# 安全与权限说明
 
-### 最佳实践
-
-#### 生产环境部署
-
-1. **生成强密钥**
-```bash
-# 生成 32 字节密钥
-openssl rand -base64 32
-
-# 生成 16 字节 IV
-openssl rand -base64 16
-```
-
-2. **配置密钥**
-```bash
-# 方式1: 环境变量
-export AES_KEY="$(openssl rand -base64 32)"
-export AES_IV="$(openssl rand -base64 16)"
-
-# 方式2: Docker Secrets
-docker secret create aes_key /path/to/key
-docker secret create aes_iv /path/to/iv
-```
-
-3. **启用 HTTPS**
-```bash
-# Nginx 反向代理
-server {
-    listen 443 ssl;
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-    
-    location / {
-        proxy_pass http://dockerun:8080;
-    }
-}
-```
-
-#### 密钥管理
-
-- ✅ **DO**: 使用环境变量或密钥管理服务
-- ✅ **DO**: 定期轮换密钥
-- ✅ **DO**: 每个环境使用不同的密钥
-- ❌ **DON'T**: 硬编码密钥到代码中
-- ❌ **DON'T**: 提交密钥到版本控制系统
-- ❌ **DON'T**: 在生产环境使用默认密钥
-
-### 已知限制与改进方向
-
-1. **固定 IV**: 当前使用固定 IV，可改为随机 IV
-   - 改进: 前端生成随机 IV，与密文一起传输
-
-2. **密钥硬编码**: 默认密钥在代码中
-   - 改进: 强制要求通过环境变量配置
-
-3. **前端密钥暴露**: 前端密钥可被反编译获取
-   - 改进: 使用非对称加密（RSA），后端私钥解密
-
-### 测试
-
-#### 单元测试
-
-```bash
-# 后端测试
-cd backend
-go test ./internal/utils -v -run TestAESEncryptDecrypt
-
-# 前端测试
-cd frontend
-pnpm test crypto.spec.ts
-```
-
-#### 集成测试
-
-```bash
-# 测试登录加密
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"U2FsdGVkX1..."}'
-```
-
-### 合规性
-
-本加密方案符合以下安全标准：
-- ✅ OWASP Top 10 - A2:2021 Cryptographic Failures
-- ✅ PCI DSS 3.2.1 - Requirement 4 (Encrypt transmission)
-- ✅ GDPR - Article 32 (Security of processing)
-
----
-
-## 🔐 Registry 密码加密存储
-
-### 概述
-Registry（镜像仓库）的密码在数据库中采用 AES-256-CBC 加密存储，而非明文，确保即使数据库泄露也无法直接获取密码。
-
-### 加密流程
-
-```
-┌─────────────────────────────────────────┐
-│  创建/更新 Registry                       │
-│  ┌───────────────────────────────────┐  │
-│  │  用户输入: password123            │  │
-│  └────────────┬──────────────────────┘  │
-│               │                          │
-│  ┌────────────▼──────────────────────┐  │
-│  │  AES-256-CBC 加密                 │  │
-│  │  Key: 32字节                      │  │
-│  │  IV:  16字节                      │  │
-│  └────────────┬──────────────────────┘  │
-│               │                          │
-│  ┌────────────▼──────────────────────┐  │
-│  │  存储到数据库                      │  │
-│  │  password: "U2FsdGVkX1..."       │  │
-│  └───────────────────────────────────┘  │
-└──────────────────────────────────────────┘
-        │
-        │ 使用 Registry (连接私有仓库)
-        ▼
-┌──────────────────────────────────────────┐
-│  从数据库读取                              │
-│  ┌───────────────────────────────────┐   │
-│  │  password: "U2FsdGVkX1..."       │   │
-│  └────────────┬──────────────────────┘   │
-│               │                           │
-│  ┌────────────▼──────────────────────┐   │
-│  │  AES-256-CBC 解密                 │   │
-│  │  使用相同的 Key 和 IV             │   │
-│  └────────────┬──────────────────────┘   │
-│               │                           │
-│  ┌────────────▼──────────────────────┐   │
-│  │  plaintext: "password123"         │   │
-│  │  用于 HTTP Basic Auth             │   │
-│  └───────────────────────────────────┘   │
-└──────────────────────────────────────────┘
-```
-
-### 技术实现
-
-#### 保存时加密
-
-**文件**: `backend/internal/handler/registry.go`
-
-```go
-// 创建 Registry
-func CreateRegistry(c *gin.Context) {
-    // 加密密码
-    encryptedPassword := ""
-    if req.Password != "" {
-        encrypted, err := utils.AESEncrypt(req.Password)
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
-            return
-        }
-        encryptedPassword = encrypted
-    }
-    
-    registry := models.Registry{
-        Username:  req.Username,
-        Password:  encryptedPassword, // 存储加密后的密码
-        // ...
-    }
-    database.GetDB().Create(&registry)
-}
-```
-
-#### 使用时解密
-
-**文件**: `backend/internal/handler/registry.go`
-
-```go
-// 获取解密后的密码
-func GetDecryptedPassword(registry *models.Registry) string {
-    if registry.Password == "" {
-        return ""
-    }
-    
-    // 尝试解密密码
-    decrypted, err := utils.AESDecrypt(registry.Password)
-    if err != nil {
-        // 如果解密失败，可能是旧数据（明文），直接返回
-        return registry.Password
-    }
-    
-    return decrypted
-}
-```
-
-**文件**: `backend/internal/handler/registry_image.go`
-
-```go
-// 使用 Registry 连接私有仓库
-func fetchRegistryImages(registry models.Registry) ([]RegistryImage, error) {
-    // 解密密码
-    password := GetDecryptedPassword(&registry)
-    
-    // 使用解密后的密码进行 HTTP Basic Auth
-    req.SetBasicAuth(registry.Username, password)
-    
-    // ...
-}
-```
-
-### 应用场景
-
-1. **创建 Registry** - 密码加密后存储
-2. **更新 Registry** - 新密码加密后更新
-3. **浏览镜像** - 解密密码用于 API 认证
-4. **获取标签** - 解密密码用于 API 认证
-5. **删除镜像** - 解密密码用于 API 认证
-6. **Webhook 拉取** - 解密密码用于 Docker pull (待实现)
-
-### 兼容性处理
-
-为了兼容旧版本数据（可能存在明文密码），解密函数会处理解密失败的情况：
-
-```go
-decrypted, err := utils.AESDecrypt(registry.Password)
-if err != nil {
-    // 如果解密失败，认为是旧数据（明文）
-    return registry.Password
-}
-return decrypted
-```
-
-**迁移建议**: 升级后，建议重新编辑所有 Registry 配置，确保密码重新加密存储。
-
-### 数据库示例
-
-```sql
--- 加密前（旧版本，不安全）
-INSERT INTO registries (username, password) 
-VALUES ('admin', 'mypassword123');
-
--- 加密后（新版本，安全）
-INSERT INTO registries (username, password) 
-VALUES ('admin', 'U2FsdGVkX18wqN7...');
-```
-
-### 安全性分析
-
-| 方面 | 说明 | 状态 |
-|------|------|------|
-| **存储加密** | AES-256-CBC | ✅ |
-| **传输加密** | HTTPS (推荐) | 📋 |
-| **密钥管理** | 环境变量配置 | ✅ |
-| **密码验证** | 无验证（Registry API） | ⚠️ |
-| **旧数据兼容** | 自动识别明文 | ✅ |
-
-### 注意事项
-
-1. **密钥一致性**: 必须使用相同的 `AES_KEY` 和 `AES_IV`，否则无法解密
-2. **密钥更换**: 如果更换密钥，需要重新编辑所有 Registry 配置
-3. **数据库备份**: 备份数据库时，密码是加密的，恢复后可以正常使用
-4. **密码修改**: 前端不显示加密后的密码，只有重新输入时才会更新
-
----
-
-## 🔒 其他安全特性
-
-### JWT 认证
-- 签名算法: HS256
-- 过期时间: 24 小时
-- 自动刷新: 支持
-
-### 会话管理
-- 存储: LocalStorage
-- 过期处理: 自动跳转登录
-- 多标签同步: 支持
-
-### API 安全
-- CORS: 配置白名单
-- Rate Limiting: 待实现
-- SQL Injection: 使用 ORM 防护
-- XSS: Vue 自动转义
-
----
-
-**最后更新**: 2025-12-14
-**维护者**: Dockerun Team
+Dockerun 可以控制所连接 Docker Engine 的容器、镜像、挂载和发布脚本。管理入口面向可信管理员，正式部署使用 HTTPS，持久化数据、密钥和备份按敏感材料管理。
 
+## 初始化与账号权限
+
+首次启动创建未设置密码的 `admin`，需要从网页完成初始化，没有默认密码。应先限制入口访问再初始化；初始化前内置仓库不可用。管理员可以维护用户、角色、仓库、发布任务和宿主资源，最后一个启用管理员不能被停用或降级。
+
+| 账号授权 | 可用能力 |
+| --- | --- |
+| 管理员 | 管理宿主资源、应用发布、用户、仓库与系统维护 |
+| 普通用户，无仓库权限 | 访问个人账号，不能浏览或使用内置仓库 |
+| 普通用户，只读 | 浏览与拉取内置仓库镜像 |
+| 普通用户，读写 | 在只读能力上增加推送镜像 |
+
+普通用户即使知道接口地址，也不能导入镜像、导入发布包、部署应用、管理外部连接或操作宿主资源。外部 Registry 使用独立凭据，其实际权限由外部 Registry 控制。
+
+账号密码使用 bcrypt 存储。网页沿用历史 AES-CBC 密码传输格式，浏览器中的密钥可被客户端读取，不能把该格式当成 HTTPS 的替代，也不能据此认为网页可安全地通过公网 HTTP 使用。
+
+## 令牌与自动化
+
+网页和 Registry 的签名密钥、令牌用途及 audience 独立，不能混用。内置仓库使用标准 Docker 认证交换，Registry 访问令牌默认有效 300 秒。禁用账号、修改密码及调整授权后会更新认证版本，后续请求重新检查；已开始的数据流不强制中断。
+
+个人页面创建的自动化令牌只显示一次，默认有效 30 天，最长 90 天，可授予 pull、push、deploy，并受当前账号权限限制。普通用户不能取得 deploy。自动化令牌不能管理账号、签发子令牌或操作宿主及系统管理接口。
+
+CLI 通过进程环境接收 `DOCKERUN_TOKEN`；Registry 可将有相应权限的自动化令牌作为 `docker login` 密码。不要将令牌、密码写入 Compose、脚本、文档或版本库。Agent 使用单独的节点令牌，只能领取绑定节点任务。
+
+## 密钥、仓库凭据与备份
+
+首次启动自动在 `${DATA_DIR}/keys/` 生成独立随机密钥，容器默认位于 `/var/lib/dockerun/keys/`。保持目录持久化，备份必须包含密钥。签名或加密密钥通过环境变量显式提供时，还需要保存原安装配置；这些值不会自动写回对应文件。
+
+新外部仓库凭据使用 AES-GCM 和持久化凭据密钥加密，兼容读取历史 AES-CBC 数据。旧安装若自定义过 `AES_KEY` / `AES_IV`，升级和恢复时保留原值，重新录入并保存凭据后写入新格式。不要直接替换 `CREDENTIALS_SECRET` 后继续使用旧密文；轮换需要配套重加密。变量约束见[配置参考](CONFIGURATION.md)，迁移说明见[仓库凭据加密](REGISTRY_PASSWORD_ENCRYPTION.md)。
+
+完整备份包含账号元数据、密钥和仓库内容，应限制文件权限及分发范围。备份不包含业务数据卷和外部 Registry 内容，另行安排备份。恢复步骤见[部署指南](DEPLOYMENT.md#备份与恢复)。
+
+## HTTPS 与 Docker 信任
+
+`PUBLIC_URL` 决定内置仓库认证入口，必须对客户端、Docker daemon、构建器及 Agent 可达。HTTPS 反向代理需保留 `Authorization`、`WWW-Authenticate`、`Location`，并支持大文件、流式日志和 WebSocket。
+
+私有 CA 应分别配置到实际发起连接的环境。网页能访问或 Dockerun 的外部仓库连接测试成功，不代表宿主 daemon、独立 Buildx builder 和远程 Agent 都已信任证书。外部连接中的“不安全连接”选项不会替你更改 Docker daemon 配置。
+
+HTTP `insecure-registries` 只用于受控调试，按[开发指南](DEVELOPMENT.md#本地-http-仓库调试)配置准确的主机和端口。正式部署不要依靠全局跳过 TLS 校验。
+
+## 执行与恢复边界
+
+- Docker socket 与部署脚本具有高权限，只授予可信管理员；不要为解决权限问题将 socket 改为所有用户可写。
+- 本机脚本在 Dockerun 进程或容器中执行，远程脚本在 Agent 执行环境中运行；需要的工具、目录和权限必须在实际执行环境准备。
+- 预览不执行脚本，确认后任务才运行。进程中断时无法确认的执行会标为需要核对，不自动盲目重跑。
+- Compose 自动恢复只适用于明确无状态且开启策略的环境；不会撤销脚本对数据库或外部系统的修改，也不回滚业务卷。
+- 命令部署不自动回滚。导入离线材料不触发服务替换，镜像自动发布需要显式配置触发授权。
+
+实际功能、日志和恢复语义见[一体化操作指南](INTEGRATED_DEPLOYMENT.md)，已验证范围及待验收项目见[验证记录](VALIDATION.md)。

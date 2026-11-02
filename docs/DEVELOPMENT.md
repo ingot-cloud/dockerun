@@ -1,522 +1,137 @@
-# 开发指南
+# 本地开发指南
 
-本文档介绍如何在本地开发和运行 DockeRun 项目。
+本地开发运行 Go 后端和 Vite 前端，容器安装见[部署指南](DEPLOYMENT.md)。以下命令均从仓库根目录执行，除非明确标注其他目录。
 
-## 开发模式
+## 工具链与依赖
 
-### 方式一：前后端分离运行（推荐）
-
-这是最常用的开发模式，前端和后端分别运行在不同端口，支持热重载。
-
-#### 1. 启动后端
+项目使用 Go 1.26.0、Node 22.17.0、pnpm 10.12.4，与 Dockerfile 保持一致。Go 可通过支持自动工具链下载的版本引导，`GOTOOLCHAIN` 不要设为 `local`。首次安装需联网下载工具链及依赖。先启动 Docker Desktop 或本机 Docker Engine；应用发布还需要 Docker CLI、Compose 和 Bash，构建推送需要 Buildx。
 
 ```bash
-# 终端 1
-cd backend
-go run main.go
-
-# 后端将运行在 http://localhost:8080
-# 提供 API 服务：/api/*
-```
-
-#### 2. 启动前端
-
-```bash
-# 终端 2
-cd frontend
-pnpm install  # 首次需要
-pnpm dev
-
-# 前端将运行在 http://localhost:5173
-# Vite 会自动代理 /api 请求到后端 8080 端口
-```
-
-#### 3. 访问
-
-打开浏览器访问：`http://localhost:5173`
-
-**优点：**
-- ✅ 前端支持热重载（HMR）
-- ✅ 后端修改后自动重启（使用 air）
-- ✅ 开发体验最佳
-
-### 方式二：集成模式（生产预览）
-
-前端构建后，由后端统一服务，模拟生产环境。
-
-#### 1. 构建前端
-
-```bash
-# 使用 Makefile
-make build
-
-# 或手动构建
-cd frontend
-pnpm run build
-
-# 复制到后端
-rm -rf ../backend/static
-cp -r dist ../backend/static
-```
-
-#### 2. 启动后端
-
-```bash
-cd backend
-go run main.go
-```
-
-#### 3. 访问
-
-打开浏览器访问：`http://localhost:8080`
-
-**优点：**
-- ✅ 模拟生产环境
-- ✅ 测试完整的部署流程
-- ✅ 单端口访问
-
-**缺点：**
-- ❌ 前端无热重载
-- ❌ 每次修改需重新构建
-
-## 快速命令
-
-### 使用 Makefile
-
-```bash
-# 安装所有依赖
+node --version
+pnpm --version
+go version
+docker version
+docker compose version
 make install-deps
+```
 
-# 开发模式 - 启动后端
+Make 使用锁文件安装前端依赖，不要通过删除 `pnpm-lock.yaml` 解决安装问题。可使用已有的 Corepack 安装对应 pnpm：
+
+```bash
+corepack enable
+corepack prepare pnpm@10.12.4 --activate
+```
+
+## 启动开发服务
+
+分别在两个终端进入仓库根目录：
+
+```bash
+# 终端一：后端 API、内置 Registry 和发布执行器
 make dev-backend
+```
 
-# 开发模式 - 启动前端（另一个终端）
+```bash
+# 终端二：Vite 前端，支持热更新
 make dev-frontend
-
-# 构建整个项目
-make build
-
-# 运行构建后的程序
-make run
-
-# 清理构建产物
-make clean
-
-# Docker 构建
-make docker-build
-
-# Docker 运行
-make docker-run
 ```
 
-### 后端命令
+访问 [http://localhost:5999](http://localhost:5999)，首次设置 `admin` 密码。后端默认监听 `127.0.0.1:8080`；前端代理 `/api`、`/v2`、`/registry/token` 和 `/health` 到 `http://127.0.0.1:8080`，包括 WebSocket。前端端口固定，冲突时会报错，不会静默改端口。
 
-```bash
-cd backend
+后端通过 `go run .` 运行，修改 Go 代码后需手动重启，当前 Make 命令没有配置后端自动热重载。在对应终端按 `Ctrl+C` 停止进程。`make -C backend dev` 委托到同一根目录配置。
 
-# 运行
-go run main.go
+开发数据默认在仓库 `data/local`，不会自动导入旧的 `backend/data`。开发命令不加载部署用 `.env`，需要通过进程环境或 Make 参数传入配置。不要将开发进程指向业务安装的数据目录。
 
-# 构建
-go build -o dockerun main.go
+## 本地 HTTP 仓库调试
 
-# 测试
-go test ./...
+Make 默认 `PUBLIC_URL=http://host.docker.internal:8080`，适合 Docker Desktop：daemon 运行在虚拟机中，需要通过此地址访问宿主 Go 服务。浏览器仍访问 `localhost:5999`，前端代理仍连接 `127.0.0.1:8080`。
 
-# 格式化代码
-go fmt ./...
-
-# 更新依赖
-go mod tidy
-
-# 查看依赖
-go mod graph
-```
-
-### 前端命令
-
-```bash
-cd frontend
-
-# 安装依赖
-pnpm install
-
-# 开发模式
-pnpm dev
-
-# 构建
-pnpm build
-
-# 预览构建结果
-pnpm preview
-
-# 类型检查
-pnpm type-check
-
-# 更新依赖
-pnpm update
-
-# 查看依赖树
-pnpm list
-```
-
-## 目录结构
-
-```
-dockerun/
-├── backend/              # Go 后端
-│   ├── internal/
-│   │   ├── config/      # 配置
-│   │   ├── database/    # 数据库
-│   │   ├── docker/      # Docker 操作
-│   │   ├── handler/     # API 处理器
-│   │   ├── middleware/  # 中间件
-│   │   ├── models/      # 数据模型
-│   │   └── router/      # 路由
-│   ├── static/          # 前端构建产物（gitignore）
-│   ├── data/            # 数据库文件（gitignore）
-│   ├── go.mod
-│   └── main.go
-├── frontend/            # Vue3 前端
-│   ├── src/
-│   │   ├── api/        # API 接口
-│   │   ├── layouts/    # 布局组件
-│   │   ├── router/     # 路由
-│   │   ├── stores/     # 状态管理
-│   │   ├── views/      # 页面组件
-│   │   ├── App.vue
-│   │   └── main.ts
-│   ├── dist/           # 构建产物（gitignore）
-│   ├── package.json
-│   └── vite.config.ts
-├── scripts/            # 工具脚本
-├── Dockerfile
-├── docker-compose.yml
-└── Makefile
-```
-
-## 环境变量
-
-### 后端环境变量
-
-创建 `.env` 文件（可选）：
-
-```bash
-# 服务器配置
-SERVER_ADDR=:8080
-GIN_MODE=debug
-
-# 数据库
-DATABASE_PATH=./data/dockerun.db
-
-# JWT 密钥
-JWT_SECRET=your-secret-key
-
-# Docker
-# DOCKER_HOST=unix:///var/run/docker.sock
-```
-
-### 前端环境变量
-
-前端使用 Vite 的代理配置，无需额外配置。
-
-## 调试技巧
-
-### 后端调试
-
-#### 使用 Delve
-
-```bash
-# 安装 delve
-go install github.com/go-delve/delve/cmd/dlv@latest
-
-# 启动调试
-cd backend
-dlv debug
-
-# 在代码中设置断点
-(dlv) break main.main
-(dlv) continue
-```
-
-#### 使用 VS Code
-
-在 `.vscode/launch.json` 中配置：
+在 Docker Desktop 的 Settings → Docker Engine 中，把 `host.docker.internal:8080` 合并进现有 `insecure-registries` 列表，保留已有条目及其他设置，再 Apply & Restart。以下仅表示需要加入的配置：
 
 ```json
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Launch Backend",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/backend",
-      "cwd": "${workspaceFolder}/backend"
-    }
-  ]
+  "insecure-registries": ["host.docker.internal:8080"]
 }
 ```
 
-### 前端调试
-
-使用浏览器的开发者工具：
-
-1. 打开 Chrome DevTools（F12）
-2. Sources 标签查看源码
-3. 设置断点
-4. 刷新页面
-
-### 日志调试
-
-#### 后端日志
-
-Gin 默认会输出请求日志：
-
-```
-[GIN] 2024/12/08 - 17:03:01 | 200 | 336.125µs | ::1 | GET "/api/auth/check-setup"
-```
-
-添加自定义日志：
-
-```go
-import "log"
-
-log.Println("Debug message")
-log.Printf("User: %s", username)
-```
-
-#### 前端日志
-
-使用 console：
-
-```typescript
-console.log('Debug:', data)
-console.error('Error:', error)
-console.table(users)
-```
-
-## 热重载
-
-### 后端热重载（Air）
+初始化管理员后执行：
 
 ```bash
-# 安装 air
-go install github.com/cosmtrek/air@latest
-
-# 在 backend 目录创建 .air.toml
-cd backend
-air init
-
-# 启动
-air
+docker login -u admin host.docker.internal:8080
 ```
 
-### 前端热重载
+`PUBLIC_URL` 决定 `/v2/` 认证挑战中的 `/registry/token` 地址，该地址也必须对 daemon 可达。仅修改 `docker login` 地址或增加 `http://` 不能替代服务配置。独立的 Buildx builder 可能还需要自身的 HTTP / CA 配置。
 
-Vite 自带热重载，运行 `pnpm dev` 即可。
-
-## API 测试
-
-### 使用 curl
+Linux Docker Engine 与后端同机时，可覆盖入口：
 
 ```bash
-# 检查初始设置
-curl http://localhost:8080/api/auth/check-setup
-
-# 登录
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"your-password"}'
-
-# 列出容器（需要 token）
-curl http://localhost:8080/api/containers \
-  -H "Authorization: Bearer YOUR_TOKEN"
+make dev-backend PUBLIC_URL=http://localhost:8080
+docker login -u admin localhost:8080
 ```
 
-### 使用 Postman
+Linux HTTP 仓库需将相同主机和端口合并到 `/etc/docker/daemon.json` 的 `insecure-registries` 并重启 Docker。重启会影响该 daemon 管理的容器，应在开发环境安排操作。远程测试改用 daemon 可达的服务器 IP 或域名，并相应调整后端监听地址。正式环境使用 HTTPS。
 
-导入 API 集合测试各个接口。
-
-## 数据库管理
-
-### 查看数据库
+## 自定义端口、数据库与下载代理
 
 ```bash
-# 安装 sqlite3
-# macOS: brew install sqlite3
-# Ubuntu: apt-get install sqlite3
-
-# 连接数据库
-cd backend
-sqlite3 data/dockerun.db
-
-# 查看表
-.tables
-
-# 查看用户
-SELECT * FROM users;
-
-# 退出
-.quit
+# 先在终端一启动后端
+make dev-backend SERVER_ADDR=127.0.0.1:8081 PUBLIC_URL=http://host.docker.internal:8081
+# 再在终端二启动前端
+make dev-frontend BACKEND_URL=http://127.0.0.1:8081 FRONTEND_PORT=6000
 ```
 
-### 重置数据库
+改端口后同步修改 HTTP 仓库的 daemon 信任地址。直接运行 Vite 时，后端代理配置名为 `VITE_BACKEND_URL`。
+
+Make 默认 `GOPROXY=https://goproxy.cn,direct`，`GOSUMDB=sum.golang.org https://goproxy.cn/sumdb/sum.golang.org`。仅下载传输走镜像，校验仍开启，不改写全局 `go env`。可按当前网络覆盖：
 
 ```bash
-# 删除数据库文件
-rm backend/data/dockerun.db
-
-# 重启后端，会自动创建新数据库
-cd backend
-go run main.go
+make install-deps GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org
 ```
 
-## 常见问题
+出现校验数据库连接中断时，可先重试安装，不要设置 `GOSUMDB=off`。使用 MySQL 时，先通过当前进程环境提供 `MYSQL_DSN`，再执行 `make dev-backend DATABASE_TYPE=mysql`；不要把真实密码写进 Makefile。详见[配置参考](CONFIGURATION.md)和[MySQL 指南](MYSQL_SETUP.md)。
 
-### 1. 端口被占用
+## 构建与本地预览
 
 ```bash
-# 查找占用端口的进程
-lsof -i :8080
-lsof -i :5173
-
-# 终止进程
-kill -9 <PID>
-```
-
-### 2. 前端无法连接后端
-
-检查 Vite 代理配置：
-
-```typescript
-// vite.config.ts
-server: {
-  proxy: {
-    '/api': {
-      target: 'http://localhost:8080',
-      changeOrigin: true
-    }
-  }
-}
-```
-
-### 3. Docker 连接失败
-
-确保：
-- Docker 服务运行中
-- Docker socket 可访问
-- 当前用户有权限
-
-```bash
-# 检查 Docker 状态
-systemctl status docker
-
-# 测试 Docker
-docker ps
-
-# 添加用户到 docker 组
-sudo usermod -aG docker $USER
-```
-
-### 4. 前端构建失败
-
-```bash
-# 清理缓存
-cd frontend
-rm -rf node_modules pnpm-lock.yaml .vite
-pnpm install
-pnpm run build
-```
-
-### 5. Go 模块问题
-
-```bash
-cd backend
-go clean -modcache
-go mod tidy
-```
-
-## 代码规范
-
-### Go 代码
-
-- 遵循 Go 官方规范
-- 使用 `gofmt` 格式化
-- 使用 `golint` 检查
-- 注释使用英文
-
-### TypeScript/Vue 代码
-
-- 使用 ESLint
-- 组件名使用 PascalCase
-- 文件名使用 PascalCase（组件）或 camelCase
-- 使用 TypeScript 类型
-
-## Git 工作流
-
-```bash
-# 创建功能分支
-git checkout -b feature/your-feature
-
-# 提交代码
-git add .
-git commit -m "feat: add your feature"
-
-# 推送
-git push origin feature/your-feature
-
-# 创建 Pull Request
-```
-
-## 性能优化
-
-### 前端优化
-
-1. 组件懒加载
-2. 路由懒加载
-3. 图片懒加载
-4. 使用虚拟滚动
-5. 防抖节流
-
-### 后端优化
-
-1. 数据库索引
-2. 缓存查询结果
-3. 使用连接池
-4. 避免 N+1 查询
-
-## 部署前检查
-
-```bash
-# 1. 运行测试
-cd backend && go test ./...
-cd frontend && pnpm test
-
-# 2. 类型检查
-cd frontend && pnpm type-check
-
-# 3. 构建测试
 make build
-
-# 4. 本地运行测试
-./bin/dockerun
-
-# 5. Docker 构建测试
-make docker-build
-make docker-run
+make run
 ```
 
-## 获取帮助
+`make build` 执行 Vue 类型检查和前端构建，复制静态资源，然后生成：
 
-- 查看 [README.md](README.md)
-- 查看 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-- 查看 [DEPLOYMENT.md](DEPLOYMENT.md)
-- 提交 Issue
+- `bin/dockerun-server`：提供网页、API、Registry 及本机执行器。
+- `bin/dockerun`：发布、打包、导入、晋升、状态、恢复及 Agent CLI。
 
-## 更新日志
+`make run` 从仓库根目录运行服务，访问 [http://localhost:8080](http://localhost:8080)，不需要另起 Vite。构建和源码变更后需重新运行对应进程。单独使用 `pnpm preview` 仅预览静态资源，不等同于已启动完整后端。
 
-- 2025-12-08: 添加开发指南
-- 2025-12-08: 添加前后端集成模式说明
+## 检查与验证
 
+```bash
+make test-backend
+# 在 backend 目录运行静态检查
+cd backend
+go vet ./...
+cd ../frontend
+pnpm run type-check
+pnpm run build
+# 按修改范围运行对应前端测试，例如
+pnpm run test:releases
+pnpm run test:containers
+```
+
+可用前端测试脚本以 `frontend/package.json` 为准，没有通用 `pnpm test` 命令。真实 Docker 与 MySQL 集成测试需要显式开启，并使用隔离资源；复现命令和已有结果见[验证记录](VALIDATION.md)。文档改动通常只需要链接、示例和配置检查，不必执行会替换容器的集成测试。
+
+## 目录与开发约定
+
+| 路径 | 内容 |
+| --- | --- |
+| `backend/main.go` | 服务启动与退出流程 |
+| `backend/cmd/dockerun/` | CLI 入口 |
+| `backend/internal/` | 认证、路由、Docker、发布、离线包、Agent、备份等实现 |
+| `frontend/src/` | Vue 页面、公共组件、接口及状态管理 |
+| `frontend/tests/` | 按功能划分的前端测试 |
+| `templates/` | 历史脚本模板及随镜像分发的资源 |
+| `data/local/` | 本地开发运行数据，不提交 |
+| `docs/` | 当前操作指南、专题和历史设计文档 |
+
+前端变更先遵循仓库 `AGENTS.md` 和 [Dockerun 前端规范](../.agents/skills/dockerun-frontend/SKILL.md)，新增项目说明及用户可见文案使用简体中文。Go 使用 `gofmt`；按改动范围检查和构建。问题排查见[故障排查](TROUBLESHOOTING.md)，镜像及交付方式见[构建与交付](BUILD_AND_DEPLOY.md)。

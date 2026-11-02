@@ -1,75 +1,57 @@
-# DockeRun 详细文档
+# Dockerun 文档索引
 
-本目录包含 DockeRun 项目的详细文档和指南。
+[项目 README](../README.md) 提供项目介绍、部署入口和使用概览。首次安装按下面的当前指南操作；专题及历史资料保留原有设计背景，不代替当前配置和发布流程。
 
----
+## 安装与使用
 
-## 📚 文档索引
+| 文档 | 内容 |
+| --- | --- |
+| [快速开始](QUICKSTART.md) | 启动控制台、初始化管理员和发布首个 Compose 应用 |
+| [部署与运维](DEPLOYMENT.md) | HTTPS、离线安装、数据目录、备份恢复和升级 |
+| [配置参考](CONFIGURATION.md) | 环境变量、自动生成密钥、Compose 与开发配置差异 |
+| [一体化操作与接口](INTEGRATED_DEPLOYMENT.md) | 应用与环境、模板、发布、自动化、离线包、CLI 和 Agent |
+| [仓库指南](REGISTRY_GUIDE.md) | 内置及外部仓库、登录推送、权限、删除和维护 |
+| [网络指南](NETWORK_GUIDE.md) | Compose 网络、已有网络和历史配置边界 |
 
-### 快速开始
-- **快速开始指南** - 5 分钟快速上手
-- **部署指南** - 生产环境部署详解
-- **配置说明** - 环境变量和系统配置
+## 安全与维护
 
-### 功能指南
-- **部署脚本指南** - 部署脚本使用说明
-- **Docker 管理指南** - Docker 容器管理脚本
-- **Webhook 自动部署** - Webhook 功能详细配置
-- **Webhook 重构说明** - Webhook 多脚本关联架构
-- **Registry 管理** - 私有镜像仓库管理
-- **网络管理** - Docker 网络自动创建和管理
-- **模板使用** - 部署模板使用说明
+| 文档 | 内容 |
+| --- | --- |
+| [安全与权限](SECURITY.md) | 管理员与普通用户权限、令牌、HTTPS 和执行边界 |
+| [外部仓库凭据加密](REGISTRY_PASSWORD_ENCRYPTION.md) | AES-GCM、持久化密钥及旧凭据兼容 |
+| [MySQL 元数据库](MYSQL_SETUP.md) | 专用数据库配置、切换与恢复 |
+| [故障排查](TROUBLESHOOTING.md) | 启动、镜像标签、Docker、认证、代理、发布和备份 |
+| [验证记录](VALIDATION.md) | 复现方法、已验证范围和待验收事项；保留各次记录日期 |
 
-### 高级特性
-- **代码编辑器** - Monaco Editor 集成说明
-- **Agent 分布式架构** - 未来分布式架构设计
-- **UI 优化指南** - 前端 UI 设计系统
+## 开发与架构
 
-### 安全与运维
-- **安全指南** - AES 加密和安全最佳实践
-- **Registry 密码加密** - 密码加密机制详解
-- **部署权限问题** - 权限问题排查和解决
-- **故障排查** - 常见问题解决方案
-- **MySQL 配置** - 使用 MySQL 数据库
-- **不安全的 Registry** - HTTP Registry 配置
-- **自签名证书** - HTTPS 自签名证书配置
+| 文档 | 内容 |
+| --- | --- |
+| [本地开发](DEVELOPMENT.md) | 固定工具链、5999 前端、8080 后端、Docker Desktop 和开发检查 |
+| [构建与交付](BUILD_AND_DEPLOY.md) | 二进制、多平台镜像、build.sh 和离线安装材料 |
+| [项目架构](PROJECT_SUMMARY.md) | 当前组件职责、源码路径和数据流转 |
+| [UI 设计规范](UI_DESIGN.md) | 工作台与页面设计约定 |
+| [Dockerun 前端规范](../.agents/skills/dockerun-frontend/SKILL.md) | 本仓库前端样式、交互与中文要求 |
+| [路线与实施记录](../ROADMAP.md) | 分阶段计划与实施情况 |
+| [更新日志](../CHANGELOG.md) | 历史版本变更记录 |
+| [文档维护说明](../DOCUMENTATION.md) | 文档职责、维护依据和检查方法 |
 
-### 构建与开发
-- **构建和部署** - 多架构镜像构建指南
-- **开发指南** - 本地开发环境搭建
-- **项目总结** - 项目架构和技术栈
-- **优化总结** - 性能优化记录
+## 专题与历史资料
 
----
+下列文档包含旧脚本、独立外部 Registry、早期架构或优化记录。使用其中命令前核对适用场景；涉及当前安装、端口、数据目录、权限及发布行为时，以本索引上方指南和源码为准。
 
-## 📖 如何使用文档
+| 资料 | 适用范围 |
+| --- | --- |
+| [历史脚本指南](DEPLOY_SCRIPT_GUIDE.md) / [Docker 管理脚本](DEPLOY_SCRIPT_DOCKER_MANAGER_GUIDE.md) | 独立脚本与旧执行模式；新应用使用发布工作区 |
+| [旧模板指南](TEMPLATE_GUIDE.md) / [模板目录](../templates/README.md) | 旧脚本模板；当前应用模板见一体化操作指南 |
+| [Webhook 专题](WEBHOOK_GUIDE.md) / [Webhook 重构记录](WEBHOOK_REFACTOR_GUIDE.md) | 外部回调及历史架构；当前自动发布需按环境显式授权 |
+| [Agent 架构设计](AGENT_ARCHITECTURE_DESIGN.md) | 历史方案；实际 Agent 安装与约束见一体化操作指南 |
+| [HTTP Registry](INSECURE_REGISTRY.md) / [HTTP 快速排查](QUICK_FIX_INSECURE_REGISTRY.md) | 外部仓库与历史 HTTP 排查；内置仓库调试见本地开发指南 |
+| [自签名证书](SELF_SIGNED_CERTIFICATE.md) | 外部 Registry 证书专题；内置引擎 TLS 见部署指南 |
+| [部署权限专题](DEPLOYMENT_PERMISSIONS.md) | 历史执行环境排查；实际权限以当前服务和 Agent 身份为准 |
+| [代码编辑器](CODE_EDITOR_FEATURE.md) | 编辑器集成专题，当前发布编辑流程见一体化操作指南 |
+| [界面优化](UI_OPTIMIZATION_GUIDE.md) / [优化总结](OPTIMIZATION_SUMMARY.md) | 历史实现与优化背景 |
+| [pnpm 迁移](PNPM_MIGRATION.md) | 迁移记录；当前固定版本见开发指南 |
+| [辅助脚本目录](../scripts/README.md) | 现有脚本适用范围及当前运维入口 |
 
-### 新用户
-1. 先阅读根目录的 [README.md](../README.md)
-2. 查看 [QUICKSTART.md](./QUICKSTART.md)（如果存在）
-3. 根据需求查阅对应的功能指南
-
-### 运维人员
-1. [部署指南](./DEPLOYMENT.md)
-2. [配置说明](./CONFIGURATION.md)
-3. [安全指南](./SECURITY.md)
-4. [故障排查](./TROUBLESHOOTING.md)
-
-### 开发人员
-1. [开发指南](./DEVELOPMENT.md)
-2. [项目总结](./PROJECT_SUMMARY.md)
-3. [Agent 架构设计](./AGENT_ARCHITECTURE_DESIGN.md)
-
----
-
-## 📝 文档维护
-
-- **团队**: Ingot Cloud
-- **维护者**: JY
-- **更新频率**: 随版本更新
-
-如发现文档问题或需要补充内容，请提交 Issue 或 Pull Request。
-
----
-
-**Maintained by Ingot Cloud Team - JY**
+发现文档问题可提交 [Issue](https://github.com/ingot-cloud/dockerun/issues) 或 [Pull Request](https://github.com/ingot-cloud/dockerun/pulls)。
