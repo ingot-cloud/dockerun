@@ -1,5 +1,7 @@
 # Dockerun
 
+当前版本：`2.0.0`。默认安装镜像标签为 `dockerun:2.0.0`，手动构建及离线打包见[构建与交付](docs/BUILD_AND_DEPLOY.md#构建-dockerun-镜像)。
+
 Dockerun 是面向自托管 Docker 环境的轻量部署与运行管理平台，将 **Docker 资源管理、私有镜像仓库、应用发布和离线交付** 集成到同一个中文网页中。适合在单台服务器或少量固定主机上管理业务服务、中间件及测试、生产等部署环境。
 
 一个 Dockerun 容器内包含管理网页、Go API、内嵌的 CNCF Distribution v3.1.2、Docker CLI 和 Compose。默认使用 SQLite，无需另装数据库或启动独立 Registry；也可以连接 MySQL 和已有外部镜像仓库。远程主机通过主动连接控制台的 Agent 执行发布。
@@ -45,7 +47,7 @@ sudo install -d -m 700 /var/lib/dockerun
 
 ```dotenv
 PUBLIC_URL=http://服务器IP:8080
-DOCKERUN_IMAGE=dockerun:local
+DOCKERUN_IMAGE=dockerun:2.0.0
 DATABASE_TYPE=sqlite
 ```
 

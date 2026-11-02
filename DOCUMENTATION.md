@@ -23,7 +23,7 @@
 - 后端环境变量及密钥：`backend/internal/config/config.go`。
 - 容器默认值、挂载、端口及健康检查：`Dockerfile`、`docker-compose.yml`、`.env.example`。
 - 本地数据、端口、构建产物与依赖命令：根目录及后端 `Makefile`、`frontend/vite.config.ts`、`frontend/package.json`、`backend/go.mod`。
-- 交付脚本的环境变量、架构后缀和归档名：`build.sh`、`run.sh`。
+- 当前版本和交付脚本的环境变量、镜像标签及归档名：`VERSION`、`build.sh`、`run.sh`。
 - 实际路由、权限及 CLI 参数：`backend/internal/router/`、`middleware/`、`backend/cmd/dockerun/`。
 
 代码与配置变更时同步修改对应操作指南和 README 摘要。历史资料保留时明确标注适用范围，当前流程在文档索引中优先展示。没有实际执行的测试或交付演练，不写成已经通过。

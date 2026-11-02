@@ -1,6 +1,8 @@
 ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 GO ?= go
 PNPM ?= pnpm
+VERSION := $(shell cat "$(ROOT_DIR)/VERSION")
+IMAGE ?= dockerun:$(VERSION)
 
 # Keep the official checksum identity; only its transport uses the mirror.
 # Override with environment variables or `make GOPROXY=... GOSUMDB=...`.
@@ -59,7 +61,7 @@ clean: ## 清理构建文件
 
 docker-build: ## 构建Docker镜像
 	@echo "构建Docker镜像..."
-	docker build -t dockerun:latest .
+	docker build -t "$(IMAGE)" "$(ROOT_DIR)"
 
 docker-run: ## 运行Docker容器
 	@echo "运行Docker容器..."

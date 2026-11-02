@@ -63,7 +63,7 @@ MySQL 需先创建专用数据库和账号；切换数据库类型不会搬迁�
 
 ## Compose 配置示例
 
-根目录 Compose 已传入 `PUBLIC_URL`、`DATABASE_TYPE`、`MYSQL_DSN`、`TLS_CERT`、`TLS_KEY`，并固定 `DATA_DIR=/var/lib/dockerun`。`DOCKERUN_IMAGE` 控制服务镜像标签，不是后端环境变量，默认 `dockerun:local`。
+根目录 Compose 已传入 `PUBLIC_URL`、`DATABASE_TYPE`、`MYSQL_DSN`、`TLS_CERT`、`TLS_KEY`，并固定 `DATA_DIR=/var/lib/dockerun`。`DOCKERUN_IMAGE` 控制服务镜像标签，不是后端环境变量，默认 `dockerun:2.0.0`。
 
 需要关闭内置仓库或修改其他后端变量时，在原服务的 `environment` 中补充，例如：
 

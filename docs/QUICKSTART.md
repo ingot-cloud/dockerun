@@ -27,7 +27,7 @@ sudo install -d -m 700 /var/lib/dockerun
 
 ```dotenv
 PUBLIC_URL=http://服务器IP:8080
-DOCKERUN_IMAGE=dockerun:local
+DOCKERUN_IMAGE=dockerun:2.0.0
 DATABASE_TYPE=sqlite
 ```
 

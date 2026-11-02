@@ -29,10 +29,10 @@ curl -i http://127.0.0.1:8080/health
 
 ## 镜像找不到、离线时仍尝试构建
 
-`DOCKERUN_IMAGE` 必须与实际加载的标签一致。`build.sh` 默认生成带 `-amd64`、`-arm64` 后缀的镜像，`make docker-build` 使用 `dockerun:latest`，Compose 默认使用 `dockerun:local`。
+`DOCKERUN_IMAGE` 必须与实际加载的标签一致。`build.sh`、`make docker-build` 和 Compose 默认使用 `dockerun:2.0.0`。`build.sh` 仅给归档文件名追加架构后缀，例如 `docker-packages/dockerun-2.0.0-amd64.tar`，归档内标签保持 `dockerun:2.0.0`。已有 `.env` 会覆盖 Compose 默认值，升级时也需更新。
 
 ```bash
-docker image inspect dockerun:local --format '{{.Os}}/{{.Architecture}}'
+docker image inspect dockerun:2.0.0 --format '{{.Os}}/{{.Architecture}}'
 docker compose up -d --no-build --pull never
 ```
 

@@ -25,10 +25,14 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o ../bin/dockerun-linu
 
 ## 构建 Dockerun 镜像
 
-根目录 Dockerfile 已执行完整多阶段构建，不需要先在宿主机运行 `make build`：
+当前版本为 `2.0.0`，Git 标签为 `2.0.0`。根目录 `VERSION` 供 Makefile 和 `build.sh` 读取版本；默认镜像标签为 `dockerun:2.0.0`。后续发布时需同步前端包版本、Compose、`.env.example` 和文档中的版本。
+
+先启动 Docker Desktop 或 Docker Engine。根目录 Dockerfile 已执行完整多阶段构建，不需要先在宿主机运行 `make build`：
 
 ```bash
-docker build -t dockerun:local .
+make docker-build
+# 等价于
+docker build -t dockerun:2.0.0 .
 # 或使用根目录 Compose，镜像名来自 .env 的 DOCKERUN_IMAGE
 docker compose build
 ```
@@ -38,37 +42,39 @@ docker compose build
 构建单个目标平台并加载到本机镜像存储：
 
 ```bash
-docker buildx build --platform linux/amd64 --tag dockerun:release-amd64 --load .
+docker buildx build --platform linux/amd64 --tag dockerun:2.0.0 --load .
 ```
 
-ARM64 改用 `linux/arm64` 和对应标签。跨架构构建要求 builder 能运行相应平台的构建步骤。运行前确认目标 Engine 平台和镜像匹配：
+AMD64 适用于常见 Intel / AMD 服务器；ARM64 改用 `linux/arm64`，镜像标签仍为 `dockerun:2.0.0`。跨架构构建要求 builder 能运行相应平台的构建步骤。运行前确认目标 Engine 平台和镜像匹配：
 
 ```bash
-docker image inspect dockerun:release-amd64 --format '{{.Os}}/{{.Architecture}}'
+docker image inspect dockerun:2.0.0 --format '{{.Os}}/{{.Architecture}}'
 ```
 
-项目的 `make docker-build` 使用 `dockerun:latest`，Compose 未设置时使用 `dockerun:local`。若混用这两个入口，需要明确对齐 `DOCKERUN_IMAGE`，否则可能启动另一个标签。
+`make docker-build`、`build.sh`、Compose 和 `.env.example` 默认使用相同标签。已有 `.env` 中的 `DOCKERUN_IMAGE` 会覆盖 Compose 默认值，升级时将其改为 `dockerun:2.0.0`。自定义镜像名可使用 `make docker-build IMAGE=仓库地址/团队/dockerun:2.0.0`，同时对齐安装配置。
 
 ## 使用 build.sh 交付多平台镜像
 
-`build.sh` 通过环境变量配置，不接收旧文档中的位置版本参数。默认目标为 `linux/amd64,linux/arm64`，镜像基名为 `dockerun:latest`。
+`build.sh` 通过环境变量配置，不接收位置版本参数。默认目标为 `linux/amd64,linux/arm64`，镜像标签为 `dockerun:2.0.0`。
 
 ```bash
-# 默认逐个平台构建并加载，生成 dockerun-amd64.tar、dockerun-arm64.tar
+# 构建两个平台，生成 docker-packages/dockerun-2.0.0-amd64.tar 和 dockerun-2.0.0-arm64.tar
 ./build.sh
-# 仅交付一个平台，并指定镜像基名和归档前缀
-PLATFORMS=linux/arm64 IMAGE=dockerun:release OUTPUT_PREFIX=dockerun-release ./build.sh
+# 仅交付 AMD64，生成 docker-packages/dockerun-2.0.0-amd64.tar
+PLATFORMS=linux/amd64 ./build.sh
+# 仅交付 ARM64，并自定义归档前缀
+PLATFORMS=linux/arm64 OUTPUT_PREFIX=dist/dockerun-2.0.0 ./build.sh
 # 显式禁用缓存
 PLATFORMS=linux/amd64 NO_CACHE=1 ./build.sh
 ```
 
-未设置 `PUSH=1` 时，脚本自动给镜像追加架构后缀。例如第二条命令生成镜像 `dockerun:release-arm64` 和文件 `dockerun-release-arm64.tar`。目标机加载后，`.env` 的 `DOCKERUN_IMAGE` 必须使用这个完整标签。
+未设置 `PUSH=1` 时，脚本逐个平台构建、加载并导出归档。每个归档内的镜像标签都是 `dockerun:2.0.0`，仅文件名区分架构。一次构建两个平台时，本机同名标签最终指向最后构建的平台；两个离线包各自保留对应平台镜像，目标机只加载匹配架构的包。自定义 `IMAGE` 可覆盖镜像名称及标签。
 
 推送多平台镜像到自行维护的仓库时，先登录该仓库：
 
 ```bash
 docker login registry.example.com
-PUSH=1 IMAGE=registry.example.com/team/dockerun:release ./build.sh
+PUSH=1 IMAGE=registry.example.com/team/dockerun:2.0.0 ./build.sh
 ```
 
 `PUSH=1` 使用一次多平台构建并直接推送指定标签，不生成本地离线归档。缓存默认开启。镜像仓库地址和示例标签需替换为实际值。
@@ -78,9 +84,9 @@ PUSH=1 IMAGE=registry.example.com/team/dockerun:release ./build.sh
 对单平台镜像执行：
 
 ```bash
-docker save --output dockerun-amd64.tar dockerun:release-amd64
+docker save --output dockerun-2.0.0-amd64.tar dockerun:2.0.0
 # 在目标机执行
-docker load --input dockerun-amd64.tar
+docker load --input dockerun-2.0.0-amd64.tar
 ```
 
 同时交付根目录 `docker-compose.yml`、`.env.example`，以及实际需要的代理配置和证书。目标 `.env` 对齐加载的标签，然后执行：

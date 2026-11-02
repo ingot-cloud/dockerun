@@ -35,7 +35,7 @@ docker compose logs --tail=100 dockerun
 
 ```dotenv
 PUBLIC_URL=https://dockerun.example.com
-DOCKERUN_IMAGE=dockerun:local
+DOCKERUN_IMAGE=dockerun:2.0.0
 DATABASE_TYPE=sqlite
 ```
 
@@ -138,12 +138,12 @@ Dockerun 自身镜像归档与业务应用的完整发布包是两种材料。�
 
 ### 联网机器准备
 
-以下为目标 `linux/amd64` 的示例；ARM64 将平台改为 `linux/arm64`、标签与文件名中的 `amd64` 改为 `arm64`。
+以下为目标 `linux/amd64` 的示例；ARM64 将平台改为 `linux/arm64`、文件名中的 `amd64` 改为 `arm64`，镜像标签保持 `dockerun:2.0.0`。
 
 ```bash
-docker buildx build --platform linux/amd64 --tag dockerun:offline-amd64 --load .
+docker buildx build --platform linux/amd64 --tag dockerun:2.0.0 --load .
 mkdir -p dist/dockerun-install
-docker save --output dist/dockerun-install/dockerun-amd64.tar dockerun:offline-amd64
+docker save --output dist/dockerun-install/dockerun-2.0.0-amd64.tar dockerun:2.0.0
 cp docker-compose.yml .env.example dist/dockerun-install/
 ```
 
@@ -154,7 +154,7 @@ cp docker-compose.yml .env.example dist/dockerun-install/
 目标已安装可用的 Docker Engine 和 Compose v2。进入交付目录：
 
 ```bash
-docker load --input dockerun-amd64.tar
+docker load --input dockerun-2.0.0-amd64.tar
 cp .env.example .env
 sudo install -d -m 700 /var/lib/dockerun
 ```
@@ -163,14 +163,14 @@ sudo install -d -m 700 /var/lib/dockerun
 
 ```dotenv
 PUBLIC_URL=https://dockerun.example.com
-DOCKERUN_IMAGE=dockerun:offline-amd64
+DOCKERUN_IMAGE=dockerun:2.0.0
 DATABASE_TYPE=sqlite
 ```
 
 按前文配置 HTTPS 代理或直接 TLS，再启动：
 
 ```bash
-docker image inspect dockerun:offline-amd64 --format '{{.Os}}/{{.Architecture}}'
+docker image inspect dockerun:2.0.0 --format '{{.Os}}/{{.Architecture}}'
 docker compose config --quiet
 docker compose up -d --no-build --pull never
 docker compose ps
@@ -222,7 +222,7 @@ sudo install -d -m 700 /var/lib/dockerun-restored
 docker run --rm --pull never --network none --entrypoint dockerun \
   --mount type=bind,src=/backup/dockerun,dst=/restore,readonly \
   --mount type=bind,src=/var/lib/dockerun-restored,dst=/var/lib/dockerun-restored \
-  dockerun:local restore \
+  dockerun:2.0.0 restore \
   --file /restore/dockerun-backup.tar.gz --data-dir /var/lib/dockerun-restored
 ```
 

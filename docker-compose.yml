@@ -1,6 +1,6 @@
 services:
   dockerun:
-    image: ${DOCKERUN_IMAGE:-dockerun:local}
+    image: ${DOCKERUN_IMAGE:-dockerun:2.0.0}
     build: .
     restart: unless-stopped
     ports:
