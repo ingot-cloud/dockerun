@@ -16,7 +16,8 @@
 
 ## 当前入口
 
-- **构建镜像**：根目录 `build.sh`，按 `PLATFORMS`、`IMAGE`、`PUSH` 等环境变量配置，见[构建与交付](../docs/BUILD_AND_DEPLOY.md)。
+- **MySQL 与 nginx-proxy 单容器部署**：根目录 `deploy.sh`，参数独立于 `deploy.env`，支持检查、启动、按配置升级及日常管理，见[单容器部署脚本](../docs/DEPLOY_SCRIPT.md)。
+- **构建与推送镜像**：根目录 `build.sh`，使用 `build.env` 或环境变量配置仓库、镜像名称、标签及平台；支持独立打包、推送或同时交付，见[构建与交付](../docs/BUILD_AND_DEPLOY.md)。
 - **启动服务**：根目录 `run.sh` 只运行 `docker compose up -d --no-build --pull never`，没有子命令。
 - **备份恢复与升级**：通过「仓库与维护」创建完整备份，CLI 恢复到新空目录，见[部署指南](../docs/DEPLOYMENT.md#备份与恢复)。
 - **HTTP 本地调试**：见[开发指南](../docs/DEVELOPMENT.md#本地-http-仓库调试)。

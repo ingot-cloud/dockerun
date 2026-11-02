@@ -48,6 +48,10 @@ logs/
 # Environment variables
 .env
 .env.local
+/deploy.env
+/deploy.*.env
+/build.env
+/build.*.env
 
 # Build artifacts
 frontend/dist/

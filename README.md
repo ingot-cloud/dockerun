@@ -68,6 +68,7 @@ curl --fail http://127.0.0.1:8080/health
 
 ### 正式部署与离线安装
 
+- **沿用 MySQL 与 nginx-proxy**：使用根目录 `deploy.sh`，将数据库、域名、网络及持久化路径放入独立配置，支持检查和按配置升级，见[单容器部署脚本](docs/DEPLOY_SCRIPT.md)。
 - **HTTPS 反向代理**：将 `PUBLIC_URL` 设为 `https://dockerun.example.com`，代理整个入口，并保留 Registry 认证头、流式日志及 WebSocket。Nginx 示例见[部署指南](docs/DEPLOYMENT.md#https-反向代理)。只改 `PUBLIC_URL` 不会自动启用 TLS。
 - **服务直接提供 HTTPS**：同时设置 `TLS_CERT`、`TLS_KEY`，配置证书及对应的 HTTPS 健康检查，见[直接启用 TLS](docs/DEPLOYMENT.md#直接启用-tls)。
 - **离线安装**：在联网机器准备同平台的 Dockerun 镜像，`docker save` 后交付到目标机，执行 `docker load`，再按实际镜像标签设置 `DOCKERUN_IMAGE` 并启动；完整命令见[离线安装](docs/DEPLOYMENT.md#离线安装)。

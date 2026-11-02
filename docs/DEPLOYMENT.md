@@ -29,6 +29,8 @@ docker compose logs --tail=100 dockerun
 
 ## HTTPS 反向代理
 
+已有 nginx-proxy、acme-companion 和 MySQL 的安装，可使用根目录 `deploy.sh` 与独立环境配置，沿用原域名、网络和数据库。参数、代理上传配置及旧版本升级步骤见[单容器部署脚本](DEPLOY_SCRIPT.md)。该入口使用 `docker create/start` 管理容器，与下面的 Compose 安装方式择一使用。
+
 以下假定 Nginx 在同一宿主机运行，域名为 `dockerun.example.com`，DNS 已指向服务器，并已准备覆盖该域名的证书和私钥。
 
 在 `.env` 设置：

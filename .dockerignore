@@ -16,4 +16,8 @@ data
 *.log
 .env
 .env.local
+deploy.env
+deploy.*.env
+build.env
+build.*.env
 .DS_Store

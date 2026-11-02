@@ -9,6 +9,7 @@
 | [README](README.md) | 项目定位、核心能力、可执行的部署入口、首次使用和文档导航 |
 | [快速开始](docs/QUICKSTART.md) | 新用户从安装到首次应用发布的最短流程 |
 | [部署指南](docs/DEPLOYMENT.md) | 正式 HTTPS、离线安装、持久化、备份恢复和升级 |
+| [单容器部署脚本](docs/DEPLOY_SCRIPT.md) | deploy.sh、独立环境配置、nginx-proxy 和 MySQL 旧版本升级 |
 | [配置参考](docs/CONFIGURATION.md) | 后端变量、密钥、Compose 插值及开发默认值 |
 | [一体化操作指南](docs/INTEGRATED_DEPLOYMENT.md) | 当前应用发布、权限、自动化、离线包、Agent 和接口语义 |
 | [开发指南](docs/DEVELOPMENT.md) / [构建交付](docs/BUILD_AND_DEPLOY.md) | 工具链、启动、检查、产物和脚本参数 |
@@ -23,7 +24,7 @@
 - 后端环境变量及密钥：`backend/internal/config/config.go`。
 - 容器默认值、挂载、端口及健康检查：`Dockerfile`、`docker-compose.yml`、`.env.example`。
 - 本地数据、端口、构建产物与依赖命令：根目录及后端 `Makefile`、`frontend/vite.config.ts`、`frontend/package.json`、`backend/go.mod`。
-- 当前版本和交付脚本的环境变量、镜像标签及归档名：`VERSION`、`build.sh`、`run.sh`。
+- 当前版本和交付脚本的环境变量、镜像标签及归档名：`VERSION`、`build.sh`、`build.env.example`、`run.sh`。
 - 实际路由、权限及 CLI 参数：`backend/internal/router/`、`middleware/`、`backend/cmd/dockerun/`。
 
 代码与配置变更时同步修改对应操作指南和 README 摘要。历史资料保留时明确标注适用范围，当前流程在文档索引中优先展示。没有实际执行的测试或交付演练，不写成已经通过。
