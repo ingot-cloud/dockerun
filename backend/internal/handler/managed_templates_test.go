@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -134,13 +136,88 @@ func TestManagedCatalogIncludesSavedVersions(t *testing.T) {
 	if err := db.AutoMigrate(&models.ApplicationTemplate{}); err != nil {
 		t.Fatal(err)
 	}
-	template := apptemplate.Builtins()[0]
+	builtins, err := apptemplate.LoadDir(config.Load().TemplateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := builtins[0]
 	db.Create(&models.ApplicationTemplate{Name: "团队服务", Version: "1.0.0", Definition: template.Definition, Category: "business"})
 	items, err := applicationTemplates()
-	if err != nil || len(items) != 6 {
+	if err != nil || len(items) != len(builtins)+1 {
 		t.Fatalf("catalog: %d %v", len(items), err)
 	}
-	if items[5].Source != "custom" || !strings.HasPrefix(items[5].ID, "custom-") {
+	if items[len(builtins)].Source != "custom" || !strings.HasPrefix(items[len(builtins)].ID, "custom-") {
 		t.Fatal("saved template was not available for reuse")
+	}
+}
+
+func TestDirectoryTemplateCreatesIndependentApplicationAndCannotBeDeleted(t *testing.T) {
+	db := registryTestDB(t)
+	t.Setenv("DATA_DIR", t.TempDir())
+	t.Setenv("PUBLIC_URL", "https://registry.test")
+	root := t.TempDir()
+	t.Setenv("TEMPLATE_DIR", root)
+	if err := config.Initialize(); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.Application{}, &models.ApplicationTemplate{}, &models.Environment{}, &models.Target{}, &models.AuditEvent{}); err != nil {
+		t.Fatal(err)
+	}
+	db.Create(&models.Registry{Name: "builtin", Kind: "builtin", URL: "https://registry.test"})
+	db.Create(&models.Target{ID: 1, Name: "本机", Enabled: true})
+	dir := filepath.Join(root, "directory-service")
+	os.Mkdir(dir, 0700)
+	for name, content := range map[string]string{
+		"template.json": `{"schema_version":1,"id":"directory-service","name":"目录服务","version":"2.0.0","category":"business","definition":{"compose_file":"compose.yaml","topology":"replicated","parameters":[{"key":"IMAGE","label":"镜像","type":"image","default":"team/service:v1","required":true}],"config_files":{"configs/app.conf":"app.conf"}},"script_files":{"after":"after.sh"}}`,
+		"compose.yaml":  "services:\n  app:\n    image: ${IMAGE}\n",
+		"app.conf":      "原始配置\n",
+		"after.sh":      "printf '发布后检查\\n'\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	create := func(version string) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(response)
+		ctx.Params = gin.Params{{Key: "id", Value: "directory-service"}}
+		ctx.Request = httptest.NewRequest("POST", "/managed-templates/directory-service/applications", strings.NewReader(`{"name":"目录创建的应用","environment":"测试环境","template_version":"`+version+`"}`))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		CreateApplicationFromTemplate(ctx)
+		return response
+	}
+	if response := create("1.0.0"); response.Code != 400 {
+		t.Fatal("旧模板版本没有被拒绝", response.Body.String())
+	}
+	if response := create("2.0.0"); response.Code != 201 {
+		t.Fatal("目录模板创建失败", response.Body.String())
+	}
+	if response := workspaceDeleteRequest(t, DeleteManagedTemplate, "directory-service"); response.Code != 403 {
+		t.Fatal("新增目录模板未获得删除保护", response.Code, response.Body.String())
+	}
+	os.WriteFile(filepath.Join(dir, "app.conf"), []byte("新模板配置\n"), 0600)
+	var app models.Application
+	if err := db.First(&app).Error; err != nil {
+		t.Fatal(err)
+	}
+	if app.TemplateID != "directory-service" || app.TemplateVersion != "2.0.0" || app.Definition.Configs["configs/app.conf"] != "原始配置\n" || app.Scripts.After != "printf '发布后检查\\n'\n" {
+		t.Fatal("应用未持有模板完整快照", app)
+	}
+	items, err := applicationTemplates()
+	if err != nil || len(items) != 1 || items[0].Definition.Configs["configs/app.conf"] != "新模板配置\n" {
+		t.Fatal("目录修改未在下次查询生效", err)
+	}
+	// 目录不可用时明确报告错误；已经保存的应用和自定义模板仍可保留、删除。
+	os.RemoveAll(dir)
+	db.Create(&models.ApplicationTemplate{Name: "独立自定义模板", Version: "1.0.0"})
+	t.Setenv("TEMPLATE_DIR", filepath.Join(root, "missing"))
+	if _, err := applicationTemplates(); err == nil {
+		t.Fatal("模板目录缺失被静默忽略")
+	}
+	if response := workspaceDeleteRequest(t, DeleteManagedTemplate, "custom-1"); response.Code != 200 {
+		t.Fatal("目录缺失阻止了自定义模板删除", response.Body.String())
+	}
+	if err := db.First(&app, app.ID).Error; err != nil || app.Definition.Configs["configs/app.conf"] != "原始配置\n" {
+		t.Fatal("删除目录影响了已有应用", err)
 	}
 }

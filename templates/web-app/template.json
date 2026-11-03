@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "web-app",
+  "name": "单服务应用",
+  "version": "1.0.1",
+  "description": "从镜像部署自研服务，按环境选择手动或自动更新。",
+  "category": "business",
+  "order": 10,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "IMAGE",
+        "label": "应用镜像",
+        "type": "image",
+        "default": "team/app:v1",
+        "required": true,
+        "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+      },
+      {
+        "key": "HOST_PORT",
+        "label": "访问端口",
+        "type": "port",
+        "default": "8081",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "CONTAINER_PORT",
+        "label": "容器端口",
+        "type": "port",
+        "default": "80",
+        "required": true,
+        "help": "填写应用镜像实际监听的容器端口。"
+      }
+    ],
+    "stateful": false,
+    "topology": "replicated",
+    "instructions": "首次手动发布并确认运行后，可在环境配置中开启镜像推送自动发布。生产环境可继续使用手动发布。",
+    "storage": "",
+    "initialization": "",
+    "endpoints": [
+      {
+        "name": "服务入口",
+        "port": "HOST_PORT",
+        "protocol": "http",
+        "path": ""
+      }
+    ]
+  }
+}

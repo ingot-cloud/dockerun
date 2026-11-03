@@ -130,7 +130,7 @@ pnpm run test:containers
 | `backend/internal/` | 认证、路由、Docker、发布、离线包、Agent、备份等实现 |
 | `frontend/src/` | Vue 页面、公共组件、接口及状态管理 |
 | `frontend/tests/` | 按功能划分的前端测试 |
-| `templates/` | 历史脚本模板及随镜像分发的资源 |
+| `templates/` | 文件形式的内置应用模板；格式见 [模板说明](../templates/README.md) |
 | `data/local/` | 本地开发运行数据，不提交 |
 | `docs/` | 当前操作指南、专题和历史设计文档 |
 

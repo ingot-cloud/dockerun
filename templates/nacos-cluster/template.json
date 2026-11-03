@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "id": "nacos-cluster",
+  "name": "Nacos 单机三节点集群",
+  "version": "1.0.1",
+  "description": "同一主机运行三个 Nacos 节点，附带独立 MySQL 和首次建表配置。",
+  "category": "middleware",
+  "order": 50,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "NACOS_IMAGE",
+        "label": "Nacos 镜像",
+        "type": "image",
+        "default": "nacos/nacos-server:v3.1.1",
+        "required": true,
+        "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+      },
+      {
+        "key": "NACOS_PORT",
+        "label": "服务端口",
+        "type": "port",
+        "default": "8848",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "NACOS_CONSOLE_PORT",
+        "label": "控制台端口",
+        "type": "port",
+        "default": "8181",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "NACOS_AUTH_TOKEN",
+        "label": "认证令牌（Base64）",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "填写 Base64 编码、解码后至少 32 字节的随机密钥，各节点使用同一值。"
+      },
+      {
+        "key": "NACOS_IDENTITY_KEY",
+        "label": "节点身份名称",
+        "type": "string",
+        "default": "dockerun",
+        "required": true,
+        "help": "同一集群的节点必须一致。"
+      },
+      {
+        "key": "NACOS_IDENTITY_VALUE",
+        "label": "节点身份密钥",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "仅保存到当前环境，不写入公共模板。"
+      },
+      {
+        "key": "MYSQL_IMAGE",
+        "label": "MySQL 镜像",
+        "type": "image",
+        "default": "mysql:8.0.44",
+        "required": true,
+        "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+      },
+      {
+        "key": "MYSQL_ROOT_PASSWORD",
+        "label": "MySQL 管理员密码",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "仅保存在当前环境。MySQL 8.0.44 首次初始化密码不能包含引号、反斜杠或控制字符；建议使用随机字母、数字及安全符号。"
+      },
+      {
+        "key": "MYSQL_PASSWORD",
+        "label": "Nacos 数据库密码",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "仅保存在当前环境。MySQL 8.0.44 首次初始化密码不能包含引号、反斜杠或控制字符；建议使用随机字母、数字及安全符号。"
+      }
+    ],
+    "stateful": true,
+    "topology": "single_host",
+    "instructions": "三个 Nacos 节点和独立 MySQL 部署在同一目标主机，不提供跨主机高可用。固定主机组会重复部署整套服务。MySQL 仅供此应用访问。健康检查验证节点就绪接口及控制台，集群成员状态请在控制台确认；首次登录时按 Nacos 引导设置管理员密码。升级前备份数据库。",
+    "storage": "每个节点分别使用独立的数据卷和日志卷。",
+    "initialization": "随模板提供 Nacos 3.1.1 官方建表文件，由 MySQL 在空数据卷首次启动时执行。更改 Nacos 大版本前须单独确认数据库迁移要求。 首次初始化密码不能包含单引号、双引号、反斜杠或控制字符。",
+    "endpoints": [
+      {
+        "name": "控制台",
+        "port": "NACOS_CONSOLE_PORT",
+        "protocol": "http",
+        "path": ""
+      },
+      {
+        "name": "服务地址",
+        "port": "NACOS_PORT",
+        "protocol": "http",
+        "path": "/nacos"
+      }
+    ],
+    "config_files": {
+      "configs/nacos-mysql.sql": "configs/nacos-mysql.sql"
+    }
+  }
+}

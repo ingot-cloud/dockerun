@@ -15,6 +15,7 @@ import (
 )
 
 func Setup() *gin.Engine {
+	handler.CleanupTemplateImports()
 	gin.SetMode(config.Load().Mode)
 	r := gin.Default()
 	r.SetTrustedProxies(nil)
@@ -104,6 +105,11 @@ func Setup() *gin.Engine {
 		protected.GET("/audit", handler.ListAudit)
 		protected.GET("/overview", handler.Overview)
 		protected.GET("/managed-templates", handler.ManagedTemplates)
+		protected.POST("/managed-templates/imports", handler.PreviewTemplateImport)
+		protected.POST("/managed-templates/imports/:import/commit", handler.CommitTemplateImport)
+		protected.DELETE("/managed-templates/imports/:import", handler.CancelTemplateImport)
+		protected.POST("/managed-templates/export", handler.ExportTemplatePackage)
+		protected.GET("/managed-templates/:id/download", handler.ExportTemplatePackage)
 		protected.DELETE("/managed-templates/:id", handler.DeleteManagedTemplate)
 		protected.POST("/managed-templates/:id/applications", handler.CreateApplicationFromTemplate)
 		protected.GET("/builtin/status", handler.BuiltinStatus)

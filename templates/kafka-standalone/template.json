@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "id": "kafka-standalone",
+  "name": "Kafka 单机",
+  "version": "1.0.1",
+  "description": "KRaft 模式与 AKHQ 管理界面，节点数据按环境持久化。",
+  "category": "middleware",
+  "order": 60,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "KAFKA_IMAGE",
+        "label": "Kafka 镜像",
+        "type": "image",
+        "default": "apache/kafka:3.8.0",
+        "required": true,
+        "help": "默认使用所选仓库中的镜像，请提前准备相同名称及版本。"
+      },
+      {
+        "key": "AKHQ_IMAGE",
+        "label": "AKHQ 镜像",
+        "type": "image",
+        "default": "tchiotludo/akhq:0.26.0",
+        "required": true,
+        "help": "默认使用所选仓库中的镜像，请提前准备相同名称及版本。"
+      },
+      {
+        "key": "CLUSTER_ID",
+        "label": "Kafka 集群标识",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "首次部署前使用 kafka-storage.sh random-uuid 生成；已有数据初始化后不能更改。"
+      },
+      {
+        "key": "BROKER_HEAP_OPTS",
+        "label": "Kafka 堆内存",
+        "type": "string",
+        "default": "-Xmx512m -Xms256m",
+        "required": true,
+        "help": ""
+      },
+      {
+        "key": "AKHQ_PORT",
+        "label": "AKHQ 访问端口",
+        "type": "port",
+        "default": "18080",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "BROKER1_HOST",
+        "label": "节点 1 对外地址",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "填写客户端可达的目标主机 IP 或域名，不含协议和端口。"
+      },
+      {
+        "key": "BROKER1_PORT",
+        "label": "节点 1 访问端口",
+        "type": "port",
+        "default": "19092",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      }
+    ],
+    "stateful": true,
+    "topology": "single_host",
+    "storage": "每个 Kafka 节点使用独立命名卷；更新复用原数据。",
+    "initialization": "首次空卷按 CLUSTER_ID 初始化；后续发布保持集群标识和节点数量不变。",
+    "instructions": "整套服务运行在同一台目标主机，不提供跨主机高可用。对外地址必须能被 Kafka 客户端访问。默认使用 PLAINTEXT 通信与未启用认证的 AKHQ，仅用于受控网络；生产访问认证需自行配置。",
+    "endpoints": [
+      {
+        "name": "AKHQ 管理界面",
+        "port": "AKHQ_PORT",
+        "protocol": "http",
+        "path": ""
+      },
+      {
+        "name": "Kafka 节点 1",
+        "port": "BROKER1_PORT",
+        "protocol": "kafka",
+        "path": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+services:
+  app:
+    image: ${IMAGE:?请填写应用镜像}
+    restart: unless-stopped
+    ports:
+      - '${HOST_PORT}:${CONTAINER_PORT}'

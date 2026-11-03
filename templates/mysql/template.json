@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "mysql",
+  "name": "MySQL",
+  "version": "1.0.1",
+  "description": "独立数据库与持久化数据卷，固定版本，默认手动升级。",
+  "category": "middleware",
+  "order": 20,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "MYSQL_IMAGE",
+        "label": "MySQL 镜像",
+        "type": "image",
+        "default": "mysql:8.0.44",
+        "required": true,
+        "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+      },
+      {
+        "key": "MYSQL_PORT",
+        "label": "数据库端口",
+        "type": "port",
+        "default": "3306",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "MYSQL_ROOT_PASSWORD",
+        "label": "管理员密码",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "仅保存在当前环境。MySQL 8.0.44 首次初始化密码不能包含引号、反斜杠或控制字符；建议使用随机字母、数字及安全符号。"
+      }
+    ],
+    "stateful": true,
+    "topology": "single_host",
+    "instructions": "默认手动发布。升级前备份数据库并确认数据格式兼容；切回旧镜像不会恢复业务数据。业务账号按需创建。",
+    "storage": "mysql-data → /var/lib/mysql；数据卷与应用环境绑定，重新部署和升级会复用原数据。",
+    "initialization": "MySQL 仅在数据卷为空时初始化。更改环境中的初始密码不会修改已有数据库密码。 首次初始化密码不能包含单引号、双引号、反斜杠或控制字符。",
+    "endpoints": [
+      {
+        "name": "数据库连接",
+        "port": "MYSQL_PORT",
+        "protocol": "mysql",
+        "path": ""
+      }
+    ]
+  }
+}

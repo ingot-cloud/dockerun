@@ -45,7 +45,7 @@
 | 资料 | 适用范围 |
 | --- | --- |
 | [历史脚本指南](DEPLOY_SCRIPT_GUIDE.md) / [Docker 管理脚本](DEPLOY_SCRIPT_DOCKER_MANAGER_GUIDE.md) | 独立脚本与旧执行模式；新应用使用发布工作区 |
-| [旧模板指南](TEMPLATE_GUIDE.md) / [模板目录](../templates/README.md) | 旧脚本模板；当前应用模板见一体化操作指南 |
+| [应用模板格式](../templates/README.md) | 模板目录结构、参数、配置文件与开发验证 |
 | [Webhook 专题](WEBHOOK_GUIDE.md) / [Webhook 重构记录](WEBHOOK_REFACTOR_GUIDE.md) | 外部回调及历史架构；当前自动发布需按环境显式授权 |
 | [Agent 架构设计](AGENT_ARCHITECTURE_DESIGN.md) | 历史方案；实际 Agent 安装与约束见一体化操作指南 |
 | [HTTP Registry](INSECURE_REGISTRY.md) / [HTTP 快速排查](QUICK_FIX_INSECURE_REGISTRY.md) | 外部仓库与历史 HTTP 排查；内置仓库调试见本地开发指南 |

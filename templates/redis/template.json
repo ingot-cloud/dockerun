@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "redis",
+  "name": "Redis",
+  "version": "1.0.0",
+  "description": "启用身份认证与 AOF 持久化，使用独立数据卷。",
+  "category": "middleware",
+  "order": 30,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "REDIS_IMAGE",
+        "label": "Redis 镜像",
+        "type": "image",
+        "default": "redis:8.2.0",
+        "required": true,
+        "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+      },
+      {
+        "key": "REDIS_PORT",
+        "label": "访问端口",
+        "type": "port",
+        "default": "6379",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "REDIS_PASSWORD",
+        "label": "访问密码",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "仅保存到当前环境，不写入公共模板。"
+      }
+    ],
+    "stateful": true,
+    "topology": "single_host",
+    "instructions": "默认手动发布。升级前备份数据；应用备份不包含业务数据卷。",
+    "storage": "redis-data → /data；AOF 数据随独立数据卷保留。",
+    "initialization": "",
+    "endpoints": [
+      {
+        "name": "缓存连接",
+        "port": "REDIS_PORT",
+        "protocol": "redis",
+        "path": ""
+      }
+    ],
+    "config_files": {
+      "configs/redis.conf": "configs/redis.conf"
+    }
+  }
+}

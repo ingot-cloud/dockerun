@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "id": "nginx-proxy",
+  "name": "Nginx Proxy 自动代理",
+  "version": "1.0.0",
+  "description": "按容器域名配置反向代理，并通过 ACME Companion 管理证书。",
+  "category": "middleware",
+  "order": 100,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "NGINX_PROXY_IMAGE",
+        "label": "Nginx Proxy 镜像",
+        "type": "image",
+        "default": "nginxproxy/nginx-proxy:1.8",
+        "required": true,
+        "help": "默认使用所选仓库中的镜像，请提前准备相同名称及版本。"
+      },
+      {
+        "key": "ACME_COMPANION_IMAGE",
+        "label": "ACME Companion 镜像",
+        "type": "image",
+        "default": "nginxproxy/acme-companion:2.6",
+        "required": true,
+        "help": "默认使用所选仓库中的镜像，请提前准备相同名称及版本。"
+      },
+      {
+        "key": "HTTP_PORT",
+        "label": "HTTP 端口",
+        "type": "port",
+        "default": "80",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "HTTPS_PORT",
+        "label": "HTTPS 端口",
+        "type": "port",
+        "default": "443",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "PROXY_NETWORK",
+        "label": "共享代理网络",
+        "type": "string",
+        "default": "ingot-net",
+        "required": true,
+        "help": "目标主机上预先存在的 Docker 网络，被代理应用须加入同一网络。"
+      },
+      {
+        "key": "ACME_EMAIL",
+        "label": "证书联系邮箱",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "填写实际邮箱；域名必须解析到目标主机，并开放公网 80 和 443 端口。"
+      }
+    ],
+    "stateful": true,
+    "topology": "single_host",
+    "storage": "配置、证书和 ACME 状态使用环境独立的命名卷。共享代理网络由管理员预先创建。",
+    "initialization": "先创建共享网络，并为被代理应用配置 VIRTUAL_HOST、VIRTUAL_PORT 与 LETSENCRYPT_HOST。",
+    "instructions": "需要目标主机 Docker Socket。HTTP-01 签发要求域名和公网 80、443 可达；同一主机建议只部署一套此代理。",
+    "endpoints": [
+      {
+        "name": "HTTP 入口",
+        "port": "HTTP_PORT",
+        "protocol": "http",
+        "path": ""
+      },
+      {
+        "name": "HTTPS 入口",
+        "port": "HTTPS_PORT",
+        "protocol": "https",
+        "path": ""
+      }
+    ]
+  }
+}

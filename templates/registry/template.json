@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "registry",
+  "name": "Registry 镜像仓库",
+  "version": "1.0.0",
+  "description": "独立镜像仓库，启用 htpasswd 认证并持久化镜像。",
+  "category": "middleware",
+  "order": 80,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "REGISTRY_IMAGE",
+        "label": "Registry 镜像",
+        "type": "image",
+        "default": "registry:3.0.0",
+        "required": true,
+        "help": "默认使用所选仓库中的镜像，请提前准备相同名称及版本。"
+      },
+      {
+        "key": "REGISTRY_PORT",
+        "label": "仓库访问端口",
+        "type": "port",
+        "default": "5000",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      },
+      {
+        "key": "REGISTRY_AUTH_DIR",
+        "label": "认证文件目录",
+        "type": "path",
+        "default": "",
+        "required": true,
+        "help": "目标主机的绝对目录，须预先放置 bcrypt 格式的 htpasswd 文件。"
+      }
+    ],
+    "stateful": true,
+    "topology": "single_host",
+    "storage": "镜像保存在环境独立的 registry-data 卷；认证目录由目标主机提供。",
+    "initialization": "发布前在目标主机认证目录创建 bcrypt 格式的 htpasswd，例如 htpasswd -Bc /实际认证目录/htpasswd admin。",
+    "instructions": "默认手动更新。对外使用时请配置 TLS 反向代理，或按实际网络配置客户端；模板不会复制目标主机认证文件。",
+    "endpoints": [
+      {
+        "name": "仓库接口",
+        "port": "REGISTRY_PORT",
+        "protocol": "http",
+        "path": ""
+      }
+    ],
+    "config_files": {
+      "configs/registry.yml": "configs/registry.yml"
+    }
+  }
+}

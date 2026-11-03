@@ -32,7 +32,7 @@ make dev-backend DATABASE_TYPE=mysql
 | `DATABASE_PATH` | `${DATA_DIR}/dockerun.db` | SQLite 文件；完整备份以数据库快照保存，恢复后默认文件名为 `dockerun.db` |
 | `MYSQL_DSN` | 空 | MySQL 模式必填，示例见下文 |
 | `GIN_MODE` | `debug` | 镜像设为 `release` |
-| `TEMPLATE_DIR` | `./templates` | 旧脚本模板目录；镜像为 `/app/templates`，本地 Make 指向仓库 `templates/` |
+| `TEMPLATE_DIR` | `./templates` | 应用模板目录；兼容外部历史脚本模板。镜像为 `/app/templates`，本地 Make 指向仓库 `templates/` |
 | `IMPORT_DIR` | `${DATA_DIR}/imports` | 服务器目录导入允许读取的根目录 |
 | `REGISTRY_ENABLED` | `true` | 仅值为 `true` 时启用内置引擎；设为 `false` 不删除仓库内容 |
 | `TLS_CERT`、`TLS_KEY` | 空 | 服务直接启用 TLS 的证书链及私钥路径，必须同时设置 |

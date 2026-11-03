@@ -1,11 +1,11 @@
 export function templateDeletionID(template: { id: string; source: string }): number | null {
-  if (template.source !== 'custom' || !/^custom-[1-9]\d*$/.test(template.id)) return null
+  if (!['custom','imported'].includes(template.source) || !/^custom-[1-9]\d*$/.test(template.id)) return null
   const id = Number(template.id.slice(7))
   return Number.isSafeInteger(id) && id <= 0xffffffff ? id : null
 }
 
 export function templateDeletionReason(template: { id: string; source: string }) {
-  if (template.source !== 'custom') return '内置模板不能删除，可删除自行保存的应用模板'
+  if (!['custom','imported'].includes(template.source)) return '内置模板不能删除，可删除自行保存或导入的应用模板'
   return templateDeletionID(template) === null ? '模板编号无效，请刷新后重试' : ''
 }
 

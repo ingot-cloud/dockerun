@@ -20,6 +20,7 @@ import (
 
 func registryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
+	t.Setenv("TEMPLATE_DIR", filepath.Join("..", "..", "..", "templates"))
 	t.Setenv("CREDENTIALS_SECRET", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "registries.db")), &gorm.Config{})
 	if err != nil {

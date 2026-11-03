@@ -1,0 +1,13 @@
+# 由 Spring 解析环境参数，配置文件中不保存实例凭据。
+ingot:
+  crypto:
+    secretKeys:
+      aes: ${CRYPTO_AES_KEY}
+      aes_gcm: ${CRYPTO_AES_GCM_KEY}
+  security:
+    jwk:
+      master-key: ${AUTH_JWK_MASTER_KEY}
+      enable-encryption: true
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=UTF8&useSSL=false&serverTimezone=${TZ}&allowPublicKeyRetrieval=true

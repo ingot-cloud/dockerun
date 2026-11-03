@@ -1,0 +1,22 @@
+services:
+  redis:
+    image: ${REDIS_IMAGE:?请填写 Redis 镜像}
+    restart: unless-stopped
+    ports: ['${REDIS_PORT}:6379']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请填写访问密码}
+    command: [sh, -c, 'exec redis-server /usr/local/etc/redis/redis.conf --requirepass "$$REDIS_PASSWORD"']
+    configs:
+      - source: redis-config
+        target: /usr/local/etc/redis/redis.conf
+    volumes: ['redis-data:/data']
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+configs:
+  redis-config:
+    file: ./configs/redis.conf
+volumes:
+  redis-data: {}

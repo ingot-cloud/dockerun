@@ -69,12 +69,16 @@ type DeploymentExecution struct {
 type ApplicationTemplate struct {
 	ID          uint                  `json:"id" gorm:"primaryKey"`
 	CreatedAt   time.Time             `json:"created_at"`
-	Name        string                `json:"name" gorm:"size:100;uniqueIndex:template_version"`
-	Version     string                `json:"version" gorm:"size:100;uniqueIndex:template_version"`
+	TemplateKey string                `json:"key" gorm:"size:100;default:null;uniqueIndex:template_key_version"`
+	Name        string                `json:"name" gorm:"size:100;index"`
+	Version     string                `json:"version" gorm:"size:100;uniqueIndex:template_key_version"`
+	Source      string                `json:"source" gorm:"size:20;default:custom"`
+	SortOrder   int                   `json:"order"`
 	Description string                `json:"description"`
 	Category    string                `json:"category" gorm:"size:30"`
 	Definition  ApplicationDefinition `json:"definition" gorm:"serializer:json;type:mediumtext"`
 	Scripts     DeploymentScripts     `json:"scripts" gorm:"serializer:json;type:mediumtext"`
+	Attachments StringMap             `json:"attachments" gorm:"serializer:json;type:mediumtext"`
 }
 
 // DeploymentScripts 由管理员配置，创建发布版本时保存应用脚本快照。

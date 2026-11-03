@@ -1,0 +1,11 @@
+services:
+  portainer:
+    image: ${PORTAINER_IMAGE:?请填写此环境的参数}
+    restart: unless-stopped
+    ports:
+    - ${PORTAINER_PORT}:9000
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - portainer-data:/data
+volumes:
+  portainer-data: {}

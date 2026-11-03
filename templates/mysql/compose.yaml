@@ -1,0 +1,16 @@
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:?请填写 MySQL 镜像}
+    restart: unless-stopped
+    ports: ['${MYSQL_PORT}:3306']
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请填写管理员密码}
+    volumes: ['mysql-data:/var/lib/mysql']
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -uroot -Nse "SELECT 1"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+volumes:
+  mysql-data: {}

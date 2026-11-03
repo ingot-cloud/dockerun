@@ -1,0 +1,44 @@
+services:
+  nginx-proxy:
+    image: ${NGINX_PROXY_IMAGE:?请填写此环境的参数}
+    restart: unless-stopped
+    labels:
+      com.github.nginx-proxy.nginx: 'true'
+    networks:
+    - proxy
+    ports:
+    - ${HTTP_PORT}:80
+    - ${HTTPS_PORT}:443
+    volumes:
+    - proxy-conf:/etc/nginx/conf.d
+    - proxy-vhost:/etc/nginx/vhost.d
+    - proxy-html:/usr/share/nginx/html
+    - proxy-dhparam:/etc/nginx/dhparam
+    - proxy-certs:/etc/nginx/certs:ro
+    - /var/run/docker.sock:/tmp/docker.sock:ro
+  acme-companion:
+    image: ${ACME_COMPANION_IMAGE:?请填写此环境的参数}
+    restart: unless-stopped
+    networks:
+    - proxy
+    depends_on:
+    - nginx-proxy
+    volumes_from:
+    - nginx-proxy
+    environment:
+      DEFAULT_EMAIL: ${ACME_EMAIL:?请填写此环境的参数}
+    volumes:
+    - proxy-certs:/etc/nginx/certs:rw
+    - proxy-acme:/etc/acme.sh
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+networks:
+  proxy:
+    name: ${PROXY_NETWORK}
+    external: true
+volumes:
+  proxy-conf: {}
+  proxy-vhost: {}
+  proxy-html: {}
+  proxy-dhparam: {}
+  proxy-certs: {}
+  proxy-acme: {}

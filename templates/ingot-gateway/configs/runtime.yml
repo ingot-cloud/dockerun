@@ -1,0 +1,6 @@
+# 由 Spring 解析环境参数，配置文件中不保存实例凭据。
+ingot:
+  crypto:
+    secretKeys:
+      aes: ${CRYPTO_AES_KEY}
+      aes_gcm: ${CRYPTO_AES_GCM_KEY}

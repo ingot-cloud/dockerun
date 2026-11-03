@@ -1,0 +1,49 @@
+services:
+  ingot-gateway:
+    image: ${IMAGE:?请填写此环境的参数}
+    restart: unless-stopped
+    networks:
+    - application
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/dockerun-runtime.yml
+      JAVA_OPTS: ${JAVA_OPTS:?请填写 Java 虚拟机参数}
+      SERVER_PORT: "7980"
+      MANAGEMENT_PORT: "8798"
+      NACOS_NAMESPACE: ${NACOS_NAMESPACE:?请填写 Nacos 命名空间}
+      NACOS_GROUP: ${NACOS_GROUP:?请填写 Nacos 配置分组}
+      TZ: ${TZ:?请填写此环境的参数}
+      CRYPTO_AES_KEY: ${CRYPTO_AES_KEY:?请填写此环境的参数}
+      CRYPTO_AES_GCM_KEY: ${CRYPTO_AES_GCM_KEY:?请填写此环境的参数}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:?请填写此环境的参数}
+      NACOS_USERNAME: ${NACOS_USERNAME:?请填写此环境的参数}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?请填写此环境的参数}
+      REDIS_HOST: ${REDIS_HOST:?请填写此环境的参数}
+      REDIS_PORT: ${REDIS_PORT:?请填写此环境的参数}
+      REDIS_DATABASE: ${REDIS_DATABASE:?请填写此环境的参数}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请填写此环境的参数}
+    configs:
+      - source: ingot-runtime
+        target: /app/config/dockerun-runtime.yml
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS --max-time 3 "http://127.0.0.1:$$MANAGEMENT_PORT/actuator/health" | grep -q ''^{"status":"UP"''']
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 12
+    volumes:
+    - application-data:/ingot-data
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+networks:
+  application:
+    name: ${APP_NETWORK}
+    external: true
+volumes:
+  application-data: {}
+configs:
+  ingot-runtime:
+    file: ./configs/runtime.yml

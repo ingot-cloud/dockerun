@@ -76,6 +76,9 @@ func Init(dbPath string) error {
 	); err != nil {
 		return err
 	}
+	if err := migrateTemplateKeys(db); err != nil {
+		return fmt.Errorf("应用模板标识迁移失败：%w", err)
+	}
 
 	DB = db
 	if cfg.DatabaseType != "mysql" {

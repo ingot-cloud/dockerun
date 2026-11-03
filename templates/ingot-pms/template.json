@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "id": "ingot-pms",
+  "name": "Ingot 权限服务",
+  "version": "1.0.2",
+  "description": "使用固定版本镜像部署 Ingot 服务，依赖配置按环境填写；当前默认镜像仅提供 linux/arm64 架构。",
+  "category": "business",
+  "order": 140,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "IMAGE",
+        "label": "应用镜像",
+        "type": "image",
+        "default": "ingot/pms:0.1.0",
+        "required": true,
+        "help": "当前默认镜像为 linux/arm64；请使用对应架构的目标主机，或先准备适配主机架构的同版本镜像。"
+      },
+      {
+        "key": "APP_NETWORK",
+        "label": "应用共享网络",
+        "type": "string",
+        "default": "ingot-net",
+        "required": true,
+        "help": "填写目标主机预先创建的网络名称，确保可访问依赖服务。"
+      },
+      {
+        "key": "TZ",
+        "label": "时区",
+        "type": "string",
+        "default": "Asia/Shanghai",
+        "required": true,
+        "help": "填写应用使用的时区，例如 Asia/Shanghai。"
+      },
+      {
+        "key": "JAVA_OPTS",
+        "label": "Java 虚拟机参数",
+        "type": "string",
+        "default": "-Xms256m -Xmx768m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError",
+        "required": true,
+        "help": "按目标主机可用内存调整堆大小；生产配置由 SPRING_PROFILES_ACTIVE=prod 单独启用。"
+      },
+      {
+        "key": "NACOS_NAMESPACE",
+        "label": "Nacos 命名空间标识",
+        "type": "string",
+        "default": "ingot",
+        "required": true,
+        "help": "填写命名空间 ID，并先在 Nacos 中创建；各服务使用相同命名空间。"
+      },
+      {
+        "key": "NACOS_GROUP",
+        "label": "Nacos 配置分组",
+        "type": "string",
+        "default": "PROD_GROUP",
+        "required": true,
+        "help": "填写配置和服务发现使用的分组，各服务保持一致。"
+      },
+      {
+        "key": "CRYPTO_AES_KEY",
+        "label": "AES 密钥",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "填写 16、24 或 32 字节的 AES 密钥，并与相关服务保持一致；中文等多字节字符按 UTF-8 字节计算。"
+      },
+      {
+        "key": "CRYPTO_AES_GCM_KEY",
+        "label": "AES GCM 密钥",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "填写 16、24 或 32 字节的 AES 密钥，并与相关服务保持一致；中文等多字节字符按 UTF-8 字节计算。"
+      },
+      {
+        "key": "NACOS_SERVER_ADDR",
+        "label": "Nacos 服务地址",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "填写目标网络中可访问的实际依赖地址或配置。"
+      },
+      {
+        "key": "NACOS_USERNAME",
+        "label": "Nacos 用户名",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "填写当前环境依赖服务的实际用户名。"
+      },
+      {
+        "key": "NACOS_PASSWORD",
+        "label": "Nacos 密码",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "填写当前环境的实际凭据，不会写入公共模板。"
+      },
+      {
+        "key": "MYSQL_DATABASE",
+        "label": "数据库名称",
+        "type": "string",
+        "default": "ingot_core",
+        "required": true,
+        "help": "填写该版本已初始化的数据库名称；运行配置会覆盖 Nacos 中的旧固定数据库地址。"
+      },
+      {
+        "key": "MYSQL_HOST",
+        "label": "MySQL 地址",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "填写目标网络中可访问的实际依赖地址或配置。"
+      },
+      {
+        "key": "MYSQL_PORT",
+        "label": "MySQL 端口",
+        "type": "port",
+        "default": "3306",
+        "required": true,
+        "help": "填写目标网络中可访问的实际依赖地址或配置。"
+      },
+      {
+        "key": "MYSQL_USERNAME",
+        "label": "MySQL 用户名",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "填写当前环境依赖服务的实际用户名。"
+      },
+      {
+        "key": "MYSQL_PASSWORD",
+        "label": "MySQL 密码",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "填写当前环境的实际凭据，不会写入公共模板。"
+      },
+      {
+        "key": "REDIS_HOST",
+        "label": "Redis 地址",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "填写目标网络中可访问的实际依赖地址或配置。"
+      },
+      {
+        "key": "REDIS_PORT",
+        "label": "Redis 端口",
+        "type": "port",
+        "default": "6379",
+        "required": true,
+        "help": "填写目标网络中可访问的实际依赖地址或配置。"
+      },
+      {
+        "key": "REDIS_DATABASE",
+        "label": "Redis 数据库编号",
+        "type": "string",
+        "default": "0",
+        "required": true,
+        "help": "填写当前环境使用的 Redis 数据库编号。"
+      },
+      {
+        "key": "REDIS_PASSWORD",
+        "label": "Redis 密码",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "填写当前环境的实际凭据，不会写入公共模板。"
+      },
+      {
+        "key": "MINIO_URL",
+        "label": "MinIO 访问地址",
+        "type": "string",
+        "default": "",
+        "required": true,
+        "help": "填写目标网络中可访问的实际依赖地址或配置。"
+      },
+      {
+        "key": "MINIO_ACCESS_KEY",
+        "label": "MinIO 访问密钥",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "填写当前环境的实际凭据，不会写入公共模板。"
+      },
+      {
+        "key": "MINIO_SECRET_KEY",
+        "label": "MinIO 私密密钥",
+        "type": "password",
+        "default": "",
+        "required": true,
+        "help": "填写当前环境的实际凭据，不会写入公共模板。"
+      }
+    ],
+    "stateful": true,
+    "topology": "single_host",
+    "storage": "应用数据使用环境独立的 application-data 卷，不再共享宿主机 /ingot-data。",
+    "initialization": "先创建外部共享网络及 Nacos 命名空间，在所选分组发布 application-common.yml、application-mysql.yml、ingot-service-pms.yml；这些配置须与镜像版本匹配。初始化 ingot_core 数据库及该版本的表结构，再准备 MySQL 和 Redis 账号。如启用文件存储，准备 MinIO 及所需存储桶。",
+    "instructions": "默认不映射宿主端口，通过共享网络访问。需要外部入口时在应用部署配置中补充端口或代理环境变量。新增应用不会自动迁移旧主机目录中的业务数据。共享网络中的服务名为 ingot-pms，不同环境应选择各自的共享网络。 应用端口为 5200，管理端口 6200 仅监听容器内回环地址；健康检查须返回 UP 才表示服务就绪。 随模板提供的运行配置会将环境参数绑定至数据库、加密和对象存储配置，优先于旧 Nacos 固定值。",
+    "config_files": {
+      "configs/runtime.yml": "configs/runtime.yml"
+    }
+  }
+}

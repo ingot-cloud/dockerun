@@ -60,3 +60,9 @@ test('普通刷新保留有效勾选，不能保留内置模板、重复编号�
   assert.deepEqual(retainPageSelection(old, current, row => row.id, row => !templateDeletionReason(row)), [current[0]])
   assert.deepEqual(retainPageSelection(old, [], row => row.id), [])
 })
+
+test('导入模板可按本机记录编号删除，内置模板保护保持不变',()=>{
+  assert.equal(templateDeletionID({source:'imported',id:'custom-9'}),9)
+  assert.equal(templateDeletionReason({source:'imported',id:'custom-9'}),'')
+  assert.equal(templateDeletionID({source:'imported',id:'redis'}),null)
+})

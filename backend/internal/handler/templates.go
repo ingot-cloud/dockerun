@@ -53,7 +53,7 @@ func getTemplateDir() string {
 
 // loadTemplatesFromFS 从文件系统加载所有模板
 func loadTemplatesFromFS() ([]ScriptTemplate, error) {
-	var templates []ScriptTemplate
+	templates := []ScriptTemplate{}
 
 	// 1. 从配置的模板目录加载
 	templateDir := getTemplateDir()
@@ -74,6 +74,10 @@ func loadTemplatesFromFS() ([]ScriptTemplate, error) {
 			}
 
 			templatePath := filepath.Join(templateDir, entry.Name())
+			// 新版应用模板可只有 template.json，不作为损坏的历史脚本模板处理。
+			if _, err := os.Stat(filepath.Join(templatePath, "meta.json")); os.IsNotExist(err) {
+				continue
+			}
 			template, err := loadTemplate(templatePath)
 			if err != nil {
 				// 跳过无效的模板，记录错误

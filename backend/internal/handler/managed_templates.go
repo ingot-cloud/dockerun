@@ -25,13 +25,23 @@ func ManagedTemplates(c *gin.Context) {
 }
 
 func applicationTemplates() ([]apptemplate.Template, error) {
-	items := apptemplate.Builtins()
+	items, err := apptemplate.LoadDir(config.Load().TemplateDir)
+	if err != nil {
+		return nil, err
+	}
 	var rows []models.ApplicationTemplate
+	if err := database.EnsureTemplateKeys(database.DB); err != nil {
+		return nil, err
+	}
 	if err := database.DB.Order("id DESC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		items = append(items, apptemplate.Template{ID: fmt.Sprintf("custom-%d", row.ID), Name: row.Name, Version: row.Version, Description: row.Description, Category: row.Category, Source: "custom", Definition: row.Definition, Scripts: row.Scripts})
+		source := row.Source
+		if source == "" {
+			source = "custom"
+		}
+		items = append(items, apptemplate.Template{ID: fmt.Sprintf("custom-%d", row.ID), Key: row.TemplateKey, Order: row.SortOrder, Name: row.Name, Version: row.Version, Description: row.Description, Category: row.Category, Source: source, Definition: row.Definition, Scripts: row.Scripts, Attachments: row.Attachments})
 	}
 	return items, nil
 }
@@ -94,6 +104,10 @@ func CreateApplicationFromTemplate(c *gin.Context) {
 		fail(c, err)
 		return
 	}
+	if err := release.ValidateExecution(t.Definition.Execution); err != nil {
+		fail(c, err)
+		return
+	}
 	dir, err := os.MkdirTemp(filepath.Join(config.Load().DataDir, "releases"), "template-")
 	if err != nil {
 		fail(c, err)
@@ -131,6 +145,7 @@ func SaveApplicationTemplate(c *gin.Context) {
 		Name        string `json:"name"`
 		Version     string `json:"version"`
 		Description string `json:"description"`
+		Key         string `json:"key"`
 	}
 	if c.ShouldBindJSON(&q) != nil || strings.TrimSpace(q.Name) == "" || len(q.Name) > 100 || strings.TrimSpace(q.Version) == "" || len(q.Version) > 100 {
 		fail(c, fmt.Errorf("请填写模板名称和版本（最多 100 字符）"))
@@ -145,22 +160,76 @@ func SaveApplicationTemplate(c *gin.Context) {
 		fail(c, fmt.Errorf("此应用尚未保存可复用定义，请先保存应用配置再创建模板"))
 		return
 	}
-	t := models.ApplicationTemplate{Name: strings.TrimSpace(q.Name), Version: strings.TrimSpace(q.Version), Description: q.Description, Category: app.Category, Definition: app.Definition, Scripts: app.Scripts}
+	templatePackageMu.Lock()
+	defer templatePackageMu.Unlock()
+	if err := database.EnsureTemplateKeys(database.DB); err != nil {
+		fail(c, err)
+		return
+	}
+	key := strings.TrimSpace(q.Key)
+	if key != "" && !apptemplate.ValidKey(key) {
+		fail(c, fmt.Errorf("模板标识无效"))
+		return
+	}
+	if key == "" {
+		var previous []models.ApplicationTemplate
+		if err := database.DB.Where("name = ? AND (source = ? OR source = ?)", strings.TrimSpace(q.Name), "custom", "").Find(&previous).Error; err != nil {
+			fail(c, err)
+			return
+		}
+		for _, row := range previous {
+			if key != "" && key != row.TemplateKey {
+				fail(c, fmt.Errorf("存在同名模板，请使用不同的模板名称"))
+				return
+			}
+			key = row.TemplateKey
+		}
+		if key == "" {
+			key = database.NewTemplateKey()
+		}
+	}
+	t := models.ApplicationTemplate{TemplateKey: key, Source: "custom", Name: strings.TrimSpace(q.Name), Version: strings.TrimSpace(q.Version), Description: q.Description, Category: app.Category, Definition: app.Definition, Scripts: app.Scripts}
 	definition, err := apptemplate.ReusableDefinition(app.Definition)
 	if err != nil {
 		fail(c, err)
 		return
 	}
 	t.Definition = definition
+	t.Definition.Source, t.Definition.RegistryID = "", 0
+	if t.Category == "" {
+		t.Category = "business"
+	}
+	if t.Definition.Topology == "" {
+		t.Definition.Topology = "single_host"
+	}
 	for i := range t.Definition.Parameters {
 		if t.Definition.Parameters[i].Type == "password" {
 			t.Definition.Parameters[i].Default = ""
 		}
+	}
+	portable := apptemplate.Template{ID: key, Key: key, Name: t.Name, Version: t.Version, Category: t.Category, Description: t.Description, Definition: t.Definition, Scripts: t.Scripts}
+	if err := apptemplate.ValidatePackage(c.Request.Context(), portable); err != nil {
+		fail(c, err)
+		return
+	}
+	catalog, err := applicationTemplates()
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	status, _, err := templateConflict(portable, catalog)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	if status == "identical" || status == "conflict" {
+		fail(c, fmt.Errorf("此模板标识和版本已经存在，请使用新版本"))
+		return
 	}
 	if err := database.DB.Create(&t).Error; err != nil {
 		fail(c, fmt.Errorf("保存模板失败，请使用未被占用的模板名称和版本：%w", err))
 		return
 	}
 	identity.Audit(c.GetUint("user_id"), "application.template.save", fmt.Sprint(app.ID))
-	c.JSON(201, gin.H{"id": fmt.Sprintf("custom-%d", t.ID), "name": t.Name, "version": t.Version})
+	c.JSON(201, gin.H{"id": fmt.Sprintf("custom-%d", t.ID), "key": t.TemplateKey, "name": t.Name, "version": t.Version})
 }

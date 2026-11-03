@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "portainer",
+  "name": "Portainer 容器管理",
+  "version": "1.0.1",
+  "description": "连接目标主机 Docker，持久化管理配置。",
+  "category": "middleware",
+  "order": 90,
+  "definition": {
+    "compose_file": "compose.yaml",
+    "parameters": [
+      {
+        "key": "PORTAINER_IMAGE",
+        "label": "Portainer 镜像",
+        "type": "image",
+        "default": "portainer/portainer-ce:2.33.5",
+        "required": true,
+        "help": "默认使用所选仓库中的镜像，请提前准备相同名称及版本。"
+      },
+      {
+        "key": "PORTAINER_PORT",
+        "label": "管理界面端口",
+        "type": "port",
+        "default": "9000",
+        "required": true,
+        "help": "填写目标主机未占用的端口。"
+      }
+    ],
+    "stateful": true,
+    "topology": "single_host",
+    "storage": "管理配置保存在环境独立的 portainer-data 卷。",
+    "initialization": "首次访问按 Portainer 引导创建管理员；当前模板直接连接本机 Docker Socket，无需 Agent 共享密钥。",
+    "instructions": "需要目标主机的 Docker Socket，模板能够管理该主机上的容器。默认手动更新。",
+    "endpoints": [
+      {
+        "name": "管理界面",
+        "port": "PORTAINER_PORT",
+        "protocol": "http",
+        "path": ""
+      }
+    ]
+  }
+}

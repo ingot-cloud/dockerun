@@ -104,10 +104,17 @@ func DeleteApplication(c *gin.Context) {
 
 func DeleteManagedTemplate(c *gin.Context) {
 	raw := c.Param("id")
-	for _, template := range apptemplate.Builtins() {
-		if raw == template.ID {
-			workspaceDeleteFailed(c, workspaceDeleteError{http.StatusForbidden, "内置模板不能删除，可删除自行保存的应用模板"})
+	if !strings.HasPrefix(raw, "custom-") {
+		templates, err := apptemplate.LoadDir(config.Load().TemplateDir)
+		if err != nil {
+			fail(c, err)
 			return
+		}
+		for _, template := range templates {
+			if raw == template.ID {
+				workspaceDeleteFailed(c, workspaceDeleteError{http.StatusForbidden, "内置模板不能删除，可删除自行保存的应用模板"})
+				return
+			}
 		}
 	}
 	id, err := deleteID(strings.TrimPrefix(raw, "custom-"))

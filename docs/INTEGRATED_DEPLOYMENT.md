@@ -41,7 +41,7 @@ Docker Desktop 本地开发时，宿主机 Go 服务与虚拟机中的 daemon �
 
 ### 从应用模板开始
 
-「发布工作区 → 应用模板」统一提供单服务应用、MySQL、Redis、Nacos 单机及 Nacos 单机三节点集群。选择模板，填写应用名称、首个环境、目标主机、镜像仓库和运行参数，点击「创建并准备发布」进入已填好的发布向导，检查后确认部署。创建与预览不会启动容器。
+「发布工作区 → 应用模板」从 `TEMPLATE_DIR`（默认 `./templates`）下的 `*/template.json` 加载程序预设，再合并数据库自定义模板。目前提供单服务应用、MySQL、Redis、Nacos、Kafka、Registry、Portainer、Nginx Proxy、Ingot 服务，共 13 个预设。格式、参数及各模板约束见[模板说明](../templates/README.md)。目录每次请求重新加载；格式错误会指出具体目录，修复后刷新即可。选择模板，填写应用名称、首个环境、目标主机、镜像仓库和运行参数，点击「创建并准备发布」进入已填好的发布向导，检查后确认部署。创建与预览不会启动容器。
 
 默认使用内置仓库，镜像必须先准备到所选仓库；也可以切换已有外部仓库，表单会保留镜像名称和版本、切换仓库地址。镜像版本沿用项目旧模板的固定版本，发布时继续锁定摘要，不自动跟随新标签。中间件默认手动更新；需要持续交付的业务应用，在保存部署配置后按环境配置镜像自动发布。
 
@@ -49,9 +49,11 @@ Docker Desktop 本地开发时，宿主机 Go 服务与虚拟机中的 daemon �
 
 MySQL、Redis 以及 Nacos 各节点采用环境独立的命名卷，卷名随应用及环境 ID 固定，重新部署和手动升级复用原数据。中间件不能通过无状态自动恢复回滚数据。应用详情展示持久化说明、首次初始化规则以及依据环境参数生成的连接地址；远程节点须替换为实际可达的主机地址。
 
-Nacos 三节点模板在一台主机部署三个 Nacos 节点及独立 MySQL，MySQL 不映射宿主端口。集群建表文件来自 [Nacos 3.1.1 官方 SQL](https://github.com/alibaba/nacos/blob/3.1.1/distribution/conf/mysql-schema.sql)，保留原许可，并随程序打包；由 MySQL 在空卷首次启动时执行，不在每次发布时重复建表。更改初始密码不会修改已有数据库的实际密码。Nacos 健康检查验证服务端口，集群成员状态需在控制台确认。此模板不提供跨主机高可用，页面及接口拒绝用固定主机组重复部署来代替集群编排。
+Nacos 三节点模板在一台主机部署三个 Nacos 节点及独立 MySQL，MySQL 不映射宿主端口。集群建表文件来自 [Nacos 3.1.1 官方 SQL](https://github.com/alibaba/nacos/blob/3.1.1/distribution/conf/mysql-schema.sql)，保留原许可，并随模板目录分发；由 MySQL 在空卷首次启动时执行，不在每次发布时重复建表。更改初始密码不会修改已有数据库的实际密码。Nacos 健康检查验证服务端口，集群成员状态需在控制台确认。此模板不提供跨主机高可用，页面及接口拒绝用固定主机组重复部署来代替集群编排。
 
 「另存为应用模板」保存当前应用的未插值定义、非敏感文件和应用脚本，以新名称与版本存储，不覆盖已有模板。环境参数值、主机及业务数据不会复制；Compose 中可识别的固定凭据和绝对数据路径转换成待填写参数，固定容器名移除，普通数据卷重新按环境隔离。脚本及非敏感配置文件中的固定凭据需由管理员确认并移入环境参数。自定义模板随后出现在同一列表中。
+
+管理员还可在应用模板列表中下载单个或批量模板 ZIP，再到其他 Dockerun 实例导入。导入先校验和预览文件，再确认保存到数据库；相同内容默认跳过，同标识同版本的不同内容可另存为新模板，不覆盖已有版本。ZIP 可包含一个或多个标准模板，最大 32 MiB；预览有效期 30 分钟，期间不执行脚本或部署。参数定义、Compose、配置文件、附加脚本、执行设置及说明许可随包传递，实例环境值、主机、仓库关联、镜像和业务数据不随包传递。导入后按目标环境重新配置，格式及详细限制见[模板说明](../templates/README.md#zip-导入与下载)。
 
 「系统管理 → 历史脚本」继续兼容原有独立脚本与其旧模板，只支持手动执行；新服务从应用模板创建。本轮迁移上述常用中间件，其他旧脚本不会被自动执行、改写或重建已有容器。跨主机集群编排及自动数据库迁移需另行实现。
 
@@ -232,7 +234,12 @@ MySQL 备份会解出 `metadata.sql`，需恢复到专用 MySQL 数据库，再�
 | `GET /api/builtin/maintenance` | 最近 100 条 GC 任务及执行结果 |
 | `GET/POST /api/system/backups`、`GET /api/system/backups/:id/download` | 完整备份任务及已完成文件下载 |
 | `GET/POST /api/applications`、`GET /api/applications/:id` | 应用及环境、版本 |
-| `GET /api/managed-templates` | 内置及自定义应用模板，含版本、参数表单及独立应用定义 |
+| `GET /api/managed-templates` | 内置、自建及导入应用模板，含稳定 `key`、来源、版本、参数表单及独立应用定义 |
+| `POST /api/managed-templates/imports` | 管理员以 multipart `file` 上传标准 ZIP，返回预览编号、有效期、模板冲突状态及文件原文 |
+| `POST /api/managed-templates/imports/:import/commit` | 管理员确认导入，正文为 `{"items":[{"index":0,"action":"import"}]}`；支持 `skip`，或 `rename` 并提供新 `key`、`name` |
+| `DELETE /api/managed-templates/imports/:import` | 管理员取消自己的导入预览，不删除已导入模板 |
+| `GET /api/managed-templates/:id/download` | 管理员下载单个标准模板 ZIP |
+| `POST /api/managed-templates/export` | 管理员批量下载，正文为 `{"ids":["web-app","custom-12"]}`，最多 100 个模板 |
 | `POST /api/managed-templates/:id/applications` | 原子创建应用及首个环境；校验目标主机和模板参数，不直接部署 |
 | `POST /api/applications/:id/template` | 将未插值的应用定义保存为新的自定义模板版本 |
 | `PUT /api/applications/:id/deployment-config` | 保存部署定义、非敏感文件、执行配置和当前环境有效脚本；不创建任务 |
