@@ -8,6 +8,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"gopkg.in/yaml.v3"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +78,8 @@ func Parse(ctx context.Context, content, dir, project string, parameters map[str
 			}
 		}
 	}
-	p, err := loader.LoadWithContext(ctx, types.ConfigDetails{WorkingDir: dir, ConfigFiles: []types.ConfigFile{{Filename: filepath.Join(dir, "compose.yaml"), Content: []byte(content)}}, Environment: types.Mapping(parameters)}, func(o *loader.Options) {
+	// Compose 会写入 COMPOSE_PROJECT_NAME，使用副本以免改写环境参数和发布确认快照。
+	p, err := loader.LoadWithContext(ctx, types.ConfigDetails{WorkingDir: dir, ConfigFiles: []types.ConfigFile{{Filename: filepath.Join(dir, "compose.yaml"), Content: []byte(content)}}, Environment: types.Mapping(maps.Clone(parameters))}, func(o *loader.Options) {
 		o.SetProjectName(project, true)
 		o.ResolvePaths = true
 		o.SkipInclude = true

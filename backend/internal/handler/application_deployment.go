@@ -19,16 +19,17 @@ import (
 // SaveApplicationDeployment 只保存部署配置和当前脚本，不创建版本或执行任务。
 func SaveApplicationDeployment(c *gin.Context) {
 	var q struct {
-		Compose           string                     `json:"compose"`
-		Configs           models.StringMap           `json:"configs"`
-		Execution         models.DeploymentExecution `json:"execution"`
-		Scripts           models.DeploymentScripts   `json:"scripts"`
-		EnvironmentID     uint                       `json:"environment_id"`
-		Source            string                     `json:"source"`
-		RegistryID        uint                       `json:"registry_id"`
-		Platform          string                     `json:"platform"`
-		ContainerNames    *[]string                  `json:"container_names"`
-		ReplaceContainers *bool                      `json:"replace_containers"`
+		Compose            string                     `json:"compose"`
+		Configs            models.StringMap           `json:"configs"`
+		Execution          models.DeploymentExecution `json:"execution"`
+		Scripts            models.DeploymentScripts   `json:"scripts"`
+		EnvironmentID      uint                       `json:"environment_id"`
+		Source             string                     `json:"source"`
+		RegistryID         uint                       `json:"registry_id"`
+		Platform           string                     `json:"platform"`
+		ContainerNames     *[]string                  `json:"container_names"`
+		ReplaceContainers  *bool                      `json:"replace_containers"`
+		ComposeProjectName *string                    `json:"compose_project_name"`
 	}
 	if err := c.ShouldBindJSON(&q); err != nil {
 		fail(c, err)
@@ -43,6 +44,14 @@ func SaveApplicationDeployment(c *gin.Context) {
 		return
 	}
 	if err := release.ValidateExecution(q.Execution); err != nil {
+		fail(c, err)
+		return
+	}
+	previous := env
+	if q.ComposeProjectName != nil {
+		env.ComposeProjectName = *q.ComposeProjectName
+	}
+	if err := validateEnvironmentProject(&env, &previous); err != nil {
 		fail(c, err)
 		return
 	}
@@ -115,6 +124,11 @@ func SaveApplicationDeployment(c *gin.Context) {
 		}
 	}
 	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		if q.ComposeProjectName != nil {
+			if err := tx.Model(&models.Environment{}).Where("id = ?", env.ID).Update("compose_project_name", env.ComposeProjectName).Error; err != nil {
+				return err
+			}
+		}
 		if q.ContainerNames != nil || q.ReplaceContainers != nil {
 			encoded, _ := json.Marshal(env.ContainerNames)
 			if err := tx.Model(&env).Updates(map[string]any{"container_names": string(encoded), "replace_containers": env.ReplaceContainers}).Error; err != nil {

@@ -86,8 +86,14 @@ func ApplicationDetail(c *gin.Context) {
 		fail(c, err)
 		return
 	}
+	projectLocks, err := environmentProjectLocks(environmentIDs)
+	if err != nil {
+		fail(c, err)
+		return
+	}
 	for i := range envs {
 		envs[i].DeletionBlockedReason = environmentReasons[envs[i].ID]
+		envs[i].ComposeProjectNameLocked = envs[i].CurrentReleaseID > 0 || projectLocks[envs[i].ID]
 	}
 	c.JSON(200, gin.H{"application": a, "environments": envs, "releases": versions, "targets": states})
 }
@@ -121,10 +127,17 @@ func SaveApplicationScripts(c *gin.Context) {
 func SaveEnvironment(c *gin.Context) {
 	builtin.ReferenceGate.Lock()
 	defer builtin.ReferenceGate.Unlock()
-	var q models.Environment
-	if err := c.ShouldBindJSON(&q); err != nil {
+	var request struct {
+		models.Environment
+		ProjectName *string `json:"compose_project_name"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
 		fail(c, err)
 		return
+	}
+	q := request.Environment
+	if request.ProjectName != nil {
+		q.ComposeProjectName = *request.ProjectName
 	}
 	var a models.Application
 	if err := database.DB.First(&a, c.Param("id")).Error; err != nil {
@@ -144,6 +157,7 @@ func SaveEnvironment(c *gin.Context) {
 		fail(c, fmt.Errorf("此应用包含持久数据，不能启用无状态自动恢复"))
 		return
 	}
+	var previous *models.Environment
 	if q.ID > 0 {
 		var old models.Environment
 		if database.DB.Where("id = ? AND application_id = ?", q.ID, a.ID).First(&old).Error != nil {
@@ -151,8 +165,16 @@ func SaveEnvironment(c *gin.Context) {
 			return
 		}
 		q.CurrentReleaseID = old.CurrentReleaseID
+		if request.ProjectName == nil {
+			q.ComposeProjectName = old.ComposeProjectName
+		}
+		previous = &old
 	} else {
 		q.CurrentReleaseID = 0
+	}
+	if err := validateEnvironmentProject(&q, previous); err != nil {
+		fail(c, err)
+		return
 	}
 	if q.ScriptMode == "" {
 		q.ScriptMode = "inherit"
@@ -253,6 +275,7 @@ func SaveEnvironment(c *gin.Context) {
 		names, _ := json.Marshal(q.ContainerNames)
 		updates := map[string]any{"name": q.Name, "target_id": q.TargetID, "target_ids": q.TargetIDs, "parameters": q.Parameters, "stateless": q.Stateless, "auto_rollback": q.AutoRollback, "auto_deploy": q.AutoDeploy, "registry_id": q.RegistryID, "repository": q.Repository, "tag_pattern": q.TagPattern, "allowed_publishers": q.AllowedPublishers, "script_mode": q.ScriptMode, "scripts": string(scripts)}
 		updates["container_names"] = string(names)
+		updates["compose_project_name"] = q.ComposeProjectName
 		updates["replace_containers"] = q.ReplaceContainers
 		res := database.DB.Model(&models.Environment{}).Where("id = ? AND application_id = ?", q.ID, a.ID).Updates(updates)
 		if res.Error != nil {
@@ -453,6 +476,7 @@ func EnqueueDeployment(c *gin.Context) {
 		ExpectedParameters   *models.StringMap         `json:"expected_parameters"`
 		ExpectedScripts      *models.DeploymentScripts `json:"expected_scripts"`
 		ExpectedContainers   *release.ContainerPolicy  `json:"expected_containers"`
+		ExpectedProjectName  *string                   `json:"expected_project_name"`
 	}
 	if c.ShouldBindJSON(&q) != nil {
 		fail(c, fmt.Errorf("请求无效"))
@@ -464,7 +488,7 @@ func EnqueueDeployment(c *gin.Context) {
 		c.JSON(404, gin.H{"error": "环境或版本不存在"})
 		return
 	}
-	if !checkExpectedEnvironmentParameters(c, q.ExpectedParameters, env.Parameters) {
+	if !checkExpectedProjectName(c, q.ExpectedProjectName, env) || !checkExpectedEnvironmentParameters(c, q.ExpectedParameters, env.Parameters) {
 		return
 	}
 	if err := restoreParameters(&env, r, q.RestoreConfiguration); err != nil {
@@ -492,6 +516,7 @@ func PreflightDeployment(c *gin.Context) {
 		ExpectedParameters   *models.StringMap         `json:"expected_parameters"`
 		ExpectedScripts      *models.DeploymentScripts `json:"expected_scripts"`
 		ExpectedContainers   *release.ContainerPolicy  `json:"expected_containers"`
+		ExpectedProjectName  *string                   `json:"expected_project_name"`
 	}
 	if c.ShouldBindJSON(&q) != nil {
 		fail(c, fmt.Errorf("请求无效"))
@@ -503,7 +528,7 @@ func PreflightDeployment(c *gin.Context) {
 		fail(c, fmt.Errorf("版本和环境不匹配"))
 		return
 	}
-	if !checkExpectedEnvironmentParameters(c, q.ExpectedParameters, env.Parameters) {
+	if !checkExpectedProjectName(c, q.ExpectedProjectName, env) || !checkExpectedEnvironmentParameters(c, q.ExpectedParameters, env.Parameters) {
 		return
 	}
 	if err := restoreParameters(&env, r, q.RestoreConfiguration); err != nil {
@@ -528,6 +553,8 @@ func PreflightDeployment(c *gin.Context) {
 		}
 		var current models.Release
 		database.DB.First(&current, env.CurrentReleaseID)
+		var previousImages []release.Image
+		json.Unmarshal([]byte(current.Images), &previousImages)
 		var images []release.Image
 		if r.Images != "" {
 			if err := json.Unmarshal([]byte(r.Images), &images); err != nil {
@@ -535,7 +562,7 @@ func PreflightDeployment(c *gin.Context) {
 				return
 			}
 		}
-		c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "images": images, "parameters": apptemplate.RedactParameters(env.Parameters, application.Definition.Parameters), "execution": r.Execution, "previous_execution": current.Execution, "scripts": release.EffectiveScripts(r, env), "container_policy": containerPolicy(env), "message": commandDeploymentNotice(env, r)})
+		c.JSON(200, gin.H{"valid": true, "project_name": release.ProjectName(env), "environment": env.Name, "target_id": env.TargetID, "images": images, "previous_images": previousImages, "previous_compose": current.Compose, "parameters": apptemplate.RedactParameters(env.Parameters, application.Definition.Parameters), "execution": r.Execution, "previous_execution": current.Execution, "scripts": release.EffectiveScripts(r, env), "container_policy": containerPolicy(env), "message": commandDeploymentNotice(env, r)})
 		return
 	}
 	var images []release.Image
@@ -568,7 +595,9 @@ func PreflightDeployment(c *gin.Context) {
 	content, _ := release.Encode(p)
 	var current models.Release
 	database.DB.First(&current, env.CurrentReleaseID)
-	c.JSON(200, gin.H{"valid": true, "environment": env.Name, "target_id": env.TargetID, "parameters": apptemplate.RedactParameters(env.Parameters, app.Definition.Parameters), "images": images, "compose": content, "previous_compose": current.Compose, "execution": r.Execution, "previous_execution": current.Execution, "scripts": release.EffectiveScripts(r, env), "container_policy": containerPolicy(env), "message": "定义检查通过；脚本只在确认部署后执行，执行前还将检查全部镜像、平台、端口、挂载和网络"})
+	var previousImages []release.Image
+	json.Unmarshal([]byte(current.Images), &previousImages)
+	c.JSON(200, gin.H{"valid": true, "project_name": release.ProjectName(env), "environment": env.Name, "target_id": env.TargetID, "parameters": apptemplate.RedactParameters(env.Parameters, app.Definition.Parameters), "images": images, "previous_images": previousImages, "compose": content, "previous_compose": current.Compose, "execution": r.Execution, "previous_execution": current.Execution, "scripts": release.EffectiveScripts(r, env), "container_policy": containerPolicy(env), "message": "定义检查通过；脚本只在确认部署后执行，执行前还将检查全部镜像、平台、端口、挂载和网络"})
 }
 func ListDeployments(c *gin.Context) {
 	rows := []deploymentSummary{}

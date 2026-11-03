@@ -69,6 +69,7 @@
           <h3 id="environment-parameters-heading">运行参数</h3>
           <EnvironmentParameterPairs v-model="parameterPairs" :schema="parameterSchema" :disabled="saving" />
         </section>
+        <ComposeProjectNameField v-if="!commandApplication" v-model="form.compose_project_name" :environment="{...form,application_id:Number(id)}" :disabled="saving" />
         <ContainerBindingEditor v-if="commandApplication" v-model:names="form.container_names" v-model:replace="form.replace_containers" :command="commandApplication" :disabled="saving" />
         </template>
         <el-collapse v-model="environmentSections" class="environment-config-groups">
@@ -139,6 +140,8 @@ import { runtimeImageLocation,applicationRuntimeImages,applicationDetailTab,appl
 import { automationIssue, copyScripts, defaultReleaseRegistry, emptyScripts, hasScripts, imageRepository, releaseImages, releaseDeletionReason } from '@/utils/releases'
 import EnvironmentParameterPairs from '@/components/EnvironmentParameterPairs.vue'
 import ContainerBindingEditor from '@/components/ContainerBindingEditor.vue'
+import ComposeProjectNameField from '@/components/ComposeProjectNameField.vue'
+import { validateComposeProjectName } from '@/utils/composeProject'
 import { applicationTemplatesApi,type ApplicationTemplate,type TemplateParameter } from '@/api/applicationTemplates'
 import { templateCategory,templateValues,validateTemplateValues,retargetTemplateParameterPairs,templateEndpoints } from '@/utils/applicationTemplates'
 const route=useRoute(),router=useRouter(),id=route.params.id
@@ -178,7 +181,7 @@ async function loadOptions(){if(optionsLoading.value)return;optionsLoading.value
 function edit(row?:any,onlyAutomatic=false){
   automaticOnly.value=onlyAutomatic
   const base=data.value.releases?.find((r:any)=>r.id===row?.current_release_id)
-  form.value={name:'',target_id:1,stateless:false,auto_rollback:false,auto_deploy:false,repository:'',tag_pattern:'*',...row,registry_id:row?.registry_id || defaultReleaseRegistry(registries.value),script_mode:row?.script_mode || 'inherit',scripts:copyScripts(row?.scripts),container_names:[...(row?.container_names || [])],replace_containers:Boolean(row?.replace_containers)}
+  form.value={name:'',compose_project_name:'',target_id:1,stateless:false,auto_rollback:false,auto_deploy:false,repository:'',tag_pattern:'*',...row,registry_id:row?.registry_id || defaultReleaseRegistry(registries.value),script_mode:row?.script_mode || 'inherit',scripts:copyScripts(row?.scripts),container_names:[...(row?.container_names || [])],replace_containers:Boolean(row?.replace_containers)}
   if(!form.value.repository && base?.source==='registry' && base.registry_id===form.value.registry_id)form.value.repository=imageRepository(releaseImages(base)[0]?.reference || '')
   const targets=parseArray(row?.target_ids)
   targetIds.value=targets.length?targets:[row?.target_id || 1]
@@ -191,7 +194,7 @@ function edit(row?:any,onlyAutomatic=false){
   visible.value=true
 }
 async function openDeploymentFromEnvironment(){const environmentId=form.value.id;await router.push({path:`/applications/${id}/deploy`,query:{mode:'edit',environment:environmentId}})}
-function clone(row:any){edit({...row,id:0,current_release_id:0,name:`${row.name}-副本`,auto_deploy:false,container_names:[],replace_containers:false})}
+function clone(row:any){edit({...row,id:0,current_release_id:0,compose_project_name:'',compose_project_name_locked:false,name:`${row.name}-副本`,auto_deploy:false,container_names:[],replace_containers:false})}
 function changeEnvironmentRegistry(){if(automaticOnly.value)return;parameterPairs.value=retargetTemplateParameterPairs(parameterSchema.value,parameterPairs.value,registries.value.find(item=>item.id===previousEnvironmentRegistry),selectedRegistry.value);previousEnvironmentRegistry=form.value.registry_id}
 function environmentParameters(){const values=environmentParameterValues(parameterPairs.value,parameterSchema.value);if(parameterSchema.value.length)validateTemplateValues(parameterSchema.value,values);return values}
 async function saveAutomatic(){
@@ -204,7 +207,7 @@ async function saveAutomatic(){
     visible.value=false;ElMessage.success('自动发布配置已保存');await load()
   }catch(cause){formError.value=errorText(cause)}finally{saving.value=false}
 }
-async function save(){if(saving.value)return;formError.value='';try{if(!form.value.name?.trim())throw new Error('请输入环境名称');const targets=environmentTargetConfiguration(targetIds.value,singleHost.value);if(form.value.auto_deploy && automaticIssue.value)throw new Error(automaticIssue.value);const payload={id:form.value.id || 0,name:form.value.name.trim(),...targets,stateless:Boolean(form.value.stateless),auto_deploy:Boolean(form.value.auto_deploy),registry_id:form.value.registry_id || defaultReleaseRegistry(registries.value),repository:form.value.repository?.trim() || '',tag_pattern:form.value.tag_pattern || '*',parameters:environmentParameters(),allowed_publishers:JSON.stringify(publishers.value),auto_rollback:Boolean(form.value.stateless && form.value.auto_rollback),script_mode:form.value.script_mode,scripts:form.value.script_mode==='override'?copyScripts(form.value.scripts):emptyScripts(),container_names:form.value.container_names || [],replace_containers:Boolean(form.value.replace_containers)};saving.value=true;await api('PUT',`/applications/${id}/environments`,payload);visible.value=false;ElMessage.success('环境配置已保存');await load();if(route.query.setup){const query={...route.query};delete query.setup;await router.replace({query})}}catch(cause){formError.value=errorText(cause)}finally{saving.value=false}}
+async function save(){if(saving.value)return;formError.value='';try{if(!form.value.name?.trim())throw new Error('请输入环境名称');const targets=environmentTargetConfiguration(targetIds.value,singleHost.value);if(form.value.auto_deploy && automaticIssue.value)throw new Error(automaticIssue.value);const payload={...(!commandApplication.value?{compose_project_name:validateComposeProjectName(form.value.compose_project_name || '',{...form.value,application_id:Number(id)})}:{}),id:form.value.id || 0,name:form.value.name.trim(),...targets,stateless:Boolean(form.value.stateless),auto_deploy:Boolean(form.value.auto_deploy),registry_id:form.value.registry_id || defaultReleaseRegistry(registries.value),repository:form.value.repository?.trim() || '',tag_pattern:form.value.tag_pattern || '*',parameters:environmentParameters(),allowed_publishers:JSON.stringify(publishers.value),auto_rollback:Boolean(form.value.stateless && form.value.auto_rollback),script_mode:form.value.script_mode,scripts:form.value.script_mode==='override'?copyScripts(form.value.scripts):emptyScripts(),container_names:form.value.container_names || [],replace_containers:Boolean(form.value.replace_containers)};saving.value=true;await api('PUT',`/applications/${id}/environments`,payload);visible.value=false;ElMessage.success('环境配置已保存');await load();if(route.query.setup){const query={...route.query};delete query.setup;await router.replace({query})}}catch(cause){formError.value=errorText(cause)}finally{saving.value=false}}
 function openScripts(){scriptDraft.value=copyScripts(data.value.application?.scripts);scriptsError.value='';scriptsVisible.value=true}
 async function saveScripts(){if(scriptsSaving.value)return;scriptsSaving.value=true;scriptsError.value='';try{await api('PUT',`/applications/${id}/scripts`,{scripts:scriptDraft.value});scriptsVisible.value=false;ElMessage.success('应用脚本已保存，新版本将使用此配置');await load()}catch(cause){scriptsError.value=errorText(cause)}finally{scriptsSaving.value=false}}
 function environmentEndpoints(env:any){return templateEndpoints(data.value.application.definition,env.parameters || {},env.target_id>1?'<目标主机地址>':window.location.hostname)}

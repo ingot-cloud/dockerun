@@ -186,6 +186,9 @@ func PrepareWithAuth(ctx context.Context, r *models.Release, auth string, log fu
 	return images, nil
 }
 func ProjectName(env models.Environment) string {
+	if env.ComposeProjectName != "" {
+		return env.ComposeProjectName
+	}
 	return fmt.Sprintf("dockerun-a%d-e%d", env.ApplicationID, env.ID)
 }
 func Render(ctx context.Context, r models.Release, env models.Environment, dir string, images []Image) (*types.Project, error) {
@@ -203,6 +206,11 @@ func Render(ctx context.Context, r models.Release, env models.Environment, dir s
 		return nil, err
 	}
 	for name, s := range p.Services {
+		if s.Labels == nil {
+			s.Labels = types.Labels{}
+		}
+		s.Labels["io.dockerun.application"] = fmt.Sprint(env.ApplicationID)
+		s.Labels["io.dockerun.environment"] = fmt.Sprint(env.ID)
 		found := false
 		for _, im := range images {
 			if im.Reference == s.Image || im.Original != "" && im.Original == s.Image {
@@ -210,6 +218,16 @@ func Render(ctx context.Context, r models.Release, env models.Environment, dir s
 					return nil, fmt.Errorf("镜像尚未加载")
 				}
 				s.Image = im.ID
+				// 按 ID 执行，另外记录与该 ID 绑定的可读镜像名称供容器列表展示。
+				if s.Labels == nil {
+					s.Labels = types.Labels{}
+				}
+				delete(s.Labels, ImageReferenceLabel)
+				delete(s.Labels, ImageIDLabel)
+				if name := preparedImageReference(r, im); name != "" {
+					s.Labels[ImageReferenceLabel] = name
+					s.Labels[ImageIDLabel] = im.ID
+				}
 				// 标签变化也应触发服务更新，不能仅按相同 Image ID 判定配置未变。
 				if trigger, e := reference.ParseNormalizedNamed(r.TriggerImage); e == nil && r.TriggerDigest != "" && im.Digest == r.TriggerDigest {
 					if source, e := reference.ParseNormalizedNamed(im.Reference); e == nil && source.Name() == trigger.Name() {
@@ -234,6 +252,9 @@ func Preflight(ctx context.Context, p *types.Project) error {
 	cli := docker.GetClient()
 	existing, err := cli.ContainerList(ctx, container.ListOptions{All: true})
 	if err != nil {
+		return err
+	}
+	if err := checkProjectOwnership(p, existing); err != nil {
 		return err
 	}
 	ports := map[string]string{}

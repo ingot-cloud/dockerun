@@ -30,7 +30,7 @@
             <td><span class="container-state" :class="`state-${container.State}`">{{ containerStateLabel(container.State) }}</span></td>
             <td><ContainerQuickActions :container="container" :query="listQuery" /></td>
             <td><el-tooltip :content="containerStack(container)" :disabled="!containerStack(container)" placement="top" :show-after="150" popper-style="max-width: 360px; overflow-wrap: anywhere;"><span class="stack-name" :class="{ muted: !containerStack(container) }">{{ containerStack(container) || '—' }}</span></el-tooltip></td>
-            <td><router-link v-if="container.ImageID" class="container-image" :title="container.Image" :to="{ name: 'ImageDetail', params: { id: container.ImageID } }">{{ container.Image }}</router-link><span v-else class="container-image" :title="container.Image">{{ container.Image }}</span></td>
+            <td><router-link v-if="container.ImageID" class="container-image" :title="containerImage(container)" :to="{ name: 'ImageDetail', params: { id: container.ImageID } }">{{ containerImage(container) }}</router-link><span v-else class="container-image" :title="containerImage(container)">{{ containerImage(container) }}</span><span v-if="container.ImageID" class="container-id" :title="container.ImageID">{{container.ImageID.replace(/^sha256:/,'').slice(0,12)}}</span></td>
             <td class="container-date">{{ formatImageDate(container.Created) }}</td>
             <td><CompactItems :items="containerIPs(container)" label="网络地址" /></td>
             <td><ContainerPorts :container="container" /></td>
@@ -58,7 +58,7 @@ import { isAxiosError } from 'axios'
 import PortainerIcon from '@/components/PortainerIcon.vue'
 import { dockerApi } from '@/api/docker'
 import { formatImageDate } from '@/utils/localImages'
-import { canContainerAction, containerActions, containerIPs, containerListQuery, containerName, containerStack, containerStateLabel, containerStates, filterContainers, readContainerListState, sortContainers, type Container, type ContainerAction, type ContainerSortKey } from '@/utils/containers'
+import { canContainerAction, containerActions, containerImage, containerIPs, containerListQuery, containerName, containerStack, containerStateLabel, containerStates, filterContainers, readContainerListState, sortContainers, type Container, type ContainerAction, type ContainerSortKey } from '@/utils/containers'
 
 const initialState = readContainerListState(useRoute().query)
 const containers = ref<Container[]>([])

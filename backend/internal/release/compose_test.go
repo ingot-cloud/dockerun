@@ -2,9 +2,76 @@ package release
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"testing"
 )
+
+func TestParsePreservesParameters(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		parameters map[string]string
+		content    string
+		wantError  bool
+	}{
+		{name: "空参数", parameters: map[string]string{}},
+		{name: "未提供参数"},
+		{name: "模板参数", parameters: map[string]string{"PORT": "6379", "PASSWORD": "  literal$secret  "}},
+		{name: "旧版模板预览参数", parameters: map[string]string{"COMPOSE_PROJECT_NAME": "dockerun-template-preview"}},
+		{name: "解析失败", parameters: map[string]string{"PORT": "6379"}, content: "services:\n  app:\n    image: ${IMAGE:?请填写镜像}\n", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := maps.Clone(tc.parameters)
+			content := tc.content
+			if content == "" {
+				content = "services:\n  app:\n    image: redis:8.2.0\n    container_name: ${COMPOSE_PROJECT_NAME}-redis\n"
+			}
+			project, err := Parse(context.Background(), content, t.TempDir(), "dockerun-a1-e1", tc.parameters)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("解析错误不符合预期：%v", err)
+			}
+			if !maps.Equal(tc.parameters, before) {
+				t.Fatal("Compose 解析改写了调用方的运行参数")
+			}
+			if err == nil {
+				if project.Services["app"].ContainerName != "dockerun-a1-e1-redis" {
+					t.Fatal("解析副本未使用当前部署项目名")
+				}
+				project.Environment["PASSWORD"] = "changed"
+				if !maps.Equal(tc.parameters, before) {
+					t.Fatal("解析结果仍与调用方共享运行参数")
+				}
+			}
+		})
+	}
+}
+
+func TestParseCustomContainerAndExistingNetwork(t *testing.T) {
+	source := `services:
+  redis:
+    image: redis:8.2.0
+    container_name: ${REDIS_CONTAINER_NAME}
+    networks:
+      dockerun_external_ingot_network:
+        aliases: [cache]
+        ipv4_address: 172.30.0.2
+networks:
+  dockerun_external_ingot_network:
+    name: ingot-network
+    external: true
+    x-dockerun-managed: true
+`
+	project, err := Parse(context.Background(), source, t.TempDir(), "test", map[string]string{"REDIS_CONTAINER_NAME": "ingot-redis"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := project.Services["redis"]
+	connection := service.Networks["dockerun_external_ingot_network"]
+	network := project.Networks["dockerun_external_ingot_network"]
+	if service.ContainerName != "ingot-redis" || !network.External || network.Name != "ingot-network" || connection == nil || connection.Ipv4Address != "172.30.0.2" || len(connection.Aliases) != 1 || connection.Aliases[0] != "cache" {
+		t.Fatal("自定义容器名称或已有网络的连接配置未保留")
+	}
+}
 
 func TestRejectImplicitMaterials(t *testing.T) {
 	for _, s := range []string{"include: https://example.test/compose.yaml\nservices: {}", "services:\n  app:\n    build: .", "services:\n  app:\n    image: nginx\n    env_file: /etc/passwd", "services:\n  app:\n    image: nginx\n    extends: {file: /etc/compose.yaml, service: app}"} {

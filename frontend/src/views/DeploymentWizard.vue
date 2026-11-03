@@ -34,8 +34,12 @@
               <el-button v-if="displayMode==='command' && !locked" :disabled="busy || !selectedEnv" @click="insertDockerRun">插入 docker run 示例</el-button>
             </div>
             <OfflineMaterialPicker v-model="bundleId" :show-materials="offlineMode" :kind="form.source==='bundle'?'bundle':'image'" :materials="bundles" :disabled="busy || loading" @imported="onMaterialImported" @busy="importing=$event">
-              <template #source><div class="deployment-image-source"><label for="deployment-image-source">镜像来源</label><el-select id="deployment-image-source" v-model="form.source" :disabled="busy" aria-label="镜像来源"><template v-if="displayMode==='command'"><el-option value="direct" label="由部署脚本准备镜像" /><el-option value="local" label="离线镜像归档" /></template><template v-else><el-option value="direct" label="按镜像地址拉取" /><el-option value="registry" label="已配置仓库（锁定镜像摘要）" /><el-option value="local" label="目标主机已有镜像" /></template><el-option value="bundle" :label="displayMode==='command'?'完整发布包中的镜像':'完整发布包'" /></el-select></div></template>
+              <template #source><div class="deployment-image-source"><span class="deployment-field-label"><label for="deployment-image-source">镜像来源</label><DeploymentHelp label="查看镜像来源说明" title="如何选择镜像来源">
+                <template v-if="displayMode==='compose'"><p><strong>按镜像地址拉取：</strong>按 Compose 中的镜像地址拉取，不使用已配置仓库的认证，也不自动锁定摘要，适合允许匿名拉取的镜像。</p><p><strong>已配置仓库（锁定镜像摘要）：</strong>使用下方所选仓库的身份认证，创建版本时固定镜像摘要，重复部署使用同一镜像；私有仓库请选择此项。</p><p><strong>目标主机已有镜像：</strong>使用已存在的镜像并核对固定 Image ID，不在线拉取。创建版本时在本机核对镜像，远程目标也须提前准备同一镜像。</p><p><strong>完整发布包：</strong>使用包含部署定义、配置文件和镜像归档等材料的完整包，从包中加载镜像，适合离线部署；与单独的 docker save 归档不同。</p><p>系统先准备镜像，再执行前置脚本；前置脚本中的 docker login 无法补充这一阶段的认证。</p></template>
+                <template v-else><p><strong>由部署脚本准备镜像：</strong>镜像的拉取和认证由部署命令负责。</p><p><strong>离线镜像归档：</strong>导入 docker save 归档，脚本通过 $DOCKERUN_IMAGE 使用选定主镜像。</p><p><strong>完整发布包中的镜像：</strong>使用包内镜像，保留当前部署命令和脚本。</p></template>
+              </DeploymentHelp></span><el-select id="deployment-image-source" v-model="form.source" :disabled="busy" aria-label="镜像来源"><template v-if="displayMode==='command'"><el-option value="direct" label="由部署脚本准备镜像" /><el-option value="local" label="离线镜像归档" /></template><template v-else><el-option value="direct" label="按镜像地址拉取" /><el-option value="registry" label="已配置仓库（锁定镜像摘要）" /><el-option value="local" label="目标主机已有镜像" /></template><el-option value="bundle" :label="displayMode==='command'?'完整发布包中的镜像':'完整发布包'" /></el-select></div></template>
             </OfflineMaterialPicker>
+            <div v-if="form.source==='registry' && displayMode==='compose'" class="deployment-image-source"><label for="deployment-registry">镜像仓库</label><el-select id="deployment-registry" v-model="form.registry_id" :disabled="busy" filterable aria-label="镜像仓库"><el-option v-for="registry in registries" :key="registry.id" :value="registry.id" :label="registry.name" /></el-select><span v-if="selectedRegistry" class="management-muted deployment-registry-address">{{selectedRegistry.url}}</span></div>
             <div v-if="offlineCommand && offlineImages.length>1" class="deployment-image-source deployment-image-source--primary"><label for="deployment-primary-image">脚本主镜像</label><el-select id="deployment-primary-image" v-model="primaryImage" :disabled="busy" placeholder="选择通过 $DOCKERUN_IMAGE 使用的镜像" aria-label="脚本主镜像"><el-option v-for="image in offlineImages" :key="image.reference" :value="image.reference" :label="image.reference" :title="image.reference" /></el-select></div>
           </div>
           <template v-if="!bundleMode">
@@ -46,6 +50,7 @@
                 <p v-else>通过 ${变量名} 引用运行参数，支持多服务 Compose 定义。</p>
               </DeploymentHelp>
               <span class="management-muted" :title="referenceSummary">{{referenceSummary}}</span><el-button link type="primary" @click="activeTab='parameters'">查看参数</el-button><el-button v-if="!locked && missingReferences.length" link :disabled="busy" @click="addReferencedParameters">补充引用参数</el-button>
+              <el-button v-if="displayMode==='compose' && !locked" link type="primary" @click="activeTab='advanced'">配置容器与网络</el-button>
             </div>
           </template>
         </section>
@@ -61,7 +66,8 @@
         <section v-show="activeTab==='advanced'" id="deployment-panel-advanced" role="tabpanel" aria-labelledby="deployment-tab-advanced" class="panel deployment-panel-scroll">
           <h2>高级配置</h2><el-form class="deployment-advanced-form" label-position="top" :disabled="busy || loading">
             <template v-if="!existing">
-              <el-form-item v-if="form.source==='registry' && execution.mode!=='command'" label="镜像仓库"><el-select v-model="form.registry_id"><el-option v-for="registry in registries" :key="registry.id" :value="registry.id" :label="registry.name" /></el-select></el-form-item>
+              <ComposeProjectNameField v-if="execution.mode==='compose' && !bundleMode" v-model="projectName" :environment="selectedEnv" :disabled="busy || loading" />
+              <ComposeServiceSettings v-if="execution.mode==='compose' && !bundleMode" v-model="form.compose" :local-target="localNetworkTarget" :baseline="contentBaseline" :disabled="busy || loading" />
               <ContainerBindingEditor v-if="execution.mode==='command'" v-model:names="containerNames" v-model:replace="replaceContainers" command compact :disabled="busy" />
               <el-form-item><template #label><span class="deployment-field-label">版本名称（可选）<DeploymentHelp label="查看版本名称说明" title="版本名称说明"><p>仅用于本次发布，不随部署配置保存。留空自动生成。</p></DeploymentHelp></span></template><el-input v-model="form.version" placeholder="留空自动生成" aria-label="版本名称（可选）" /></el-form-item>
               <template v-if="!bundleMode">
@@ -77,10 +83,10 @@
       </div>
       <section v-if="preview && !existing" class="panel deployment-preview">
         <el-alert :title="preview.message" type="success" :closable="false" />
-        <p class="management-description">{{preview.environment}} · {{targetSummary}}。{{preview.execution?.mode==='command'?'确认后执行命令与前后置脚本。':'普通替换允许短暂停机。'}}</p>
+        <p class="management-description">{{preview.environment}} · {{targetSummary}}<template v-if="preview.execution?.mode!=='command'"> · Compose 项目：{{preview.project_name}}</template>。{{preview.execution?.mode==='command'?'确认后执行命令与前后置脚本。':'普通替换允许短暂停机。'}}</p>
         <el-tabs v-model="previewTab" class="deployment-preview-tabs"><el-tab-pane label="本次部署" name="content" /><el-tab-pane label="当前部署" name="previous" /><el-tab-pane label="运行参数" name="parameters" /><el-tab-pane label="脚本快照" name="scripts" /><el-tab-pane label="高级配置" name="execution" /></el-tabs>
-        <div v-show="previewTab==='content'" class="deployment-preview-panel"><CodeEditor :model-value="preview.execution?.mode==='command'?preview.execution.command:preview.compose || ''" :language="preview.execution?.mode==='command'?'shell':'yaml'" label="本次部署内容" fill readonly /></div>
-        <div v-show="previewTab==='previous'" class="deployment-preview-panel"><CodeEditor :model-value="preview.previous_execution?.mode==='command'?preview.previous_execution.command:preview.previous_compose || '首次部署'" :language="preview.previous_execution?.mode==='command'?'shell':'yaml'" label="当前部署内容" fill readonly /><pre class="management-code deployment-preview-images">{{preview.images}}</pre></div>
+        <div v-show="previewTab==='content'" class="deployment-preview-panel"><CodeEditor v-if="preview.execution?.mode==='command'" :model-value="preview.execution.command" language="shell" label="本次部署内容" fill readonly /><DeploymentComposePreview v-else :content="preview.compose || ''" :images="preview.images" title="本次部署配置" description="根据本次环境参数解析，敏感参数已隐藏。确认发布后仍会准备镜像并核对目标主机，解析预览中的临时文件路径不代表最终任务目录。" /></div>
+        <div v-show="previewTab==='previous'" class="deployment-preview-panel"><CodeEditor v-if="preview.previous_execution?.mode==='command'" :model-value="preview.previous_execution.command" language="shell" label="当前版本部署命令" fill readonly /><DeploymentComposePreview v-else :content="preview.previous_compose || ''" :images="preview.previous_images" title="当前版本保存配置" description="展示当前版本保存的部署定义，变量保留原始引用，不使用本次环境参数重新解析，也不代表当前容器的实时状态。" empty-text="首次部署，暂无当前版本配置。" /></div>
         <div v-show="previewTab==='parameters'" class="deployment-preview-panel deployment-panel-scroll"><p class="management-form-help">敏感参数值已隐藏。</p><dl class="deployment-preview-parameters"><template v-for="(value,key) in preview.parameters || {}" :key="key"><dt>{{key}}</dt><dd>{{value === '' ? '（空值）' : value}}</dd></template></dl></div>
         <div v-show="previewTab==='scripts'" class="deployment-preview-panel"><DeploymentScriptEditor v-if="hasScripts(preview.scripts)" :model-value="copyScripts(preview.scripts)" disabled fill /><p v-else class="management-description">本次未配置前后置脚本。</p></div>
         <div v-show="previewTab==='execution'" class="deployment-preview-panel"><p v-if="preview.container_policy?.names?.length" class="management-description">关联容器：{{preview.container_policy.names.join('、')}} · {{preview.container_policy.replace?'部署时由系统停止并删除后替换':'替换由脚本负责'}}</p><p class="management-description">工作目录：{{preview.execution?.work_dir || '任务目录'}} · 超时：{{preview.execution?.timeout_seconds || '系统设置'}}</p><el-tabs v-model="previewExecutionTab"><el-tab-pane label="启动命令" name="command" /><el-tab-pane label="检查命令" name="check_command" /></el-tabs><CodeEditor :model-value="preview.execution?.[previewExecutionTab] || ''" language="shell" :label="previewExecutionTab==='command'?'本次启动命令':'部署检查命令'" :document-key="previewExecutionTab" fill readonly /></div>
@@ -101,6 +107,11 @@ import EnvironmentParameterPairs from '@/components/EnvironmentParameterPairs.vu
 import ContainerBindingEditor from '@/components/ContainerBindingEditor.vue'
 import OfflineMaterialPicker from '@/components/OfflineMaterialPicker.vue'
 import DeploymentHelp from '@/components/DeploymentHelp.vue'
+import DeploymentComposePreview from '@/components/DeploymentComposePreview.vue'
+import ComposeServiceSettings from '@/components/ComposeServiceSettings.vue'
+import ComposeProjectNameField from '@/components/ComposeProjectNameField.vue'
+import { composeProjectName, validateComposeProjectName, refreshProjectNameDraft, projectNameChanges, type ProjectNameDraft } from '@/utils/composeProject'
+import { readComposeServices } from '@/utils/composeServices'
 import type { OfflineMaterial } from '@/api/bundles'
 import { releaseConfigFiles, releaseConfigValues, releaseConfigDraft, type ReleaseConfigFile } from '@/utils/releaseConfigFiles'
 import { copyScripts, defaultReleaseRegistry, deploymentDraftFromRelease, deploymentParameterReferences, emptyScripts, hasScripts, type DeploymentScripts } from '@/utils/releases'
@@ -122,8 +133,16 @@ const execution=ref({mode:'command',command:'',work_dir:'',check_command:'',time
 const effectiveExecution=computed(()=>({...execution.value,command:execution.value.mode==='command'?execution.value.command:composeCommand.value}))
 const configFiles=ref<ReleaseConfigFile[]>([]),parameterDrafts=ref<Record<string,DeploymentParameterDraft>>({})
 const optionsController=new AbortController();let disposed=false,preparedSignature='',executionKey=''
+let preparedProjectName:string|undefined
 let preparedParameters:Record<string,string>|undefined,preparedScripts:DeploymentScripts|undefined,preparedContainers:{names:string[];replace:boolean}|undefined
 const selectedEnv=computed(()=>data.value.environments?.find((env:any)=>env.id===environment.value))
+const projectDrafts=ref<Record<string,ProjectNameDraft>>({})
+watch(selectedEnv,env=>{if(env)projectDrafts.value[env.id]=refreshProjectNameDraft(projectDrafts.value[env.id],env)},{immediate:true,deep:true})
+const projectName=computed({get:()=>projectDrafts.value[String(environment.value)]?.name || '',set:(name:string)=>{const draft=projectDrafts.value[String(environment.value)];if(draft)draft.name=name}})
+const projectChanges=computed(()=>projectNameChanges(projectDrafts.value))
+useUnsavedChanges(()=>projectChanges.value,{enabled:()=>defaultsLoaded.value,busy:()=>busy.value})
+const selectedRegistry=computed(()=>registries.value.find(registry=>registry.id===form.value.registry_id))
+const localNetworkTarget=computed(()=>{const env=selectedEnv.value;if(!env)return false;try{const ids=JSON.parse(env.target_ids || '[]');return ids.length?ids.every((id:number)=>id===1):(env.target_id || 1)===1}catch{return false}})
 const existingRelease=computed(()=>data.value.releases?.find((version:any)=>version.id===existing.value))
 const bundleMode=computed(()=>execution.value.mode!=='command' && form.value.source==='bundle')
 const offlineCommand=computed(()=>execution.value.mode==='command' && ['local','bundle'].includes(form.value.source))
@@ -170,18 +189,19 @@ const {markSaved,dirty:configurationDirty}=useUnsavedChanges(()=>formDraft.value
 useUnsavedChanges(()=>deploymentParameterDraftsSnapshot(parameterDrafts.value),{enabled:()=>defaultsLoaded.value,busy:()=>busy.value})
 useUnsavedChanges(()=>scriptChanges.value,{enabled:()=>defaultsLoaded.value,busy:()=>busy.value})
 const {markSaved:markReleaseSaved,dirty:releaseDirty}=useUnsavedChanges(()=>({version:form.value.version,bundle:bundleId.value,primaryImage:primaryImage.value}),{enabled:()=>defaultsLoaded.value,busy:()=>busy.value})
-const hasChanges=computed(()=>configurationDirty.value || targetParametersDirty.value || !!Object.keys(scriptChanges.value).length || !!Object.keys(containerChanges.value).length)
+const hasChanges=computed(()=>!!Object.keys(projectChanges.value).length || configurationDirty.value || targetParametersDirty.value || !!Object.keys(scriptChanges.value).length || !!Object.keys(containerChanges.value).length)
 const references=computed(()=>deploymentParameterReferences(mainContent.value))
 const missingReferences=computed(()=>references.value.filter(key=>!targetParameterPairs.value.some(pair=>pair.key===key)))
 const referenceSummary=computed(()=>references.value.length?`已引用参数：${references.value.join('、')}`:'当前文件没有引用参数')
 const contentState=computed(()=>JSON.stringify({mode:execution.value.mode,command:execution.value.command,compose:form.value.compose,composeCommand:composeCommand.value,files:releaseConfigDraft(configFiles.value)}))
-const advancedState=computed(()=>JSON.stringify({source:form.value.source,registry:form.value.registry_id,platform:form.value.platform,workDir:execution.value.work_dir,check:execution.value.check_command,timeout:execution.value.timeout_seconds}))
+const composeServicesState=computed(()=>{if(execution.value.mode!=='compose' || bundleMode.value)return undefined;try{return readComposeServices(form.value.compose)}catch{return undefined}})
+const advancedState=computed(()=>JSON.stringify({source:form.value.source,registry:form.value.registry_id,platform:form.value.platform,workDir:execution.value.work_dir,check:execution.value.check_command,timeout:execution.value.timeout_seconds,services:composeServicesState.value}))
 const contentBaseline=ref(contentState.value),advancedBaseline=ref(advancedState.value)
 function markConfigurationSaved(){markSaved();contentBaseline.value=contentState.value;advancedBaseline.value=advancedState.value}
-function tabDirty(tab:Tab){if(tab==='parameters')return targetParametersDirty.value;if(tab==='scripts')return JSON.stringify(scriptDraft.value)!==scriptBaselines.value[scriptKey.value];return tab==='content'?copyPending.value || contentState.value!==contentBaseline.value:advancedState.value!==advancedBaseline.value || releaseDirty.value || !!containerChanges.value[String(environment.value)]}
+function tabDirty(tab:Tab){if(tab==='parameters')return targetParametersDirty.value;if(tab==='scripts')return JSON.stringify(scriptDraft.value)!==scriptBaselines.value[scriptKey.value];return tab==='content'?copyPending.value || contentState.value!==contentBaseline.value:advancedState.value!==advancedBaseline.value || !!Object.prototype.hasOwnProperty.call(projectChanges.value,String(environment.value)) || releaseDirty.value || !!containerChanges.value[String(environment.value)]}
 function addReferencedParameters(){targetParameterPairs.value=[...targetParameterPairs.value,...environmentParameterPairs(Object.fromEntries(missingReferences.value.map(key=>[key,''])))];activeTab.value='parameters'}
-function invalidatePreview(){preview.value=null;preparedParameters=undefined;preparedScripts=undefined;preparedContainers=undefined;invalidTab.value=undefined}
-watch([formDraft,()=>deploymentParameterDraftsSnapshot(parameterDrafts.value),scriptChanges,containerChanges,environment,existing,()=>form.value.version,bundleId,primaryImage],invalidatePreview,{deep:true,flush:'sync'})
+function invalidatePreview(){preview.value=null;preparedProjectName=undefined;preparedParameters=undefined;preparedScripts=undefined;preparedContainers=undefined;invalidTab.value=undefined}
+watch([formDraft,()=>deploymentParameterDraftsSnapshot(parameterDrafts.value),scriptChanges,containerChanges,projectChanges,environment,existing,()=>form.value.version,bundleId,primaryImage],invalidatePreview,{deep:true,flush:'sync'})
 function targetParameterValues(){try{const values=environmentParameterValues(targetParameterPairs.value,parameterSchema.value);if(parameterSchema.value.length)validateTemplateValues(parameterSchema.value,values);return values}catch(cause){activeTab.value='parameters';invalidTab.value='parameters';throw cause}}
 function resetTargetParameters(){if(busy.value || !selectedEnv.value)return;parameterDrafts.value[selectedEnv.value.id]=createDeploymentParameterDraft(selectedEnv.value.parameters || {},parameterSchema.value)}
 async function persistTargetParameters(values:Record<string,string>){if(!targetParametersDirty.value || !selectedEnv.value || !targetParameterDraft.value)return;const env=selectedEnv.value;savingParameters.value=true;try{const saved=await api<{parameters:Record<string,string>}>('PATCH',`/applications/${id}/environments/${env.id}/parameters`,{parameters:values,expected_parameters:targetParameterDraft.value.savedParameters});env.parameters=saved.parameters;parameterDrafts.value[env.id]=createDeploymentParameterDraft(saved.parameters,parameterSchema.value)}finally{savingParameters.value=false}}
@@ -190,14 +210,16 @@ function validateConfiguration(){
   if(!selectedEnv.value)throw new Error('请选择部署环境')
   if(existing.value && !existingRelease.value)throw new Error('所选发布版本不存在，请返回应用刷新后重试')
   if(locked.value)return
+  if(execution.value.mode==='compose'){try{validateComposeProjectName(projectName.value,selectedEnv.value)}catch(cause){activeTab.value='advanced';invalidTab.value='advanced';throw cause}}
   if(!mainContent.value.trim()){activeTab.value='content';invalidTab.value='content';throw new Error(execution.value.mode==='command'?'请填写部署命令':'请填写 Compose 定义')}
   if(!Number.isInteger(execution.value.timeout_seconds)||execution.value.timeout_seconds<0||execution.value.timeout_seconds>86400){activeTab.value='advanced';invalidTab.value='advanced';throw new Error('任务超时必须为 0 至 86400 秒')}
   try{releaseConfigValues(configFiles.value)}catch(cause){activeTab.value='content';invalidTab.value='content';throw cause}
 }
 async function persistConfiguration(){
   if(locked.value)return
-  const saved=await api<any>('PUT',`/applications/${id}/deployment-config`,{environment_id:environment.value,source:form.value.source,registry_id:form.value.registry_id,platform:form.value.platform,compose:form.value.compose,execution:effectiveExecution.value,configs:releaseConfigValues(configFiles.value),scripts:scriptDraft.value,...(execution.value.mode==='command'?{container_names:containerNames.value,replace_containers:replaceContainers.value}:{})})
+  const saved=await api<any>('PUT',`/applications/${id}/deployment-config`,{environment_id:environment.value,...(execution.value.mode==='compose'?{compose_project_name:validateComposeProjectName(projectName.value,selectedEnv.value)}:{}),source:form.value.source,registry_id:form.value.registry_id,platform:form.value.platform,compose:form.value.compose,execution:effectiveExecution.value,configs:releaseConfigValues(configFiles.value),scripts:scriptDraft.value,...(execution.value.mode==='command'?{container_names:containerNames.value,replace_containers:replaceContainers.value}:{})})
   data.value.application=saved.application;Object.assign(selectedEnv.value,saved.environment)
+  if(execution.value.mode==='compose')projectDrafts.value[String(environment.value)]={name:saved.environment.compose_project_name || '',saved:saved.environment.compose_project_name || ''}
   containerBaselines.value[String(environment.value)]=JSON.stringify(containerDrafts.value[String(environment.value)])
   copyPending.value=false;scriptBaselines.value[scriptKey.value]=JSON.stringify(scriptDraft.value);markConfigurationSaved()
 }
@@ -243,11 +265,11 @@ async function preflight(){
     else{const result=await api<any>('POST',`/applications/${id}/releases?environment_id=${environment.value}`,{...form.value,source:execution.value.mode==='command' && !offlineCommand.value?'command':form.value.source,bundle_id:offlineCommand.value?bundleId.value:undefined,trigger_image:offlineCommand.value?primaryImage.value:undefined,execution:effectiveExecution.value,configs:JSON.stringify(releaseConfigValues(configFiles.value)),save_definition:true});releaseId.value=result.id}
     preparedSignature=signature
     const expectedParameters={...(selectedEnv.value.parameters || {})},expectedScripts=bundleMode.value && !existing.value?undefined:copyScripts(existing.value?plannedScripts.value:scriptDraft.value)
-    const result=await api<any>('POST','/deployments/preflight',{environment_id:environment.value,release_id:releaseId.value,restore_configuration:false,expected_parameters:expectedParameters,expected_scripts:expectedScripts})
-    preparedParameters=expectedParameters;preparedScripts=copyScripts(result.scripts);preparedContainers=result.container_policy;executionKey=crypto.randomUUID();previewTab.value='content';preview.value=result
+    const result=await api<any>('POST','/deployments/preflight',{environment_id:environment.value,release_id:releaseId.value,restore_configuration:false,expected_parameters:expectedParameters,expected_scripts:expectedScripts,expected_project_name:composeProjectName(selectedEnv.value)})
+    preparedProjectName=result.project_name;preparedParameters=expectedParameters;preparedScripts=copyScripts(result.scripts);preparedContainers=result.container_policy;executionKey=crypto.randomUUID();previewTab.value='content';preview.value=result
   }catch(cause){handleFailure(cause)}finally{submitting.value=false}
 }
-async function deploy(){if(busy.value || !preview.value || !releaseId.value)return;submitting.value=true;error.value='';try{const task=await api<any>('POST','/deployments',{environment_id:environment.value,release_id:releaseId.value,restore_configuration:false,idempotency_key:executionKey,expected_parameters:preparedParameters,expected_scripts:preparedScripts,expected_containers:preparedContainers});markReleaseSaved();submitting.value=false;await router.replace(`/deployments/${task.id}`)}catch(cause){error.value=errorText(cause)}finally{submitting.value=false}}
+async function deploy(){if(busy.value || !preview.value || !releaseId.value)return;submitting.value=true;error.value='';try{const task=await api<any>('POST','/deployments',{environment_id:environment.value,release_id:releaseId.value,restore_configuration:false,idempotency_key:executionKey,expected_parameters:preparedParameters,expected_scripts:preparedScripts,expected_containers:preparedContainers,expected_project_name:preparedProjectName});markReleaseSaved();submitting.value=false;await router.replace(`/deployments/${task.id}`)}catch(cause){error.value=errorText(cause)}finally{submitting.value=false}}
 async function loadOptions(){
   if(loading.value || busy.value)return;loading.value=true;error.value=''
   try{
@@ -293,6 +315,7 @@ onBeforeUnmount(()=>{disposed=true;optionsController.abort()})
 .deployment-tabs button.active{color:#35acd7;border-bottom-color:#35acd7}.deployment-tabs button.invalid{color:#f1a7ac}.deployment-tabs button:focus-visible{outline:2px solid #35acd7;outline-offset:2px}
 .deployment-tab-count{font-size:11px;color:#999}.deployment-dirty{color:#e6c48e}
 .deployment-image-source{display:flex;align-items:center;gap:8px;flex-shrink:1;font-size:12px;min-width:0;max-width:100%}.deployment-image-source>label{flex:0 0 auto}.deployment-image-source>.el-select{width:220px;max-width:100%;min-width:0;flex:0 1 220px}.deployment-image-source--primary>.el-select{width:340px;flex-basis:340px}.deployment-content-heading{justify-content:space-between;margin-bottom:16px}.deployment-references{margin-top:12px;font-size:12px;overflow-wrap:anywhere}.deployment-references>.management-muted{flex:1;min-width:0}
+.deployment-image-source>.deployment-field-label{flex:0 0 auto}.deployment-registry-address{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .deployment-parameter-heading{justify-content:space-between;margin-bottom:16px}.deployment-parameter-heading h2{margin:0}
 .deployment-workspace .management-form-help{margin:12px 0 16px}.deployment-workspace .panel{background:#202020;border:1px solid #383838;border-radius:10px;min-width:0;margin:0}
 .deployment-workspace :deep(.el-form-item__content){min-width:0}.deployment-workspace :deep(.el-form-item .code-editor-wrapper){width:100%}
@@ -320,7 +343,7 @@ onBeforeUnmount(()=>{disposed=true;optionsController.abort()})
 .deployment-preview-panel>.el-tabs,.deployment-preview-panel>.management-description { flex-shrink:0; }
 .deployment-preview-images { flex:0 1 auto;max-height:120px;overflow:auto;margin:8px 0 0; }
 @media(max-width:760px){.deployment-edit-panels>.panel,.deployment-workspace>.deployment-preview{padding:12px}.deployment-content-heading{gap:6px;margin-bottom:8px}.deployment-references .el-button{font-size:11px}.deployment-tabs{gap:0 12px}.deployment-tabs button{padding:7px 0}.deployment-tab-count{font-size:11px}}
-@media(max-width:640px){.deployment-image-source>label{flex-basis:64px}}
+@media(max-width:640px){.deployment-image-source{flex-wrap:wrap}.deployment-image-source>label,.deployment-image-source>.deployment-field-label{flex-basis:84px}.deployment-registry-address{flex-basis:100%}.deployment-references{flex-wrap:wrap}.deployment-references>.management-muted{flex-basis:100%}}
 @media(max-height:600px){.deployment-editor-panel{overflow:auto}.deployment-editor-panel>.deployment-content-editor,.deployment-editor-panel>.code-editor-wrapper{flex:1 0 240px}.deployment-preview-panel>.code-editor-wrapper{min-height:120px}.deployment-preview{overflow:auto}.deployment-preview-panel{flex-shrink:0;min-height:200px}}
 @media(max-width:760px) and (max-height:900px){.deployment-editor-panel{overflow:auto}.deployment-editor-panel>.deployment-content-editor,.deployment-editor-panel>.code-editor-wrapper{flex:1 0 280px}}
 </style>

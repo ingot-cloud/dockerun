@@ -91,6 +91,7 @@ type Environment struct {
 	ID                   uint              `json:"id" gorm:"primaryKey"`
 	ApplicationID        uint              `json:"application_id" gorm:"uniqueIndex:app_env"`
 	Name                 string            `json:"name" gorm:"size:100;uniqueIndex:app_env"`
+	ComposeProjectName   string            `json:"compose_project_name" gorm:"size:100;default:''"`
 	TargetID             uint              `json:"target_id"`
 	TargetIDs            string            `json:"target_ids" gorm:"type:text"`
 	Parameters           StringMap         `json:"parameters" gorm:"type:json"`

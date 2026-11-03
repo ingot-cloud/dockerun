@@ -36,7 +36,7 @@ func TestSaveEnvironmentParametersPreservesOtherConfiguration(t *testing.T) {
 	}
 	app := models.Application{Name: "网关"}
 	db.Create(&app)
-	env := models.Environment{ApplicationID: app.ID, Name: "生产", TargetID: 2, TargetIDs: "[2,3]", CurrentReleaseID: 9, RegistryID: 42, AutoDeploy: true, Repository: "team/app", TagPattern: "v*", AllowedPublishers: "[1]", Stateless: true, AutoRollback: true, ScriptMode: "override", Scripts: models.DeploymentScripts{Before: "echo before"}, Parameters: models.StringMap{"OLD": "remove", "PASSWORD": "old"}, Health: "healthy", RuntimeState: "running"}
+	env := models.Environment{ApplicationID: app.ID, Name: "生产", ComposeProjectName: "gateway-prod", TargetID: 2, TargetIDs: "[2,3]", CurrentReleaseID: 9, RegistryID: 42, AutoDeploy: true, Repository: "team/app", TagPattern: "v*", AllowedPublishers: "[1]", Stateless: true, AutoRollback: true, ScriptMode: "override", Scripts: models.DeploymentScripts{Before: "echo before"}, Parameters: models.StringMap{"OLD": "remove", "PASSWORD": "old"}, Health: "healthy", RuntimeState: "running"}
 	db.Create(&env)
 	before := env.Parameters
 	updated := models.StringMap{"PASSWORD": "  value=$secret;中文  ", "EMPTY": ""}

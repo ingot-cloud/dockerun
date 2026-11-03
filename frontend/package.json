@@ -23,7 +23,7 @@
     "test:management": "node --test tests/management.test.mjs tests/workspaceDeletion.test.mjs",
     "test:navigation": "node --test tests/navigation.test.mjs",
     "test:unsaved-changes": "node --test tests/unsavedChanges.test.mjs",
-    "test:releases": "node --test tests/releases.test.mjs tests/applicationDetail.test.mjs tests/deploymentParameters.test.mjs tests/releaseConfigFiles.test.mjs tests/codeLanguage.test.mjs",
+    "test:releases": "node --test tests/releases.test.mjs tests/applicationDetail.test.mjs tests/deploymentParameters.test.mjs tests/releaseConfigFiles.test.mjs tests/codeLanguage.test.mjs tests/composeServices.test.mjs tests/deploymentPreview.test.mjs tests/composeProject.test.mjs",
     "test:deployments": "node --test tests/deployments.test.mjs",
     "test:templates": "node --test tests/applicationTemplates.test.mjs",
     "type-check": "vue-tsc --noEmit"
@@ -40,7 +40,8 @@
     "monaco-editor": "^0.55.1",
     "pinia": "^2.1.7",
     "vue": "^3.4.0",
-    "vue-router": "^4.2.5"
+    "vue-router": "^4.2.5",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.2",

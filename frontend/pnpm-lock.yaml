@@ -44,6 +44,9 @@ importers:
       vue-router:
         specifier: ^4.2.5
         version: 4.6.3(vue@3.5.25(typescript@5.6.3))
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
     devDependencies:
       '@types/crypto-js':
         specifier: ^4.2.2
@@ -761,6 +764,11 @@ packages:
       typescript:
         optional: true
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
 snapshots:
 
   '@babel/helper-string-parser@7.27.1': {}
@@ -1379,3 +1387,5 @@ snapshots:
       '@vue/shared': 3.5.25
     optionalDependencies:
       typescript: 5.6.3
+
+  yaml@2.9.1: {}

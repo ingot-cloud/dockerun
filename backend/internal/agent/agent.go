@@ -98,7 +98,7 @@ func Run(ctx context.Context, base, token, dir string) error {
 			return ctx.Err()
 		}
 		platform, _ := release.Platform(ctx)
-		resp, err := c.request(ctx, "GET", "/agent/poll?platform="+url.QueryEscape(platform)+"&scripts=1&execution=1&command_images=1&containers=1&release_policy=2", nil)
+		resp, err := c.request(ctx, "GET", "/agent/poll?platform="+url.QueryEscape(platform)+"&scripts=1&execution=1&command_images=1&containers=1&release_policy=2&compose_project_name=1", nil)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			select {

@@ -14,7 +14,8 @@ import (
 
 type environmentSummary struct {
 	models.Environment
-	DeletionBlockedReason string `json:"deletion_blocked_reason" gorm:"-"`
+	DeletionBlockedReason    string `json:"deletion_blocked_reason" gorm:"-"`
+	ComposeProjectNameLocked bool   `json:"compose_project_name_locked" gorm:"-"`
 }
 
 // environmentDeletionReasons 批量查询任务状态，列表和删除接口使用同一保护规则。

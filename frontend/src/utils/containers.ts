@@ -3,6 +3,7 @@ export interface Container {
   Names?: string[] | null
   Image: string
   ImageID?: string
+  ImageReference?: string
   State: string
   Status?: string
   Created: number
@@ -16,6 +17,7 @@ export interface ContainerDetails {
   Name?: string
   Created: string
   Image?: string
+  ImageReference?: string
   RestartCount?: number
   State?: { Status?: string; Running?: boolean; ExitCode?: number; Error?: string; StartedAt?: string; FinishedAt?: string; Health?: { Status: string; FailingStreak: number; Log?: { Start: string; End: string; ExitCode: number; Output: string }[] } }
   Config?: { Image?: string; Entrypoint?: string[] | null; Cmd?: string[] | null; WorkingDir?: string; User?: string; Env?: string[] | null; Labels?: Record<string, string> | null; Tty?: boolean; OpenStdin?: boolean }
@@ -43,6 +45,7 @@ export const containerStates: Record<string, string> = {
 }
 export const containerStateLabel = (state: string) => containerStates[state] || '未知'
 export const containerName = (container: Container) => container.Names?.[0]?.replace(/^\//, '') || container.Id.slice(0, 12)
+export const containerImage = (container: Pick<Container,'Image'|'ImageReference'>) => container.ImageReference || container.Image
 export const containerStack = (container: Container) => container.Labels?.['com.docker.compose.project'] || container.Labels?.['com.docker.stack.namespace'] || ''
 export const containerIPs = (container: Pick<Container, 'NetworkSettings'>) => [...new Set(Object.values(container.NetworkSettings?.Networks || {}).flatMap(network => [network.IPAddress, network.GlobalIPv6Address].filter((ip): ip is string => Boolean(ip))))]
 
@@ -59,13 +62,13 @@ export function canContainerAction(container: Container, action: ContainerAction
 export function filterContainers(containers: Container[], search: string, state: string): Container[] {
   const query = search.trim().toLowerCase()
   return containers.filter(container => (!state || container.State === state) && (!query || [
-    container.Id, ...(container.Names || []), container.Image, containerStack(container), containerStateLabel(container.State),
+    container.Id, ...(container.Names || []), containerImage(container), container.Image, container.ImageID || '', containerStack(container), containerStateLabel(container.State),
     ...containerIPs(container), ...(container.Ports || []).map(port => `${port.PublicPort || ''}:${port.PrivatePort}/${port.Type}`),
   ].some(value => value.toLowerCase().includes(query))))
 }
 
 export function sortContainers(containers: Container[], key: ContainerSortKey, descending: boolean): Container[] {
-  const value = (container: Container) => key === 'name' ? containerName(container) : key === 'stack' ? containerStack(container) : container[key]
+  const value = (container: Container) => key === 'name' ? containerName(container) : key === 'stack' ? containerStack(container) : key === 'Image' ? containerImage(container) : container[key]
   return [...containers].sort((a, b) => {
     const left = value(a), right = value(b)
     return (typeof left === 'number' && typeof right === 'number' ? left - right : String(left).localeCompare(String(right), 'zh-CN', { numeric: true })) * (descending ? -1 : 1)

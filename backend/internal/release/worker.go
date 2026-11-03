@@ -90,6 +90,12 @@ func Enqueue(env models.Environment, r models.Release, uid uint, key string, aut
 	if r.ApplicationID != env.ApplicationID {
 		return nil, fmt.Errorf("版本不属于此应用")
 	}
+	if ProjectName(env) != ProjectName(storedEnvironment) {
+		return nil, fmt.Errorf("Compose 项目名称已变化，请重新预览后发布")
+	}
+	if env.ComposeProjectName != "" && (env.TargetID != storedEnvironment.TargetID || env.TargetIDs != storedEnvironment.TargetIDs) {
+		return nil, fmt.Errorf("环境目标主机已变化，请重新预览后发布")
+	}
 	policy, err := ContainerSettings(env)
 	if err != nil {
 		return nil, err

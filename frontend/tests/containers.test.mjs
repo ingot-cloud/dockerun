@@ -5,12 +5,22 @@ import ts from 'typescript'
 
 const source = await readFile(new URL('../src/utils/containers.ts', import.meta.url), 'utf8')
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ES2020 } })
-const { canContainerAction, containerIPs, containerMetrics, containerName, containerStack, containerStateLabel, filterContainers, sortContainers, publishedPorts, containerPortURL, parseContainerCommand, readContainerListState, containerListQuery } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+const { canContainerAction, containerImage, containerIPs, containerMetrics, containerName, containerStack, containerStateLabel, filterContainers, sortContainers, publishedPorts, containerPortURL, parseContainerCommand, readContainerListState, containerListQuery } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 const containers = [
   { Id: 'abc123', Names: ['/web-10'], Image: 'nginx:latest', State: 'running', Created: 10, Labels: { 'com.docker.compose.project': 'shop' }, NetworkSettings: { Networks: { frontend: { IPAddress: '172.18.0.2' }, backend: { IPAddress: '10.0.0.5' } } }, Ports: [{ PublicPort: 8080, PrivatePort: 80, Type: 'tcp' }] },
   { Id: 'def456', Names: ['/web-2'], Image: 'redis:7', State: 'exited', Created: 20, Labels: { 'com.docker.stack.namespace': 'cache' }, Ports: null },
   { Id: 'ghi789', Names: null, Image: 'alpine:latest', State: 'paused', Created: 5, NetworkSettings: { Networks: null } },
 ]
+
+test('镜像列展示核对后的名称，保留原始 Image ID 搜索，镜像排序按可读名称',()=>{
+  const rows=[{Id:'a',Names:['/redis'],Image:'sha256:a',ImageID:'sha256:a',ImageReference:'registry.test/redis:8.2.0',State:'running'},{Id:'b',Names:['/app'],Image:'sha256:b',ImageID:'sha256:b',ImageReference:'registry.test/app:v1',State:'running'}]
+  assert.equal(containerImage(rows[0]),'registry.test/redis:8.2.0')
+  assert.equal(containerImage({Image:'sha256:unknown'}),'sha256:unknown')
+  assert.equal(filterContainers(rows,'redis:8.2.0','')[0].Id,'a')
+  assert.equal(filterContainers(rows,'sha256:a','')[0].Id,'a')
+  assert.deepEqual(sortContainers(rows,'Image',false).map(row=>row.Id),['b','a'])
+  assert.equal(rows[0].Image,'sha256:a')
+})
 
 test('search includes Chinese state, ID, stacks, all networks and mapped ports', () => {
   for (const query of [' NGINX ', 'ABC123', 'shop', '10.0.0.5', '8080', '运行中']) assert.equal(filterContainers(containers, query, '')[0].Id, 'abc123')

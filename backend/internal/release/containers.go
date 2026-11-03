@@ -402,9 +402,8 @@ func RuntimeContainers(ctx context.Context, s Snapshot) ([]models.RuntimeContain
 						continue
 					}
 				}
-				image = prepared.Reference
-				if s.Release.TriggerImage != "" && s.Release.TriggerDigest != "" && prepared.Digest == s.Release.TriggerDigest {
-					image = s.Release.TriggerImage
+				if name := preparedImageReference(s.Release, prepared); name != "" {
+					image = name
 				}
 				break
 			}

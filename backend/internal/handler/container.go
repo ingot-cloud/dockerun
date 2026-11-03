@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/gin-gonic/gin"
@@ -21,7 +22,12 @@ func ListContainers(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, containers)
+	names := containerImageReferences(c.Request.Context(), containers)
+	rows := make([]containerWithImageReference, 0, len(containers))
+	for _, container := range containers {
+		rows = append(rows, containerWithImageReference{Container: container, ImageReference: names[container.ID]})
+	}
+	c.JSON(http.StatusOK, rows)
 }
 
 // InspectContainer 获取容器详情
@@ -34,7 +40,15 @@ func InspectContainer(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, container)
+	var name string
+	if container.ContainerJSONBase != nil && container.Config != nil {
+		names := containerImageReferences(c.Request.Context(), []types.Container{{ID: container.ID, Image: container.Config.Image, ImageID: container.Image, Labels: container.Config.Labels}})
+		name = names[container.ID]
+	}
+	c.JSON(http.StatusOK, struct {
+		types.ContainerJSON
+		ImageReference string `json:"ImageReference,omitempty"`
+	}{ContainerJSON: container, ImageReference: name})
 }
 
 // StartContainer 启动容器
