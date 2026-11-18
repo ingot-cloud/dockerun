@@ -1,0 +1,190 @@
+{
+  "code": 200,
+  "body": {
+    "deployment": {
+      "legacy_script_id": 0,
+      "target_id": 1,
+      "batch": "manual-retry-1793531790528",
+      "sequence": 0,
+      "id": 2,
+      "created_at": "2026-11-01T11:16:30.529623817Z",
+      "updated_at": "2026-11-01T11:16:43.528477707Z",
+      "environment_id": 1,
+      "release_id": 3,
+      "previous_release_id": 2,
+      "user_id": 1,
+      "idempotency_key": "manual-retry-1793531790528",
+      "status": "success",
+      "stage": "complete",
+      "automatic": false,
+      "event_id": 0,
+      "result": "发布成功，健康检查通过",
+      "actual_images": "{\"f79a1fff644341a4317597cf318cf47ba466f198833ce5cc383c67f2f0ac3aa4\":\"sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5\"}",
+      "recovery_status": "",
+      "started_at": "2026-11-01T11:16:31.427549595Z",
+      "completed_at": "2026-11-01T11:16:43.527833023Z",
+      "lease_until": null,
+      "name": "blank-app-2222 · test · v1-registry-test",
+      "application_id": 1,
+      "application_name": "blank-app-2222",
+      "environment_name": "test",
+      "release_version": "v1-registry-test",
+      "target_name": "本机",
+      "username": "admin",
+      "legacy_script_name": ""
+    },
+    "logs": [
+      {
+        "id": 14,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.431857453Z",
+        "stage": "images",
+        "message": "准备全部镜像；完成前保留当前服务"
+      },
+      {
+        "id": 15,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.466144722Z",
+        "stage": "images",
+        "message": "Pulling from dockerun-test/demo"
+      },
+      {
+        "id": 16,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.476154935Z",
+        "stage": "images",
+        "message": "Digest: sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d"
+      },
+      {
+        "id": 17,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.483794793Z",
+        "stage": "images",
+        "message": "Status: Image is up to date for 127.0.0.1:18080/dockerun-test/demo@sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d"
+      },
+      {
+        "id": 18,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.535026069Z",
+        "stage": "preflight",
+        "message": "检查目标主机的端口、挂载、网络和卷"
+      },
+      {
+        "id": 19,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.541043697Z",
+        "stage": "deploy",
+        "message": "预检查通过，更新此应用的 Compose project"
+      },
+      {
+        "id": 20,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.666242455Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Creating \n"
+      },
+      {
+        "id": 21,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.673861073Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-fixture-1 Stopping \n"
+      },
+      {
+        "id": 22,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:31.715370491Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Created \n"
+      },
+      {
+        "id": 23,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:41.901533438Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-fixture-1 Stopped \n"
+      },
+      {
+        "id": 24,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:41.904423433Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-fixture-1 Removing \n"
+      },
+      {
+        "id": 25,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:41.907014832Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-fixture-1 Removed \n"
+      },
+      {
+        "id": 26,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:41.909961864Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Starting \n"
+      },
+      {
+        "id": 27,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:42.016221739Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Started \n Container dockerun-a1-e1-demo-1 Waiting \n"
+      },
+      {
+        "id": 28,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:43.517881988Z",
+        "stage": "deploy",
+        "message": " Container dockerun-a1-e1-demo-1 Healthy \n"
+      },
+      {
+        "id": 29,
+        "deployment_id": 2,
+        "created_at": "2026-11-01T11:16:43.528135376Z",
+        "stage": "complete",
+        "message": "发布成功，健康检查通过"
+      }
+    ],
+    "nodes": [
+      {
+        "legacy_script_id": 0,
+        "target_id": 1,
+        "batch": "manual-retry-1793531790528",
+        "sequence": 0,
+        "id": 2,
+        "created_at": "2026-11-01T11:16:30.529623817Z",
+        "updated_at": "2026-11-01T11:16:43.528477707Z",
+        "environment_id": 1,
+        "release_id": 3,
+        "previous_release_id": 2,
+        "user_id": 1,
+        "idempotency_key": "manual-retry-1793531790528",
+        "status": "success",
+        "stage": "complete",
+        "automatic": false,
+        "event_id": 0,
+        "result": "发布成功，健康检查通过",
+        "actual_images": "{\"f79a1fff644341a4317597cf318cf47ba466f198833ce5cc383c67f2f0ac3aa4\":\"sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5\"}",
+        "recovery_status": "",
+        "started_at": "2026-11-01T11:16:31.427549595Z",
+        "completed_at": "2026-11-01T11:16:43.527833023Z",
+        "lease_until": null,
+        "name": "blank-app-2222 · test · v1-registry-test",
+        "application_id": 1,
+        "application_name": "blank-app-2222",
+        "environment_name": "test",
+        "release_version": "v1-registry-test",
+        "target_name": "本机",
+        "username": "admin",
+        "legacy_script_name": ""
+      }
+    ],
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    }
+  }
+}

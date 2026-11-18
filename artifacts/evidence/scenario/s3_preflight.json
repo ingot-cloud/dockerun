@@ -1,0 +1,44 @@
+{
+  "code": 200,
+  "body": {
+    "container_policy": {
+      "names": [
+        "dockerun-sc3-app-2222"
+      ],
+      "replace": true
+    },
+    "environment": "test",
+    "execution": {
+      "mode": "command",
+      "command": "docker run -d --name \"$APP_NAME\" --restart unless-stopped --label io.dockerun.application=\"$DOCKERUN_APPLICATION_ID\" --label io.dockerun.environment=\"$DOCKERUN_ENVIRONMENT_ID\" \"$DOCKERUN_IMAGE\"",
+      "work_dir": "",
+      "check_command": "docker inspect -f \"{{.State.Running}}\" \"$APP_NAME\" | grep true",
+      "timeout_seconds": 0
+    },
+    "images": [
+      {
+        "reference": "dockerun-scenario-b:local",
+        "id": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+        "platform": "linux/amd64"
+      }
+    ],
+    "message": "命令语法检查通过。确认后先加载并核对离线镜像，再停止并删除目标环境已关联的旧容器，执行此版本脚本；容器不存在时直接执行。不删除镜像、不拉取仓库。数据卷保留；脚本失败不会自动恢复旧容器。",
+    "parameters": {
+      "APP_NAME": "dockerun-sc3-app-2222"
+    },
+    "previous_execution": {
+      "mode": "",
+      "command": "",
+      "work_dir": "",
+      "check_command": "",
+      "timeout_seconds": 0
+    },
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    },
+    "target_id": 1,
+    "valid": true
+  }
+}

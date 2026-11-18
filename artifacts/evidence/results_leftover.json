@@ -1,0 +1,116 @@
+[
+  {
+    "case": "S5.2 deployment detail",
+    "status": "pass",
+    "ts": "2026-11-01T11:17:16Z",
+    "code": 200,
+    "deploy_status": "success"
+  },
+  {
+    "case": "S5.3 CLI status id",
+    "status": "pass",
+    "ts": "2026-11-01T11:17:16Z",
+    "code": 0
+  },
+  {
+    "case": "S4.5 enable auto-deploy",
+    "status": "pass",
+    "ts": "2026-11-01T11:17:16Z",
+    "code": 200,
+    "body": {
+      "container_names": null,
+      "replace_containers": false,
+      "id": 1,
+      "application_id": 1,
+      "name": "test",
+      "target_id": 1,
+      "target_ids": "[]",
+      "parameters": {
+        "COMPOSE_PROJECT_NAME": "dockerun-a1-e1"
+      },
+      "current_release_id": 3,
+      "stateless": true,
+      "auto_rollback": false,
+      "auto_deploy": true,
+      "registry_id": 1,
+      "repository": "dockerun-test/demo",
+      "tag_pattern": "v*",
+      "allowed_publishers": "[]",
+      "script_mode": "inherit",
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      },
+      "health": "healthy",
+      "runtime_state": "running"
+    }
+  },
+  {
+    "case": "S4.5 push builtin demo:v3",
+    "status": "pass",
+    "ts": "2026-11-01T11:17:16Z",
+    "code": 0
+  },
+  {
+    "case": "S4.5 auto-deploy from builtin push",
+    "status": "pass",
+    "ts": "2026-11-01T11:17:30Z",
+    "deploy_status": "success",
+    "deployment_id": 3,
+    "result": "发布成功，健康检查通过"
+  },
+  {
+    "case": "S3.3 save custom template",
+    "status": "pass",
+    "ts": "2026-11-01T11:17:30Z",
+    "code": 201,
+    "body": {
+      "id": "custom-1",
+      "name": "custom-demo-2222",
+      "version": "1.0.0"
+    }
+  },
+  {
+    "case": "S3.4 custom template listed",
+    "status": "pass",
+    "ts": "2026-11-01T11:17:30Z",
+    "custom_ids": [
+      "custom-1"
+    ]
+  },
+  {
+    "case": "S6.5 publish bundle to builtin",
+    "status": "pass",
+    "ts": "2026-11-01T11:17:32Z",
+    "code": 201,
+    "body": {
+      "execution": {
+        "mode": "",
+        "command": "",
+        "work_dir": "",
+        "check_command": "",
+        "timeout_seconds": 0
+      },
+      "id": 5,
+      "created_at": "2026-11-01T11:17:32.478316118Z",
+      "application_id": 1,
+      "version": "offline-v1-registry",
+      "source": "registry",
+      "registry_id": 1,
+      "bundle_id": 0,
+      "platform": "linux/amd64",
+      "compose": "services:\n    fixture:\n        command:\n            - sh\n            - -c\n            - while true; do sleep 30; done\n        healthcheck:\n            interval: 1s\n            retries: 5\n            test:\n                - CMD\n                - \"true\"\n            timeout: 1s\n        image: nginx:1.28-alpine\n",
+      "images": "[{\"reference\":\"127.0.0.1:18080/offline/app-1/image-0:release-1\",\"original\":\"nginx:1.28-alpine\",\"digest\":\"sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d\",\"platform\":\"linux/amd64\"}]",
+      "configs": "{}",
+      "git_commit": "cdf404519e376e464382707057e6785f58364ca4",
+      "publisher_id": 1,
+      "retained": true,
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    }
+  }
+]

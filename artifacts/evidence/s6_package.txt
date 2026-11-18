@@ -1,0 +1,18 @@
+{
+  "cmd": [
+    "/workspace/bin/dockerun",
+    "package",
+    "blank-app-2222",
+    "--file",
+    "/tmp/dockerun-bundles-2222/compose.yaml",
+    "--platform",
+    "linux/amd64",
+    "--output",
+    "/tmp/dockerun-bundles-2222/blank-app-2222-release.tar.gz",
+    "--version",
+    "offline-v1"
+  ],
+  "code": 0,
+  "stdout": "",
+  "stderr": ""
+}

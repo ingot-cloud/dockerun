@@ -1,0 +1,32 @@
+{
+  "code": 201,
+  "body": {
+    "trigger_image": "dockerun-scenario-b:local",
+    "execution": {
+      "mode": "command",
+      "command": "docker run -d --name \"$APP_NAME\" --restart unless-stopped --label io.dockerun.application=\"$DOCKERUN_APPLICATION_ID\" --label io.dockerun.environment=\"$DOCKERUN_ENVIRONMENT_ID\" \"$DOCKERUN_IMAGE\"",
+      "work_dir": "",
+      "check_command": "docker inspect -f \"{{.State.Running}}\" \"$APP_NAME\" | grep true",
+      "timeout_seconds": 0
+    },
+    "id": 7,
+    "created_at": "2026-11-01T13:44:20.851511735Z",
+    "application_id": 3,
+    "version": "local-b",
+    "source": "local",
+    "registry_id": 0,
+    "bundle_id": 1,
+    "platform": "linux/amd64",
+    "compose": "",
+    "images": "[{\"reference\":\"dockerun-scenario-b:local\",\"id\":\"sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a\",\"platform\":\"linux/amd64\"}]",
+    "configs": "",
+    "git_commit": "",
+    "publisher_id": 1,
+    "retained": true,
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    }
+  }
+}

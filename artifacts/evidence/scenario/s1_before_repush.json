@@ -1,0 +1,25 @@
+{
+  "container": {
+    "exists": true,
+    "name": "dockerun-sc1-app-2222",
+    "id": "78dde3ea4b4efd419178a1c8511abdb2b4361e7b97c9cf5956f2c0c62842b493",
+    "image": "127.0.0.1:18080/dockerun-scenario/demo@sha256:d355f2904c26a50253275686456c835cb807ad3eff62a886960fbb1d1ebe417a",
+    "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+    "running": true,
+    "status": "running",
+    "started_at": "2026-11-01T13:42:30.156683206Z"
+  },
+  "image": {
+    "exists": true,
+    "ref": "127.0.0.1:18080/dockerun-scenario/demo:latest",
+    "id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+    "repo_digests": [
+      "127.0.0.1:18080/dockerun-scenario/demo@sha256:d355f2904c26a50253275686456c835cb807ad3eff62a886960fbb1d1ebe417a"
+    ],
+    "labels": {
+      "dockerun.fixture": "scenario-2222",
+      "dockerun.scenario": "a"
+    }
+  },
+  "expected_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339"
+}

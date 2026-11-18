@@ -1,0 +1,169 @@
+{
+  "code": 200,
+  "body": {
+    "deployment": {
+      "legacy_script_id": 0,
+      "target_id": 1,
+      "batch": "local-1793540660887",
+      "sequence": 0,
+      "id": 7,
+      "created_at": "2026-11-01T13:44:20.889821077Z",
+      "updated_at": "2026-11-01T13:44:51.416903547Z",
+      "environment_id": 3,
+      "release_id": 7,
+      "previous_release_id": 0,
+      "user_id": 1,
+      "idempotency_key": "local-1793540660887",
+      "status": "success",
+      "stage": "complete",
+      "automatic": false,
+      "event_id": 0,
+      "result": "部署命令执行完成，部署检查通过",
+      "actual_images": "{\"b43ad4cd3c68d9fd4938c84a14976c233be6c99ad76ca2b66057b6455e56089d\":\"sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a\"}",
+      "recovery_status": "",
+      "started_at": "2026-11-01T13:44:21.036583434Z",
+      "completed_at": "2026-11-01T13:44:51.416083849Z",
+      "lease_until": null,
+      "name": "scenario-local-2222 · test · local-b",
+      "application_id": 3,
+      "application_name": "scenario-local-2222",
+      "environment_name": "test",
+      "release_version": "local-b",
+      "target_name": "本机",
+      "username": "admin",
+      "legacy_script_name": ""
+    },
+    "logs": [
+      {
+        "id": 86,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:21.038558584Z",
+        "stage": "prepare",
+        "message": "准备部署命令与配置文件"
+      },
+      {
+        "id": 87,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:21.05383017Z",
+        "stage": "images",
+        "message": "加载此版本保留的离线镜像；完成前保留当前服务"
+      },
+      {
+        "id": 88,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:21.084747542Z",
+        "stage": "images",
+        "message": "Loaded image: dockerun-scenario-b:local\n"
+      },
+      {
+        "id": 89,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:21.099852976Z",
+        "stage": "containers",
+        "message": "停止关联容器 /dockerun-sc3-app-2222"
+      },
+      {
+        "id": 90,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.250486589Z",
+        "stage": "containers",
+        "message": "删除关联容器 /dockerun-sc3-app-2222，保留数据卷"
+      },
+      {
+        "id": 91,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.258180098Z",
+        "stage": "images",
+        "message": "已刷新本地 tag：dockerun-scenario-b:local → sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a"
+      },
+      {
+        "id": 92,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.261651719Z",
+        "stage": "deploy_script",
+        "message": "开始执行脚本"
+      },
+      {
+        "id": 93,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.297009817Z",
+        "stage": "deploy_script",
+        "message": "b43ad4cd3c68d9fd4938c84a14976c233be6c99ad76ca2b66057b6455e56089d\n"
+      },
+      {
+        "id": 94,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.390059613Z",
+        "stage": "deploy_script",
+        "message": "脚本执行完成"
+      },
+      {
+        "id": 95,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.391236281Z",
+        "stage": "check_script",
+        "message": "开始执行脚本"
+      },
+      {
+        "id": 96,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.408801971Z",
+        "stage": "check_script",
+        "message": "true\n"
+      },
+      {
+        "id": 97,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.410125944Z",
+        "stage": "check_script",
+        "message": "脚本执行完成"
+      },
+      {
+        "id": 98,
+        "deployment_id": 7,
+        "created_at": "2026-11-01T13:44:51.416456211Z",
+        "stage": "complete",
+        "message": "部署命令执行完成，部署检查通过"
+      }
+    ],
+    "nodes": [
+      {
+        "legacy_script_id": 0,
+        "target_id": 1,
+        "batch": "local-1793540660887",
+        "sequence": 0,
+        "id": 7,
+        "created_at": "2026-11-01T13:44:20.889821077Z",
+        "updated_at": "2026-11-01T13:44:51.416903547Z",
+        "environment_id": 3,
+        "release_id": 7,
+        "previous_release_id": 0,
+        "user_id": 1,
+        "idempotency_key": "local-1793540660887",
+        "status": "success",
+        "stage": "complete",
+        "automatic": false,
+        "event_id": 0,
+        "result": "部署命令执行完成，部署检查通过",
+        "actual_images": "{\"b43ad4cd3c68d9fd4938c84a14976c233be6c99ad76ca2b66057b6455e56089d\":\"sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a\"}",
+        "recovery_status": "",
+        "started_at": "2026-11-01T13:44:21.036583434Z",
+        "completed_at": "2026-11-01T13:44:51.416083849Z",
+        "lease_until": null,
+        "name": "scenario-local-2222 · test · local-b",
+        "application_id": 3,
+        "application_name": "scenario-local-2222",
+        "environment_name": "test",
+        "release_version": "local-b",
+        "target_name": "本机",
+        "username": "admin",
+        "legacy_script_name": ""
+      }
+    ],
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    }
+  }
+}

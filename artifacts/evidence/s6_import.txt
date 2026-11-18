@@ -1,0 +1,11 @@
+{
+  "cmd": [
+    "/workspace/bin/dockerun",
+    "import",
+    "/tmp/dockerun-bundles-2222/blank-app-2222-release.tar.gz",
+    "--wait"
+  ],
+  "code": 0,
+  "stdout": "{\n  \"local_loaded\": true,\n  \"local_load_note\": \"\",\n  \"kind\": \"bundle\",\n  \"id\": 1,\n  \"created_at\": \"2026-11-01T11:15:59.46351522Z\",\n  \"name\": \"blank-app-2222-release.tar.gz\",\n  \"sha256\": \"7cb1da63a680dc18f397e02dcb20baf7550f5c26cb60b76cba94d6cae29f6608\",\n  \"status\": \"ready\",\n  \"manifest\": \"{\\\"schema_version\\\":1,\\\"application\\\":\\\"blank-app-2222\\\",\\\"version\\\":\\\"offline-v1\\\",\\\"platform\\\":\\\"linux/amd64\\\",\\\"images\\\":[{\\\"reference\\\":\\\"nginx:1.28-alpine\\\",\\\"id\\\":\\\"sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5\\\",\\\"platform\\\":\\\"linux/amd64\\\",\\\"archive\\\":\\\"images/0.tar\\\",\\\"sha256\\\":\\\"bcad8cf1d8a0e0e82311f41abc925a14b09d3279ab6576f1068b2859d4879701\\\"}],\\\"git_commit\\\":\\\"cdf404519e376e464382707057e6785f58364ca4\\\"}\",\n  \"error\": \"\",\n  \"user_id\": 1\n}\n",
+  "stderr": "uploaded 8388608/25971446\nuploaded 16777216/25971446\nuploaded 25165824/25971446\nuploaded 25971446/25971446\n"
+}

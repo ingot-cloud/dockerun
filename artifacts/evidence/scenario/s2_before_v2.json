@@ -1,0 +1,10 @@
+{
+  "exists": true,
+  "name": "dockerun-sc1-app-2222",
+  "id": "94ab7590f72a4477d8f6713b71125e26fc8ab4ffb4de074587bc153672dfea7d",
+  "image": "127.0.0.1:18080/dockerun-scenario/demo@sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b",
+  "image_id": "sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+  "running": true,
+  "status": "running",
+  "started_at": "2026-11-01T13:43:02.306513196Z"
+}

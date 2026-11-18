@@ -1,0 +1,265 @@
+{
+  "pre": {
+    "code": 200,
+    "body": {
+      "compose": "{\"name\":\"dockerun-a2-e2\",\"services\":{\"demo\":{\"command\":[\"sh\",\"-c\",\"sleep infinity\"],\"entrypoint\":null,\"image\":\"127.0.0.1:18080/dockerun-scenario/demo:latest\",\"labels\":{\"dockerun.scenario\":\"compose\",\"io.dockerun.managed\":\"true\"},\"networks\":{\"default\":null},\"pull_policy\":\"never\"}},\"networks\":{\"default\":{\"name\":\"dockerun-a2-e2_default\",\"ipam\":{}}}}",
+      "container_policy": {
+        "names": [],
+        "replace": false
+      },
+      "environment": "test",
+      "execution": {
+        "mode": "",
+        "command": "",
+        "work_dir": "",
+        "check_command": "",
+        "timeout_seconds": 0
+      },
+      "images": [
+        {
+          "reference": "127.0.0.1:18080/dockerun-scenario/demo:latest",
+          "digest": "sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b"
+        }
+      ],
+      "message": "定义检查通过；脚本只在确认部署后执行，执行前还将检查全部镜像、平台、端口、挂载和网络",
+      "parameters": {
+        "COMPOSE_PROJECT_NAME": "dockerun-a2-e2"
+      },
+      "previous_compose": "services:\n    demo:\n        command:\n            - sh\n            - -c\n            - sleep infinity\n        image: 127.0.0.1:18080/dockerun-scenario/demo:v1\n        labels:\n            dockerun.scenario: compose\n",
+      "previous_execution": {
+        "mode": "",
+        "command": "",
+        "work_dir": "",
+        "check_command": "",
+        "timeout_seconds": 0
+      },
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      },
+      "target_id": 1,
+      "valid": true
+    }
+  },
+  "rel": {
+    "code": 201,
+    "body": {
+      "execution": {
+        "mode": "",
+        "command": "",
+        "work_dir": "",
+        "check_command": "",
+        "timeout_seconds": 0
+      },
+      "id": 6,
+      "created_at": "2026-11-01T13:43:37.331375678Z",
+      "application_id": 2,
+      "version": "manual-latest-b",
+      "source": "registry",
+      "registry_id": 1,
+      "bundle_id": 0,
+      "platform": "linux/amd64",
+      "compose": "services:\n    demo:\n        command:\n            - sh\n            - -c\n            - sleep infinity\n        image: 127.0.0.1:18080/dockerun-scenario/demo:latest\n        labels:\n            dockerun.scenario: compose\n",
+      "images": "[{\"reference\":\"127.0.0.1:18080/dockerun-scenario/demo:latest\",\"digest\":\"sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b\"}]",
+      "configs": "{}",
+      "git_commit": "",
+      "publisher_id": 1,
+      "retained": true,
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    }
+  },
+  "dep": {
+    "code": 202,
+    "body": {
+      "legacy_script_id": 0,
+      "target_id": 1,
+      "batch": "compose-manual-latest-b-1793540617348",
+      "sequence": 0,
+      "id": 6,
+      "created_at": "2026-11-01T13:43:37.349248458Z",
+      "updated_at": "2026-11-01T13:43:37.349248458Z",
+      "environment_id": 2,
+      "release_id": 6,
+      "previous_release_id": 4,
+      "user_id": 1,
+      "idempotency_key": "compose-manual-latest-b-1793540617348",
+      "status": "queued",
+      "stage": "queued",
+      "automatic": false,
+      "event_id": 0,
+      "result": "",
+      "actual_images": "",
+      "recovery_status": "",
+      "started_at": null,
+      "completed_at": null,
+      "lease_until": null
+    }
+  },
+  "wait": {
+    "code": 200,
+    "body": {
+      "deployment": {
+        "legacy_script_id": 0,
+        "target_id": 1,
+        "batch": "compose-manual-latest-b-1793540617348",
+        "sequence": 0,
+        "id": 6,
+        "created_at": "2026-11-01T13:43:37.349248458Z",
+        "updated_at": "2026-11-01T13:44:18.325173888Z",
+        "environment_id": 2,
+        "release_id": 6,
+        "previous_release_id": 4,
+        "user_id": 1,
+        "idempotency_key": "compose-manual-latest-b-1793540617348",
+        "status": "success",
+        "stage": "complete",
+        "automatic": false,
+        "event_id": 0,
+        "result": "已启动，未验证健康",
+        "actual_images": "{\"56e85aa783efcb7828159f06edb4c4aedbc2f41164c4d726f8d21f537e9df921\":\"sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a\"}",
+        "recovery_status": "",
+        "started_at": "2026-11-01T13:44:07.365856423Z",
+        "completed_at": "2026-11-01T13:44:18.323314617Z",
+        "lease_until": null,
+        "name": "scenario-compose-2222 · test · manual-latest-b",
+        "application_id": 2,
+        "application_name": "scenario-compose-2222",
+        "environment_name": "test",
+        "release_version": "manual-latest-b",
+        "target_name": "本机",
+        "username": "admin",
+        "legacy_script_name": ""
+      },
+      "logs": [
+        {
+          "id": 74,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:07.366754544Z",
+          "stage": "images",
+          "message": "准备全部镜像；完成前保留当前服务"
+        },
+        {
+          "id": 75,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:07.397996504Z",
+          "stage": "images",
+          "message": "Pulling from dockerun-scenario/demo"
+        },
+        {
+          "id": 76,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:07.399308338Z",
+          "stage": "images",
+          "message": "Digest: sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b"
+        },
+        {
+          "id": 77,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:07.400117334Z",
+          "stage": "images",
+          "message": "Status: Image is up to date for 127.0.0.1:18080/dockerun-scenario/demo@sha256:40c9075a2fd342a624b0e9f54728fddd106a06b97e8ad2569be101d04b12d61b"
+        },
+        {
+          "id": 78,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:07.410327442Z",
+          "stage": "preflight",
+          "message": "检查目标主机的端口、挂载、网络和卷"
+        },
+        {
+          "id": 79,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:07.414170473Z",
+          "stage": "deploy",
+          "message": "预检查通过，更新此应用的 Compose project"
+        },
+        {
+          "id": 80,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:07.481873892Z",
+          "stage": "deploy",
+          "message": " Container dockerun-a2-e2-demo-1 Recreate \n"
+        },
+        {
+          "id": 81,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:17.673007605Z",
+          "stage": "deploy",
+          "message": " Container dockerun-a2-e2-demo-1 Recreated \n"
+        },
+        {
+          "id": 82,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:17.674815371Z",
+          "stage": "deploy",
+          "message": " Container dockerun-a2-e2-demo-1 Starting \n"
+        },
+        {
+          "id": 83,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:17.803077395Z",
+          "stage": "deploy",
+          "message": " Container dockerun-a2-e2-demo-1 Started \n Container dockerun-a2-e2-demo-1 Waiting \n"
+        },
+        {
+          "id": 84,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:18.305640014Z",
+          "stage": "deploy",
+          "message": " Container dockerun-a2-e2-demo-1 Healthy \n"
+        },
+        {
+          "id": 85,
+          "deployment_id": 6,
+          "created_at": "2026-11-01T13:44:18.324475505Z",
+          "stage": "complete",
+          "message": "已启动，未验证健康"
+        }
+      ],
+      "nodes": [
+        {
+          "legacy_script_id": 0,
+          "target_id": 1,
+          "batch": "compose-manual-latest-b-1793540617348",
+          "sequence": 0,
+          "id": 6,
+          "created_at": "2026-11-01T13:43:37.349248458Z",
+          "updated_at": "2026-11-01T13:44:18.325173888Z",
+          "environment_id": 2,
+          "release_id": 6,
+          "previous_release_id": 4,
+          "user_id": 1,
+          "idempotency_key": "compose-manual-latest-b-1793540617348",
+          "status": "success",
+          "stage": "complete",
+          "automatic": false,
+          "event_id": 0,
+          "result": "已启动，未验证健康",
+          "actual_images": "{\"56e85aa783efcb7828159f06edb4c4aedbc2f41164c4d726f8d21f537e9df921\":\"sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a\"}",
+          "recovery_status": "",
+          "started_at": "2026-11-01T13:44:07.365856423Z",
+          "completed_at": "2026-11-01T13:44:18.323314617Z",
+          "lease_until": null,
+          "name": "scenario-compose-2222 · test · manual-latest-b",
+          "application_id": 2,
+          "application_name": "scenario-compose-2222",
+          "environment_name": "test",
+          "release_version": "manual-latest-b",
+          "target_name": "本机",
+          "username": "admin",
+          "legacy_script_name": ""
+        }
+      ],
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    }
+  }
+}

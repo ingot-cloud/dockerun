@@ -1,0 +1,9 @@
+{
+  "cmd": [
+    "/workspace/bin/dockerun",
+    "status"
+  ],
+  "code": 0,
+  "stdout": "[]\n",
+  "stderr": ""
+}

@@ -1,0 +1,37 @@
+{
+  "code": 201,
+  "body": {
+    "id": 1,
+    "created_at": "2026-11-01T11:14:23.321519963Z",
+    "updated_at": "2026-11-01T11:14:23.321519963Z",
+    "name": "blank-app-2222",
+    "description": "空白应用隔离测试",
+    "kind": "compose",
+    "scripts": {
+      "before": "",
+      "deploy": "",
+      "after": ""
+    },
+    "category": "",
+    "template_id": "",
+    "template_version": "",
+    "definition": {
+      "execution": {
+        "mode": "",
+        "command": "",
+        "work_dir": "",
+        "check_command": "",
+        "timeout_seconds": 0
+      },
+      "compose": "",
+      "configs": null,
+      "parameters": null,
+      "stateful": false,
+      "topology": "",
+      "instructions": "",
+      "storage": "",
+      "initialization": "",
+      "endpoints": null
+    }
+  }
+}

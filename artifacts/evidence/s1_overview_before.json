@@ -1,0 +1,12 @@
+{
+  "code": 200,
+  "body": {
+    "counts": {
+      "applications": 0,
+      "bundles": 0,
+      "deployments": 0,
+      "image_events": 0
+    },
+    "environments": []
+  }
+}

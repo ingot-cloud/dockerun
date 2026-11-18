@@ -1,0 +1,710 @@
+[
+  {
+    "case": "S0.3 health",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 200,
+    "body": {
+      "status": "ok"
+    }
+  },
+  {
+    "case": "S0.4 setup",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 200,
+    "body": {
+      "message": "初始化设置成功"
+    }
+  },
+  {
+    "case": "S0.4 login",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 200,
+    "user": "admin"
+  },
+  {
+    "case": "S0.4 automation token",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 201,
+    "scopes": "pull push deploy"
+  },
+  {
+    "case": "S1.1 overview empty-or-baseline",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 200,
+    "body": {
+      "counts": {
+        "applications": 0,
+        "bundles": 0,
+        "deployments": 0,
+        "image_events": 0
+      },
+      "environments": []
+    }
+  },
+  {
+    "case": "S2.1 create blank application",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 201,
+    "body": {
+      "id": 1,
+      "created_at": "2026-11-01T11:14:23.321519963Z",
+      "updated_at": "2026-11-01T11:14:23.321519963Z",
+      "name": "blank-app-2222",
+      "description": "空白应用隔离测试",
+      "kind": "compose",
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      },
+      "category": "",
+      "template_id": "",
+      "template_version": "",
+      "definition": {
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "",
+        "configs": null,
+        "parameters": null,
+        "stateful": false,
+        "topology": "",
+        "instructions": "",
+        "storage": "",
+        "initialization": "",
+        "endpoints": null
+      }
+    }
+  },
+  {
+    "case": "S2 sources",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "builtin_registry": 1,
+    "registries": 1
+  },
+  {
+    "case": "S2.2 blank environment",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 200,
+    "body": {
+      "container_names": null,
+      "replace_containers": false,
+      "id": 1,
+      "application_id": 1,
+      "name": "test",
+      "target_id": 1,
+      "target_ids": "[]",
+      "parameters": {},
+      "current_release_id": 0,
+      "stateless": true,
+      "auto_rollback": false,
+      "auto_deploy": false,
+      "registry_id": 1,
+      "repository": "",
+      "tag_pattern": "*",
+      "allowed_publishers": "[]",
+      "script_mode": "inherit",
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      },
+      "health": "unknown",
+      "runtime_state": "unknown"
+    }
+  },
+  {
+    "case": "S3.1 list managed templates",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "ids": [
+      "web-app",
+      "mysql",
+      "redis",
+      "nacos-standalone",
+      "nacos-cluster"
+    ],
+    "code": 200
+  },
+  {
+    "case": "S3.1 nginx-proxy managed template",
+    "status": "skip",
+    "ts": "2026-11-01T11:14:23Z",
+    "note": "nginx-proxy 仅在旧 templates/ 脚本目录，不在 GET /api/managed-templates"
+  },
+  {
+    "case": "S2.3 create from template redis",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 201,
+    "body": {
+      "application": {
+        "id": 2,
+        "created_at": "2026-11-01T11:14:23.360070948Z",
+        "updated_at": "2026-11-01T11:14:23.360070948Z",
+        "name": "redis-from-template-2222",
+        "description": "从模板 redis 创建",
+        "kind": "compose",
+        "scripts": {
+          "before": "",
+          "deploy": "",
+          "after": ""
+        },
+        "category": "middleware",
+        "template_id": "redis",
+        "template_version": "1.0.0",
+        "definition": {
+          "execution": {
+            "mode": "",
+            "command": "",
+            "work_dir": "",
+            "check_command": "",
+            "timeout_seconds": 0
+          },
+          "compose": "services:\n  redis:\n    image: ${REDIS_IMAGE:?请填写 Redis 镜像}\n    restart: unless-stopped\n    ports: ['${REDIS_PORT}:6379']\n    environment:\n      REDIS_PASSWORD: ${REDIS_PASSWORD:?请填写访问密码}\n    command: [sh, -c, 'exec redis-server /usr/local/etc/redis/redis.conf --requirepass \"$$REDIS_PASSWORD\"']\n    configs:\n      - source: redis-config\n        target: /usr/local/etc/redis/redis.conf\n    volumes: ['redis-data:/data']\n    healthcheck:\n      test: [CMD-SHELL, 'REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG']\n      interval: 10s\n      timeout: 5s\n      retries: 12\nconfigs:\n  redis-config:\n    file: ./configs/redis.conf\nvolumes:\n  redis-data: {}\n",
+          "configs": {
+            "configs/redis.conf": "bind 0.0.0.0\nprotected-mode yes\nappendonly yes\ndir /data\n"
+          },
+          "parameters": [
+            {
+              "key": "REDIS_IMAGE",
+              "label": "Redis 镜像",
+              "type": "image",
+              "default": "redis:8.2.0",
+              "required": true,
+              "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+            },
+            {
+              "key": "REDIS_PORT",
+              "label": "访问端口",
+              "type": "port",
+              "default": "6379",
+              "required": true,
+              "help": "填写目标主机未占用的端口。"
+            },
+            {
+              "key": "REDIS_PASSWORD",
+              "label": "访问密码",
+              "type": "password",
+              "default": "",
+              "required": true,
+              "help": "仅保存到当前环境，不写入公共模板。"
+            }
+          ],
+          "stateful": true,
+          "topology": "single_host",
+          "instructions": "默认手动发布。升级前备份数据；应用备份不包含业务数据卷。",
+          "storage": "redis-data → /data；AOF 数据随独立数据卷保留。",
+          "initialization": "",
+          "endpoints": [
+            {
+              "name": "缓存连接",
+              "port": "REDIS_PORT",
+              "protocol": "redis",
+              "path": ""
+            }
+          ]
+        }
+      },
+      "environment": {
+        "container_names": null,
+        "replace_containers": false,
+        "id": 2,
+        "application_id": 2,
+        "name": "test",
+        "target_id": 1,
+        "target_ids": "[]",
+        "parameters": {
+          "COMPOSE_PROJECT_NAME": "dockerun-template-preview",
+          "REDIS_IMAGE": "127.0.0.1:18080/redis:8.2.0",
+          "REDIS_PASSWORD": "***redacted***",
+          "REDIS_PORT": "16379"
+        },
+        "current_release_id": 0,
+        "stateless": false,
+        "auto_rollback": false,
+        "auto_deploy": false,
+        "registry_id": 1,
+        "repository": "",
+        "tag_pattern": "*",
+        "allowed_publishers": "[]",
+        "script_mode": "inherit",
+        "scripts": {
+          "before": "",
+          "deploy": "",
+          "after": ""
+        },
+        "health": "unknown",
+        "runtime_state": "unknown"
+      }
+    }
+  },
+  {
+    "case": "S2.3 create from template mysql",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 201,
+    "body": {
+      "application": {
+        "id": 3,
+        "created_at": "2026-11-01T11:14:23.382719917Z",
+        "updated_at": "2026-11-01T11:14:23.382719917Z",
+        "name": "mysql-from-template-2222",
+        "description": "从模板 mysql 创建",
+        "kind": "compose",
+        "scripts": {
+          "before": "",
+          "deploy": "",
+          "after": ""
+        },
+        "category": "middleware",
+        "template_id": "mysql",
+        "template_version": "1.0.0",
+        "definition": {
+          "execution": {
+            "mode": "",
+            "command": "",
+            "work_dir": "",
+            "check_command": "",
+            "timeout_seconds": 0
+          },
+          "compose": "services:\n  mysql:\n    image: ${MYSQL_IMAGE:?请填写 MySQL 镜像}\n    restart: unless-stopped\n    ports: ['${MYSQL_PORT}:3306']\n    environment:\n      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请填写管理员密码}\n    volumes: ['mysql-data:/var/lib/mysql']\n    healthcheck:\n      test: [CMD-SHELL, 'MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 --silent']\n      interval: 5s\n      timeout: 5s\n      retries: 30\n      start_period: 30s\nvolumes:\n  mysql-data: {}\n",
+          "configs": null,
+          "parameters": [
+            {
+              "key": "MYSQL_IMAGE",
+              "label": "MySQL 镜像",
+              "type": "image",
+              "default": "mysql:8.0.44",
+              "required": true,
+              "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+            },
+            {
+              "key": "MYSQL_PORT",
+              "label": "数据库端口",
+              "type": "port",
+              "default": "3306",
+              "required": true,
+              "help": "填写目标主机未占用的端口。"
+            },
+            {
+              "key": "MYSQL_ROOT_PASSWORD",
+              "label": "管理员密码",
+              "type": "password",
+              "default": "",
+              "required": true,
+              "help": "仅保存到当前环境，不写入公共模板。"
+            }
+          ],
+          "stateful": true,
+          "topology": "single_host",
+          "instructions": "默认手动发布。升级前备份数据库并确认数据格式兼容；切回旧镜像不会恢复业务数据。",
+          "storage": "mysql-data → /var/lib/mysql；数据卷与应用环境绑定，重新部署和升级会复用原数据。",
+          "initialization": "MySQL 仅在数据卷为空时初始化。更改环境中的初始密码不会修改已有数据库密码。",
+          "endpoints": [
+            {
+              "name": "数据库连接",
+              "port": "MYSQL_PORT",
+              "protocol": "mysql",
+              "path": ""
+            }
+          ]
+        }
+      },
+      "environment": {
+        "container_names": null,
+        "replace_containers": false,
+        "id": 3,
+        "application_id": 3,
+        "name": "test",
+        "target_id": 1,
+        "target_ids": "[]",
+        "parameters": {
+          "COMPOSE_PROJECT_NAME": "dockerun-template-preview",
+          "MYSQL_IMAGE": "127.0.0.1:18080/mysql:8.0.44",
+          "MYSQL_PORT": "13306",
+          "MYSQL_ROOT_PASSWORD": "***redacted***"
+        },
+        "current_release_id": 0,
+        "stateless": false,
+        "auto_rollback": false,
+        "auto_deploy": false,
+        "registry_id": 1,
+        "repository": "",
+        "tag_pattern": "*",
+        "allowed_publishers": "[]",
+        "script_mode": "inherit",
+        "scripts": {
+          "before": "",
+          "deploy": "",
+          "after": ""
+        },
+        "health": "unknown",
+        "runtime_state": "unknown"
+      }
+    }
+  },
+  {
+    "case": "S2.3 create from template web-app",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 201,
+    "body": {
+      "application": {
+        "id": 4,
+        "created_at": "2026-11-01T11:14:23.412596175Z",
+        "updated_at": "2026-11-01T11:14:23.412596175Z",
+        "name": "webapp-from-template-2222",
+        "description": "从模板 web-app 创建",
+        "kind": "compose",
+        "scripts": {
+          "before": "",
+          "deploy": "",
+          "after": ""
+        },
+        "category": "business",
+        "template_id": "web-app",
+        "template_version": "1.0.0",
+        "definition": {
+          "execution": {
+            "mode": "",
+            "command": "",
+            "work_dir": "",
+            "check_command": "",
+            "timeout_seconds": 0
+          },
+          "compose": "services:\n  app:\n    image: ${IMAGE:?请填写应用镜像}\n    restart: unless-stopped\n    ports:\n      - '${HOST_PORT}:${CONTAINER_PORT}'\n",
+          "configs": null,
+          "parameters": [
+            {
+              "key": "IMAGE",
+              "label": "应用镜像",
+              "type": "image",
+              "default": "team/app:v1",
+              "required": true,
+              "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+            },
+            {
+              "key": "HOST_PORT",
+              "label": "访问端口",
+              "type": "port",
+              "default": "8081",
+              "required": true,
+              "help": "填写目标主机未占用的端口。"
+            },
+            {
+              "key": "CONTAINER_PORT",
+              "label": "容器端口",
+              "type": "port",
+              "default": "80",
+              "required": true,
+              "help": "填写目标主机未占用的端口。"
+            }
+          ],
+          "stateful": false,
+          "topology": "replicated",
+          "instructions": "首次手动发布并确认运行后，可在环境配置中开启镜像推送自动发布。生产环境可继续使用手动发布。",
+          "storage": "",
+          "initialization": "",
+          "endpoints": [
+            {
+              "name": "服务入口",
+              "port": "HOST_PORT",
+              "protocol": "http",
+              "path": ""
+            }
+          ]
+        }
+      },
+      "environment": {
+        "container_names": null,
+        "replace_containers": false,
+        "id": 4,
+        "application_id": 4,
+        "name": "test",
+        "target_id": 1,
+        "target_ids": "[]",
+        "parameters": {
+          "COMPOSE_PROJECT_NAME": "dockerun-template-preview",
+          "CONTAINER_PORT": "80",
+          "HOST_PORT": "18081",
+          "IMAGE": "127.0.0.1:18080/dockerun-test/demo:v1"
+        },
+        "current_release_id": 0,
+        "stateless": true,
+        "auto_rollback": false,
+        "auto_deploy": false,
+        "registry_id": 1,
+        "repository": "",
+        "tag_pattern": "*",
+        "allowed_publishers": "[]",
+        "script_mode": "inherit",
+        "scripts": {
+          "before": "",
+          "deploy": "",
+          "after": ""
+        },
+        "health": "unknown",
+        "runtime_state": "unknown"
+      }
+    }
+  },
+  {
+    "case": "S0 docker-status",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 200,
+    "body": {
+      "available": true
+    }
+  },
+  {
+    "case": "S4.5 docker login builtin",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:23Z",
+    "code": 0,
+    "stdout": "Login Succeeded\n",
+    "stderr": "\nWARNING! Your credentials are stored unencrypted in '/home/ubuntu/.docker/config.json'.\nConfigure a credential helper to remove this warning. See\nhttps://docs.docker.com/go/credential-store/\n\n"
+  },
+  {
+    "case": "S4.5 push builtin demo:v1",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:26Z",
+    "cmd": [
+      "docker",
+      "push",
+      "127.0.0.1:18080/dockerun-test/demo:v1"
+    ],
+    "code": 0,
+    "stdout": "The push refers to repository [127.0.0.1:18080/dockerun-test/demo]\nf76f397f2ce6: Preparing\n53c769b49ca0: Preparing\n42608b42cb5e: Preparing\na3446cc6c821: Preparing\n9e707aa6db47: Preparing\n47a53288c3ef: Preparing\na2738b08d711: Preparing\n989e799e6349: Preparing\n47a53288c3ef: Waiting\na2738b08d711: Waiting\n989e799e6349: Waiting\n9e707aa6db47: Pushed\n42608b42cb5e: Pushed\n53c769b49ca0: Pushed\na3446cc6c821: Pushed\n47a53288c3ef: Pushed\na2738b08d711: Pushed\n989e799e6349: Pushed\nf76f397f2ce6: Pushed\nv1: digest: sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d size: 1989\n",
+    "stderr": ""
+  },
+  {
+    "case": "S4.1 save deployment config",
+    "status": "fail",
+    "ts": "2026-11-01T11:14:26Z",
+    "code": 400,
+    "body": {
+      "error": "validating /tmp/dockerun-isolated-2222/releases/config-1347165038/compose.yaml: services.demo.healthcheck.test.1 must be a string"
+    }
+  },
+  {
+    "case": "S4.2 create registry release",
+    "status": "fail",
+    "ts": "2026-11-01T11:14:26Z",
+    "code": 400,
+    "body": {
+      "error": "validating /tmp/dockerun-isolated-2222/releases/validate-493510756/compose.yaml: services.demo.healthcheck.test.1 must be a string"
+    }
+  },
+  {
+    "case": "S4.5 enable auto-deploy",
+    "status": "fail",
+    "ts": "2026-11-01T11:14:26Z",
+    "code": 400,
+    "body": {
+      "error": "请先在此环境完成首次手动发布，配置镜像、端口、挂载和脚本后再开启自动发布"
+    }
+  },
+  {
+    "case": "S4.5 push builtin demo:v2",
+    "status": "pass",
+    "ts": "2026-11-01T11:14:26Z",
+    "cmd": [
+      "docker",
+      "push",
+      "127.0.0.1:18080/dockerun-test/demo:v2"
+    ],
+    "code": 0,
+    "stdout": "The push refers to repository [127.0.0.1:18080/dockerun-test/demo]\nf76f397f2ce6: Preparing\n53c769b49ca0: Preparing\n42608b42cb5e: Preparing\na3446cc6c821: Preparing\n9e707aa6db47: Preparing\n47a53288c3ef: Preparing\na2738b08d711: Preparing\n989e799e6349: Preparing\n47a53288c3ef: Waiting\na2738b08d711: Waiting\n989e799e6349: Waiting\nf76f397f2ce6: Layer already exists\n9e707aa6db47: Layer already exists\na3446cc6c821: Layer already exists\n53c769b49ca0: Layer already exists\na2738b08d711: Layer already exists\n47a53288c3ef: Layer already exists\n989e799e6349: Layer already exists\n42608b42cb5e: Layer already exists\nv2: digest: sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d size: 1989\n",
+    "stderr": ""
+  },
+  {
+    "case": "S4.5 auto-deploy from builtin push",
+    "status": "fail",
+    "ts": "2026-11-01T11:15:56Z",
+    "note": "90s 内未见 automatic 部署任务"
+  },
+  {
+    "case": "S4.6 external registry",
+    "status": "skip",
+    "ts": "2026-11-01T11:15:56Z",
+    "note": "无外部仓库凭据，按计划跳过"
+  },
+  {
+    "case": "S5.1 list deployments",
+    "status": "pass",
+    "ts": "2026-11-01T11:15:56Z",
+    "count": 0,
+    "code": 200
+  },
+  {
+    "case": "S5.3 CLI status",
+    "status": "pass",
+    "ts": "2026-11-01T11:15:56Z",
+    "code": 0,
+    "stdout": "[]\n"
+  },
+  {
+    "case": "S6.1 CLI package",
+    "status": "pass",
+    "ts": "2026-11-01T11:15:59Z",
+    "code": 0,
+    "exists": true,
+    "size": 25971446,
+    "stderr": ""
+  },
+  {
+    "case": "S6.2 CLI import",
+    "status": "pass",
+    "ts": "2026-11-01T11:16:00Z",
+    "code": 0,
+    "stdout": "{\n  \"local_loaded\": true,\n  \"local_load_note\": \"\",\n  \"kind\": \"bundle\",\n  \"id\": 1,\n  \"created_at\": \"2026-11-01T11:15:59.46351522Z\",\n  \"name\": \"blank-app-2222-release.tar.gz\",\n  \"sha256\": \"7cb1da63a680dc18f397e02dcb20baf7550f5c26cb60b76cba94d6cae29f6608\",\n  \"status\": \"ready\",\n  \"manifest\": \"{\\\"schema_version\\\":1,\\\"application\\\":\\\"blank-app-2222\\\",\\\"version\\\":\\\"offline-v1\\\",\\\"platform\\\":\\\"linux/amd64\\\",\\\"images\\\":[{\\\"reference\\\":\\\"nginx:1.28-alpine\\\",\\\"id\\\":\\\"sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5\\\",\\\"platform\\\":\\\"linux/amd64\\\",\\\"archive\\\":\\\"images/0.tar\\\",\\\"sha256\\\":\\\"bcad8cf1d8a0e0e82311f41abc925a14b09d3279ab6576f1068b2859d4879701\\\"}],\\\"git_commit\\\":\\\"cdf404519e376e464382707057e6785f58364ca4\\\"}\",\n  \"error\": \"\",\n  \"user_id\": 1\n}\n",
+    "stderr": "uploaded 8388608/25971446\nuploaded 16777216/25971446\nuploaded 25165824/25971446\nuploaded 25971446/25971446\n"
+  },
+  {
+    "case": "S6.3 bundle version",
+    "status": "pass",
+    "ts": "2026-11-01T11:16:00Z",
+    "code": 201,
+    "body": {
+      "defaults": null,
+      "message": "已创建待发布版本，请在目标环境确认参数后部署",
+      "release": {
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "id": 1,
+        "created_at": "2026-11-01T11:16:00.482237183Z",
+        "application_id": 1,
+        "version": "offline-v1",
+        "source": "bundle",
+        "registry_id": 0,
+        "bundle_id": 1,
+        "platform": "linux/amd64",
+        "compose": "services:\n    fixture:\n        command:\n            - sh\n            - -c\n            - while true; do sleep 30; done\n        healthcheck:\n            interval: 1s\n            retries: 5\n            test:\n                - CMD\n                - \"true\"\n            timeout: 1s\n        image: nginx:1.28-alpine\n",
+        "images": "[{\"reference\":\"nginx:1.28-alpine\",\"id\":\"sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5\",\"platform\":\"linux/amd64\",\"archive\":\"images/0.tar\",\"sha256\":\"bcad8cf1d8a0e0e82311f41abc925a14b09d3279ab6576f1068b2859d4879701\"}]",
+        "configs": "{}",
+        "git_commit": "cdf404519e376e464382707057e6785f58364ca4",
+        "publisher_id": 1,
+        "retained": true,
+        "scripts": {
+          "before": "",
+          "deploy": "",
+          "after": ""
+        }
+      }
+    }
+  },
+  {
+    "case": "S6.4 CLI deploy from bundle",
+    "status": "pass",
+    "ts": "2026-11-01T11:16:03Z",
+    "code": 0,
+    "stdout": "  \"error\": \"\",\n  \"user_id\": 1\n}\n[images] 准备全部镜像；完成前保留当前服务\n[images] 加载此版本保留的离线镜像；完成前保留当前服务\n[images] Loaded image ID: sha256:dc73b49f5124cf2ee538dfbdfbd121f0b4ccdcb20fea30f3a81bd477c02e2bb5\n\n[preflight] 检查目标主机的端口、挂载、网络和卷\n[deploy] 预检查通过，更新此应用的 Compose project\n[deploy]  Network dockerun-a1-e1_default Creating \n Network dockerun-a1-e1_default Creating \n\n[deploy]  Network dockerun-a1-e1_default Created \n Network dockerun-a1-e1_default Created \n\n[deploy]  Container dockerun-a1-e1-fixture-1 Creating \n\n[deploy]  Container dockerun-a1-e1-fixture-1 Created \n\n[deploy]  Container dockerun-a1-e1-fixture-1 Starting \n\n[deploy]  Container dockerun-a1-e1-fixture-1 Started \n Container dockerun-a1-e1-fixture-1 Waiting \n\n[deploy]  Container dockerun-a1-e1-fixture-1 Healthy \n\n[complete] 发布成功，健康检查通过\n发布成功，健康检查通过\n",
+    "stderr": "uploaded 8388608/25971446\nuploaded 16777216/25971446\nuploaded 25165824/25971446\nuploaded 25971446/25971446\n"
+  },
+  {
+    "case": "S6.5 publish bundle to builtin",
+    "status": "fail",
+    "ts": "2026-11-01T11:16:03Z",
+    "code": 400,
+    "body": {
+      "error": "请选择已导入发布包的版本"
+    }
+  },
+  {
+    "case": "S3.3 save custom template",
+    "status": "fail",
+    "ts": "2026-11-01T11:16:03Z",
+    "code": 400,
+    "body": {
+      "error": "此应用尚未保存可复用定义，请先保存应用配置再创建模板"
+    }
+  },
+  {
+    "case": "S3.4 custom template listed",
+    "status": "fail",
+    "ts": "2026-11-01T11:16:03Z",
+    "custom_ids": []
+  },
+  {
+    "case": "S1.2 overview counts increased",
+    "status": "pass",
+    "ts": "2026-11-01T11:16:03Z",
+    "before": {
+      "applications": 0,
+      "bundles": 0,
+      "deployments": 0,
+      "image_events": 0
+    },
+    "after": {
+      "applications": 4,
+      "bundles": 1,
+      "deployments": 1,
+      "image_events": 2
+    }
+  },
+  {
+    "case": "S4 builtin catalog",
+    "status": "pass",
+    "ts": "2026-11-01T11:16:03Z",
+    "code": 200,
+    "body": {
+      "catalog": {
+        "repositories": [
+          "dockerun-test/demo"
+        ]
+      },
+      "events": [
+        {
+          "id": 2,
+          "created_at": "2026-11-01T11:14:26.624809155Z",
+          "registry_id": 1,
+          "repository": "dockerun-test/demo",
+          "reference": "v2",
+          "digest": "sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json",
+          "user_id": 1,
+          "key": "f211521848b7162836d64e02d96eaafc190ae7f7702658a7fea08880fc6deb94",
+          "imported": false,
+          "committed": true,
+          "processed": true
+        },
+        {
+          "id": 1,
+          "created_at": "2026-11-01T11:14:26.403429569Z",
+          "registry_id": 1,
+          "repository": "dockerun-test/demo",
+          "reference": "v1",
+          "digest": "sha256:e6b408afd0fcc6786c31e80825f4d2c6ca76934aa3e9280152addb23202ffd5d",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json",
+          "user_id": 1,
+          "key": "7ff4516869a57d542a0b14747ab6700d2b0aedd2dca16ca8076c0f19018f38e4",
+          "imported": false,
+          "committed": true,
+          "processed": true
+        }
+      ],
+      "permission": "read_write",
+      "public_url": "http://127.0.0.1:18080",
+      "read_only": false
+    }
+  }
+]

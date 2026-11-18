@@ -1,0 +1,451 @@
+{
+  "code": 200,
+  "body": [
+    {
+      "id": "web-app",
+      "name": "单服务应用",
+      "version": "1.0.0",
+      "description": "从镜像部署自研服务，按环境选择手动或自动更新。",
+      "category": "business",
+      "source": "builtin",
+      "definition": {
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "services:\n  app:\n    image: ${IMAGE:?请填写应用镜像}\n    restart: unless-stopped\n    ports:\n      - '${HOST_PORT}:${CONTAINER_PORT}'\n",
+        "configs": null,
+        "parameters": [
+          {
+            "key": "IMAGE",
+            "label": "应用镜像",
+            "type": "image",
+            "default": "team/app:v1",
+            "required": true,
+            "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+          },
+          {
+            "key": "HOST_PORT",
+            "label": "访问端口",
+            "type": "port",
+            "default": "8081",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          },
+          {
+            "key": "CONTAINER_PORT",
+            "label": "容器端口",
+            "type": "port",
+            "default": "80",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          }
+        ],
+        "stateful": false,
+        "topology": "replicated",
+        "instructions": "首次手动发布并确认运行后，可在环境配置中开启镜像推送自动发布。生产环境可继续使用手动发布。",
+        "storage": "",
+        "initialization": "",
+        "endpoints": [
+          {
+            "name": "服务入口",
+            "port": "HOST_PORT",
+            "protocol": "http",
+            "path": ""
+          }
+        ]
+      },
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    },
+    {
+      "id": "mysql",
+      "name": "MySQL",
+      "version": "1.0.0",
+      "description": "独立数据库与持久化数据卷，固定版本，默认手动升级。",
+      "category": "middleware",
+      "source": "builtin",
+      "definition": {
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "services:\n  mysql:\n    image: ${MYSQL_IMAGE:?请填写 MySQL 镜像}\n    restart: unless-stopped\n    ports: ['${MYSQL_PORT}:3306']\n    environment:\n      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请填写管理员密码}\n    volumes: ['mysql-data:/var/lib/mysql']\n    healthcheck:\n      test: [CMD-SHELL, 'MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 --silent']\n      interval: 5s\n      timeout: 5s\n      retries: 30\n      start_period: 30s\nvolumes:\n  mysql-data: {}\n",
+        "configs": null,
+        "parameters": [
+          {
+            "key": "MYSQL_IMAGE",
+            "label": "MySQL 镜像",
+            "type": "image",
+            "default": "mysql:8.0.44",
+            "required": true,
+            "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+          },
+          {
+            "key": "MYSQL_PORT",
+            "label": "数据库端口",
+            "type": "port",
+            "default": "3306",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          },
+          {
+            "key": "MYSQL_ROOT_PASSWORD",
+            "label": "管理员密码",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "仅保存到当前环境，不写入公共模板。"
+          }
+        ],
+        "stateful": true,
+        "topology": "single_host",
+        "instructions": "默认手动发布。升级前备份数据库并确认数据格式兼容；切回旧镜像不会恢复业务数据。",
+        "storage": "mysql-data → /var/lib/mysql；数据卷与应用环境绑定，重新部署和升级会复用原数据。",
+        "initialization": "MySQL 仅在数据卷为空时初始化。更改环境中的初始密码不会修改已有数据库密码。",
+        "endpoints": [
+          {
+            "name": "数据库连接",
+            "port": "MYSQL_PORT",
+            "protocol": "mysql",
+            "path": ""
+          }
+        ]
+      },
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    },
+    {
+      "id": "redis",
+      "name": "Redis",
+      "version": "1.0.0",
+      "description": "启用身份认证与 AOF 持久化，使用独立数据卷。",
+      "category": "middleware",
+      "source": "builtin",
+      "definition": {
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "services:\n  redis:\n    image: ${REDIS_IMAGE:?请填写 Redis 镜像}\n    restart: unless-stopped\n    ports: ['${REDIS_PORT}:6379']\n    environment:\n      REDIS_PASSWORD: ${REDIS_PASSWORD:?请填写访问密码}\n    command: [sh, -c, 'exec redis-server /usr/local/etc/redis/redis.conf --requirepass \"$$REDIS_PASSWORD\"']\n    configs:\n      - source: redis-config\n        target: /usr/local/etc/redis/redis.conf\n    volumes: ['redis-data:/data']\n    healthcheck:\n      test: [CMD-SHELL, 'REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG']\n      interval: 10s\n      timeout: 5s\n      retries: 12\nconfigs:\n  redis-config:\n    file: ./configs/redis.conf\nvolumes:\n  redis-data: {}\n",
+        "configs": {
+          "configs/redis.conf": "bind 0.0.0.0\nprotected-mode yes\nappendonly yes\ndir /data\n"
+        },
+        "parameters": [
+          {
+            "key": "REDIS_IMAGE",
+            "label": "Redis 镜像",
+            "type": "image",
+            "default": "redis:8.2.0",
+            "required": true,
+            "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+          },
+          {
+            "key": "REDIS_PORT",
+            "label": "访问端口",
+            "type": "port",
+            "default": "6379",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          },
+          {
+            "key": "REDIS_PASSWORD",
+            "label": "访问密码",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "仅保存到当前环境，不写入公共模板。"
+          }
+        ],
+        "stateful": true,
+        "topology": "single_host",
+        "instructions": "默认手动发布。升级前备份数据；应用备份不包含业务数据卷。",
+        "storage": "redis-data → /data；AOF 数据随独立数据卷保留。",
+        "initialization": "",
+        "endpoints": [
+          {
+            "name": "缓存连接",
+            "port": "REDIS_PORT",
+            "protocol": "redis",
+            "path": ""
+          }
+        ]
+      },
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    },
+    {
+      "id": "nacos-standalone",
+      "name": "Nacos 单机",
+      "version": "1.0.0",
+      "description": "内嵌存储的单节点 Nacos，配置与日志独立持久化。",
+      "category": "middleware",
+      "source": "builtin",
+      "definition": {
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "services:\n    nacos1:\n        environment:\n            MODE: standalone\n            NACOS_AUTH_ENABLE: \"true\"\n            NACOS_AUTH_IDENTITY_KEY: ${NACOS_IDENTITY_KEY}\n            NACOS_AUTH_IDENTITY_VALUE: ${NACOS_IDENTITY_VALUE:?请填写节点身份密钥}\n            NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?请填写认证令牌}\n            NACOS_SERVER_PORT: \"8848\"\n        healthcheck:\n            interval: 10s\n            retries: 18\n            start_period: 30s\n            test:\n                - CMD-SHELL\n                - bash -c 'echo > /dev/tcp/127.0.0.1/8848'\n            timeout: 5s\n        hostname: nacos1\n        image: ${NACOS_IMAGE:?请填写 Nacos 镜像}\n        ports:\n            - ${NACOS_PORT}:8848\n            - ${NACOS_GRPC_PORT}:9848\n            - ${NACOS_CONSOLE_PORT}:8080\n        restart: unless-stopped\n        volumes:\n            - nacos1-data:/home/nacos/data\n            - nacos1-logs:/home/nacos/logs\nvolumes:\n    nacos1-data: {}\n    nacos1-logs: {}\n",
+        "configs": null,
+        "parameters": [
+          {
+            "key": "NACOS_IMAGE",
+            "label": "Nacos 镜像",
+            "type": "image",
+            "default": "nacos/nacos-server:v3.1.1",
+            "required": true,
+            "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+          },
+          {
+            "key": "NACOS_PORT",
+            "label": "服务端口",
+            "type": "port",
+            "default": "8848",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          },
+          {
+            "key": "NACOS_CONSOLE_PORT",
+            "label": "控制台端口",
+            "type": "port",
+            "default": "8181",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          },
+          {
+            "key": "NACOS_AUTH_TOKEN",
+            "label": "认证令牌（Base64）",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "填写 Base64 编码、解码后至少 32 字节的随机密钥，各节点使用同一值。"
+          },
+          {
+            "key": "NACOS_IDENTITY_KEY",
+            "label": "节点身份名称",
+            "type": "string",
+            "default": "dockerun",
+            "required": true,
+            "help": "同一集群的节点必须一致。"
+          },
+          {
+            "key": "NACOS_IDENTITY_VALUE",
+            "label": "节点身份密钥",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "仅保存到当前环境，不写入公共模板。"
+          }
+        ],
+        "stateful": true,
+        "topology": "single_host",
+        "instructions": "默认手动发布。服务端口需与对应 gRPC 客户端端口一起开放。首次访问控制台时，按 Nacos 引导设置管理员密码。",
+        "storage": "每个节点分别使用独立的数据卷和日志卷。",
+        "initialization": "",
+        "endpoints": [
+          {
+            "name": "控制台",
+            "port": "NACOS_CONSOLE_PORT",
+            "protocol": "http",
+            "path": ""
+          },
+          {
+            "name": "服务地址",
+            "port": "NACOS_PORT",
+            "protocol": "http",
+            "path": "/nacos"
+          }
+        ]
+      },
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    },
+    {
+      "id": "nacos-cluster",
+      "name": "Nacos 单机三节点集群",
+      "version": "1.0.0",
+      "description": "同一主机运行三个 Nacos 节点，附带独立 MySQL 和首次建表配置。",
+      "category": "middleware",
+      "source": "builtin",
+      "definition": {
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "configs:\n    nacos-schema:\n        file: ./configs/nacos-mysql.sql\nservices:\n    mysql:\n        configs:\n            - source: nacos-schema\n              target: /docker-entrypoint-initdb.d/01-nacos.sql\n        environment:\n            MYSQL_DATABASE: nacos\n            MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请填写 Nacos 数据库密码}\n            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请填写管理员密码}\n            MYSQL_USER: nacos\n        healthcheck:\n            interval: 5s\n            retries: 30\n            start_period: 30s\n            test:\n                - CMD-SHELL\n                - MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 --silent\n            timeout: 5s\n        image: ${MYSQL_IMAGE:?请填写 MySQL 镜像}\n        restart: unless-stopped\n        volumes:\n            - mysql-data:/var/lib/mysql\n    nacos1:\n        depends_on:\n            mysql:\n                condition: service_healthy\n        environment:\n            MODE: cluster\n            MYSQL_SERVICE_DB_NAME: nacos\n            MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true\n            MYSQL_SERVICE_HOST: mysql\n            MYSQL_SERVICE_PASSWORD: ${MYSQL_PASSWORD:?请填写数据库密码}\n            MYSQL_SERVICE_PORT: \"3306\"\n            MYSQL_SERVICE_USER: nacos\n            NACOS_AUTH_ENABLE: \"true\"\n            NACOS_AUTH_IDENTITY_KEY: ${NACOS_IDENTITY_KEY}\n            NACOS_AUTH_IDENTITY_VALUE: ${NACOS_IDENTITY_VALUE:?请填写节点身份密钥}\n            NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?请填写认证令牌}\n            NACOS_SERVER_PORT: \"8848\"\n            NACOS_SERVERS: nacos1:8848 nacos2:8848 nacos3:8848\n            PREFER_HOST_MODE: hostname\n            SPRING_DATASOURCE_PLATFORM: mysql\n        healthcheck:\n            interval: 10s\n            retries: 18\n            start_period: 30s\n            test:\n                - CMD-SHELL\n                - bash -c 'echo > /dev/tcp/127.0.0.1/8848'\n            timeout: 5s\n        hostname: nacos1\n        image: ${NACOS_IMAGE:?请填写 Nacos 镜像}\n        ports:\n            - ${NACOS_PORT}:8848\n            - ${NACOS_GRPC_PORT}:9848\n            - ${NACOS_CONSOLE_PORT}:8080\n        restart: unless-stopped\n        volumes:\n            - nacos1-data:/home/nacos/data\n            - nacos1-logs:/home/nacos/logs\n    nacos2:\n        depends_on:\n            mysql:\n                condition: service_healthy\n        environment:\n            MODE: cluster\n            MYSQL_SERVICE_DB_NAME: nacos\n            MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true\n            MYSQL_SERVICE_HOST: mysql\n            MYSQL_SERVICE_PASSWORD: ${MYSQL_PASSWORD:?请填写数据库密码}\n            MYSQL_SERVICE_PORT: \"3306\"\n            MYSQL_SERVICE_USER: nacos\n            NACOS_AUTH_ENABLE: \"true\"\n            NACOS_AUTH_IDENTITY_KEY: ${NACOS_IDENTITY_KEY}\n            NACOS_AUTH_IDENTITY_VALUE: ${NACOS_IDENTITY_VALUE:?请填写节点身份密钥}\n            NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?请填写认证令牌}\n            NACOS_SERVER_PORT: \"8848\"\n            NACOS_SERVERS: nacos1:8848 nacos2:8848 nacos3:8848\n            PREFER_HOST_MODE: hostname\n            SPRING_DATASOURCE_PLATFORM: mysql\n        healthcheck:\n            interval: 10s\n            retries: 18\n            start_period: 30s\n            test:\n                - CMD-SHELL\n                - bash -c 'echo > /dev/tcp/127.0.0.1/8848'\n            timeout: 5s\n        hostname: nacos2\n        image: ${NACOS_IMAGE:?请填写 Nacos 镜像}\n        restart: unless-stopped\n        volumes:\n            - nacos2-data:/home/nacos/data\n            - nacos2-logs:/home/nacos/logs\n    nacos3:\n        depends_on:\n            mysql:\n                condition: service_healthy\n        environment:\n            MODE: cluster\n            MYSQL_SERVICE_DB_NAME: nacos\n            MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true\n            MYSQL_SERVICE_HOST: mysql\n            MYSQL_SERVICE_PASSWORD: ${MYSQL_PASSWORD:?请填写数据库密码}\n            MYSQL_SERVICE_PORT: \"3306\"\n            MYSQL_SERVICE_USER: nacos\n            NACOS_AUTH_ENABLE: \"true\"\n            NACOS_AUTH_IDENTITY_KEY: ${NACOS_IDENTITY_KEY}\n            NACOS_AUTH_IDENTITY_VALUE: ${NACOS_IDENTITY_VALUE:?请填写节点身份密钥}\n            NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?请填写认证令牌}\n            NACOS_SERVER_PORT: \"8848\"\n            NACOS_SERVERS: nacos1:8848 nacos2:8848 nacos3:8848\n            PREFER_HOST_MODE: hostname\n            SPRING_DATASOURCE_PLATFORM: mysql\n        healthcheck:\n            interval: 10s\n            retries: 18\n            start_period: 30s\n            test:\n                - CMD-SHELL\n                - bash -c 'echo > /dev/tcp/127.0.0.1/8848'\n            timeout: 5s\n        hostname: nacos3\n        image: ${NACOS_IMAGE:?请填写 Nacos 镜像}\n        restart: unless-stopped\n        volumes:\n            - nacos3-data:/home/nacos/data\n            - nacos3-logs:/home/nacos/logs\nvolumes:\n    mysql-data: {}\n    nacos1-data: {}\n    nacos1-logs: {}\n    nacos2-data: {}\n    nacos2-logs: {}\n    nacos3-data: {}\n    nacos3-logs: {}\n",
+        "configs": {
+          "configs/nacos-mysql.sql": "/*\n * Copyright 1999-2018 Alibaba Group Holding Ltd.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *      http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\n/******************************************/\n/*   表名称 = config_info                  */\n/******************************************/\nCREATE TABLE `config_info` (\n                               `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'id',\n                               `data_id` varchar(255) NOT NULL COMMENT 'data_id',\n                               `group_id` varchar(128) DEFAULT NULL COMMENT 'group_id',\n                               `content` longtext NOT NULL COMMENT 'content',\n                               `md5` varchar(32) DEFAULT NULL COMMENT 'md5',\n                               `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',\n                               `gmt_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '修改时间',\n                               `src_user` text COMMENT 'source user',\n                               `src_ip` varchar(50) DEFAULT NULL COMMENT 'source ip',\n                               `app_name` varchar(128) DEFAULT NULL COMMENT 'app_name',\n                               `tenant_id` varchar(128) DEFAULT '' COMMENT '租户字段',\n                               `c_desc` varchar(256) DEFAULT NULL COMMENT 'configuration description',\n                               `c_use` varchar(64) DEFAULT NULL COMMENT 'configuration usage',\n                               `effect` varchar(64) DEFAULT NULL COMMENT '配置生效的描述',\n                               `type` varchar(64) DEFAULT NULL COMMENT '配置的类型',\n                               `c_schema` text COMMENT '配置的模式',\n                               `encrypted_data_key` varchar(1024) NOT NULL DEFAULT '' COMMENT '密钥',\n                               PRIMARY KEY (`id`),\n                               UNIQUE KEY `uk_configinfo_datagrouptenant` (`data_id`,`group_id`,`tenant_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='config_info';\n\n/******************************************/\n/*   表名称 = config_info  since 2.5.0                */\n/******************************************/\nCREATE TABLE `config_info_gray` (\n                                    `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT 'id',\n                                    `data_id` varchar(255) NOT NULL COMMENT 'data_id',\n                                    `group_id` varchar(128) NOT NULL COMMENT 'group_id',\n                                    `content` longtext NOT NULL COMMENT 'content',\n                                    `md5` varchar(32) DEFAULT NULL COMMENT 'md5',\n                                    `src_user` text COMMENT 'src_user',\n                                    `src_ip` varchar(100) DEFAULT NULL COMMENT 'src_ip',\n                                    `gmt_create` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'gmt_create',\n                                    `gmt_modified` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'gmt_modified',\n                                    `app_name` varchar(128) DEFAULT NULL COMMENT 'app_name',\n                                    `tenant_id` varchar(128) DEFAULT '' COMMENT 'tenant_id',\n                                    `gray_name` varchar(128) NOT NULL COMMENT 'gray_name',\n                                    `gray_rule` text NOT NULL COMMENT 'gray_rule',\n                                    `encrypted_data_key` varchar(256) NOT NULL DEFAULT '' COMMENT 'encrypted_data_key',\n                                    PRIMARY KEY (`id`),\n                                    UNIQUE KEY `uk_configinfogray_datagrouptenantgray` (`data_id`,`group_id`,`tenant_id`,`gray_name`),\n                                    KEY `idx_dataid_gmt_modified` (`data_id`,`gmt_modified`),\n                                    KEY `idx_gmt_modified` (`gmt_modified`)\n) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COMMENT='config_info_gray';\n\n/******************************************/\n/*   表名称 = config_tags_relation         */\n/******************************************/\nCREATE TABLE `config_tags_relation` (\n                                        `id` bigint(20) NOT NULL COMMENT 'id',\n                                        `tag_name` varchar(128) NOT NULL COMMENT 'tag_name',\n                                        `tag_type` varchar(64) DEFAULT NULL COMMENT 'tag_type',\n                                        `data_id` varchar(255) NOT NULL COMMENT 'data_id',\n                                        `group_id` varchar(128) NOT NULL COMMENT 'group_id',\n                                        `tenant_id` varchar(128) DEFAULT '' COMMENT 'tenant_id',\n                                        `nid` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'nid, 自增长标识',\n                                        PRIMARY KEY (`nid`),\n                                        UNIQUE KEY `uk_configtagrelation_configidtag` (`id`,`tag_name`,`tag_type`),\n                                        KEY `idx_tenant_id` (`tenant_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='config_tag_relation';\n\n/******************************************/\n/*   表名称 = group_capacity               */\n/******************************************/\nCREATE TABLE `group_capacity` (\n                                  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',\n                                  `group_id` varchar(128) NOT NULL DEFAULT '' COMMENT 'Group ID，空字符表示整个集群',\n                                  `quota` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '配额，0表示使用默认值',\n                                  `usage` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '使用量',\n                                  `max_size` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '单个配置大小上限，单位为字节，0表示使用默认值',\n                                  `max_aggr_count` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '聚合子配置最大个数，，0表示使用默认值',\n                                  `max_aggr_size` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '单个聚合数据的子配置大小上限，单位为字节，0表示使用默认值',\n                                  `max_history_count` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '最大变更历史数量',\n                                  `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',\n                                  `gmt_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '修改时间',\n                                  PRIMARY KEY (`id`),\n                                  UNIQUE KEY `uk_group_id` (`group_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='集群、各Group容量信息表';\n\n/******************************************/\n/*   表名称 = his_config_info              */\n/******************************************/\nCREATE TABLE `his_config_info` (\n                                   `id` bigint(20) unsigned NOT NULL COMMENT 'id',\n                                   `nid` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT 'nid, 自增标识',\n                                   `data_id` varchar(255) NOT NULL COMMENT 'data_id',\n                                   `group_id` varchar(128) NOT NULL COMMENT 'group_id',\n                                   `app_name` varchar(128) DEFAULT NULL COMMENT 'app_name',\n                                   `content` longtext NOT NULL COMMENT 'content',\n                                   `md5` varchar(32) DEFAULT NULL COMMENT 'md5',\n                                   `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',\n                                   `gmt_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '修改时间',\n                                   `src_user` text COMMENT 'source user',\n                                   `src_ip` varchar(50) DEFAULT NULL COMMENT 'source ip',\n                                   `op_type` char(10) DEFAULT NULL COMMENT 'operation type',\n                                   `tenant_id` varchar(128) DEFAULT '' COMMENT '租户字段',\n                                   `encrypted_data_key` varchar(1024) NOT NULL DEFAULT '' COMMENT '密钥',\n                                   `publish_type` varchar(50)  DEFAULT 'formal' COMMENT 'publish type gray or formal',\n                                   `gray_name` varchar(50)  DEFAULT NULL COMMENT 'gray name',\n                                   `ext_info`  longtext DEFAULT NULL COMMENT 'ext info',\n                                   PRIMARY KEY (`nid`),\n                                   KEY `idx_gmt_create` (`gmt_create`),\n                                   KEY `idx_gmt_modified` (`gmt_modified`),\n                                   KEY `idx_did` (`data_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='多租户改造';\n\n\n/******************************************/\n/*   表名称 = tenant_capacity              */\n/******************************************/\nCREATE TABLE `tenant_capacity` (\n                                   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',\n                                   `tenant_id` varchar(128) NOT NULL DEFAULT '' COMMENT 'Tenant ID',\n                                   `quota` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '配额，0表示使用默认值',\n                                   `usage` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '使用量',\n                                   `max_size` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '单个配置大小上限，单位为字节，0表示使用默认值',\n                                   `max_aggr_count` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '聚合子配置最大个数',\n                                   `max_aggr_size` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '单个聚合数据的子配置大小上限，单位为字节，0表示使用默认值',\n                                   `max_history_count` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '最大变更历史数量',\n                                   `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',\n                                   `gmt_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '修改时间',\n                                   PRIMARY KEY (`id`),\n                                   UNIQUE KEY `uk_tenant_id` (`tenant_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='租户容量信息表';\n\n\nCREATE TABLE `tenant_info` (\n                               `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'id',\n                               `kp` varchar(128) NOT NULL COMMENT 'kp',\n                               `tenant_id` varchar(128) default '' COMMENT 'tenant_id',\n                               `tenant_name` varchar(128) default '' COMMENT 'tenant_name',\n                               `tenant_desc` varchar(256) DEFAULT NULL COMMENT 'tenant_desc',\n                               `create_source` varchar(32) DEFAULT NULL COMMENT 'create_source',\n                               `gmt_create` bigint(20) NOT NULL COMMENT '创建时间',\n                               `gmt_modified` bigint(20) NOT NULL COMMENT '修改时间',\n                               PRIMARY KEY (`id`),\n                               UNIQUE KEY `uk_tenant_info_kptenantid` (`kp`,`tenant_id`),\n                               KEY `idx_tenant_id` (`tenant_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='tenant_info';\n\nCREATE TABLE `users` (\n                         `username` varchar(50) NOT NULL PRIMARY KEY COMMENT 'username',\n                         `password` varchar(500) NOT NULL COMMENT 'password',\n                         `enabled` boolean NOT NULL COMMENT 'enabled'\n);\n\nCREATE TABLE `roles` (\n                         `username` varchar(50) NOT NULL COMMENT 'username',\n                         `role` varchar(50) NOT NULL COMMENT 'role',\n                         UNIQUE INDEX `idx_user_role` (`username` ASC, `role` ASC) USING BTREE\n);\n\nCREATE TABLE `permissions` (\n                               `role` varchar(50) NOT NULL COMMENT 'role',\n                               `resource` varchar(128) NOT NULL COMMENT 'resource',\n                               `action` varchar(8) NOT NULL COMMENT 'action',\n                               UNIQUE INDEX `uk_role_permission` (`role`,`resource`,`action`) USING BTREE\n);\n"
+        },
+        "parameters": [
+          {
+            "key": "NACOS_IMAGE",
+            "label": "Nacos 镜像",
+            "type": "image",
+            "default": "nacos/nacos-server:v3.1.1",
+            "required": true,
+            "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+          },
+          {
+            "key": "NACOS_PORT",
+            "label": "服务端口",
+            "type": "port",
+            "default": "8848",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          },
+          {
+            "key": "NACOS_CONSOLE_PORT",
+            "label": "控制台端口",
+            "type": "port",
+            "default": "8181",
+            "required": true,
+            "help": "填写目标主机未占用的端口。"
+          },
+          {
+            "key": "NACOS_AUTH_TOKEN",
+            "label": "认证令牌（Base64）",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "填写 Base64 编码、解码后至少 32 字节的随机密钥，各节点使用同一值。"
+          },
+          {
+            "key": "NACOS_IDENTITY_KEY",
+            "label": "节点身份名称",
+            "type": "string",
+            "default": "dockerun",
+            "required": true,
+            "help": "同一集群的节点必须一致。"
+          },
+          {
+            "key": "NACOS_IDENTITY_VALUE",
+            "label": "节点身份密钥",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "仅保存到当前环境，不写入公共模板。"
+          },
+          {
+            "key": "MYSQL_IMAGE",
+            "label": "MySQL 镜像",
+            "type": "image",
+            "default": "mysql:8.0.44",
+            "required": true,
+            "help": "默认使用所选仓库的同名镜像，请先准备该镜像。"
+          },
+          {
+            "key": "MYSQL_ROOT_PASSWORD",
+            "label": "MySQL 管理员密码",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "仅保存到当前环境，不写入公共模板。"
+          },
+          {
+            "key": "MYSQL_PASSWORD",
+            "label": "Nacos 数据库密码",
+            "type": "password",
+            "default": "",
+            "required": true,
+            "help": "仅保存到当前环境，不写入公共模板。"
+          }
+        ],
+        "stateful": true,
+        "topology": "single_host",
+        "instructions": "三个 Nacos 节点和独立 MySQL 部署在同一目标主机，不提供跨主机高可用。固定主机组会重复部署整套服务。MySQL 仅供此应用访问。健康检查验证服务端口，集群成员状态请在控制台确认；首次登录时按 Nacos 引导设置管理员密码。升级前备份数据库。",
+        "storage": "每个节点分别使用独立的数据卷和日志卷。",
+        "initialization": "随模板提供 Nacos 3.1.1 官方建表文件，由 MySQL 在空数据卷首次启动时执行。更改 Nacos 大版本前须单独确认数据库迁移要求。",
+        "endpoints": [
+          {
+            "name": "控制台",
+            "port": "NACOS_CONSOLE_PORT",
+            "protocol": "http",
+            "path": ""
+          },
+          {
+            "name": "服务地址",
+            "port": "NACOS_PORT",
+            "protocol": "http",
+            "path": "/nacos"
+          }
+        ]
+      },
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    },
+    {
+      "id": "custom-1",
+      "name": "custom-demo-2222",
+      "version": "1.0.0",
+      "description": "由空白应用另存",
+      "category": "business",
+      "source": "custom",
+      "definition": {
+        "source": "registry",
+        "registry_id": 1,
+        "platform": "linux/amd64",
+        "execution": {
+          "mode": "",
+          "command": "",
+          "work_dir": "",
+          "check_command": "",
+          "timeout_seconds": 0
+        },
+        "compose": "services:\n    demo:\n        command:\n            - sh\n            - -c\n            - while true; do sleep 30; done\n        healthcheck:\n            interval: 1s\n            retries: 5\n            test:\n                - CMD\n                - \"true\"\n            timeout: 1s\n        image: ${DEMO_IMAGE}\n        restart: unless-stopped\n",
+        "configs": {},
+        "parameters": [
+          {
+            "key": "DEMO_IMAGE",
+            "label": "demo 镜像",
+            "type": "image",
+            "default": "dockerun-test/demo:v1",
+            "required": true,
+            "help": ""
+          }
+        ],
+        "stateful": false,
+        "topology": "",
+        "instructions": "",
+        "storage": "",
+        "initialization": "",
+        "endpoints": null
+      },
+      "scripts": {
+        "before": "",
+        "deploy": "",
+        "after": ""
+      }
+    }
+  ]
+}

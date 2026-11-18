@@ -1,0 +1,15 @@
+[
+  "[prepare] 准备部署命令与配置文件",
+  "[images] 加载此版本保留的离线镜像；完成前保留当前服务",
+  "[images] Loaded image: dockerun-scenario-b:local\n",
+  "[containers] 停止关联容器 /dockerun-sc3-app-2222",
+  "[containers] 删除关联容器 /dockerun-sc3-app-2222，保留数据卷",
+  "[images] 已刷新本地 tag：dockerun-scenario-b:local → sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a",
+  "[deploy_script] 开始执行脚本",
+  "[deploy_script] b43ad4cd3c68d9fd4938c84a14976c233be6c99ad76ca2b66057b6455e56089d\n",
+  "[deploy_script] 脚本执行完成",
+  "[check_script] 开始执行脚本",
+  "[check_script] true\n",
+  "[check_script] 脚本执行完成",
+  "[complete] 部署命令执行完成，部署检查通过"
+]

@@ -1,0 +1,6 @@
+{
+  "code": 400,
+  "body": {
+    "error": "validating /tmp/dockerun-isolated-2222/releases/validate-493510756/compose.yaml: services.demo.healthcheck.test.1 must be a string"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "exists": true,
+  "name": "dockerun-sc3-app-2222",
+  "id": "225302a0e544f77bdb508cb1def9307388de38a1e6906742418e59cecbddad7b",
+  "image": "dockerun-scenario-a:local",
+  "image_id": "sha256:b03446808ccbef93d09d41ae78607baed92ca98f3f56a16384e196c2ccee8339",
+  "running": true,
+  "status": "running",
+  "started_at": "2026-11-01T13:44:19.535799264Z"
+}

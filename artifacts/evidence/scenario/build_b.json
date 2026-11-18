@@ -1,0 +1,14 @@
+{
+  "cmd": [
+    "docker",
+    "build",
+    "-f",
+    "/tmp/dockerun-scenario-work-2222/Dockerfile.b",
+    "-t",
+    "dockerun-scenario-b:local",
+    "/tmp/dockerun-scenario-work-2222"
+  ],
+  "code": 0,
+  "stdout": "",
+  "stderr": "#0 building with \"default\" instance using docker driver\n\n#1 [internal] load build definition from Dockerfile.b\n#1 transferring dockerfile: 191B done\n#1 DONE 0.0s\n\n#2 [internal] load metadata for docker.io/library/alpine:3.20\n#2 DONE 0.0s\n\n#3 [internal] load .dockerignore\n#3 transferring context: 2B done\n#3 DONE 0.0s\n\n#4 [1/2] FROM docker.io/library/alpine:3.20\n#4 CACHED\n\n#5 [2/2] RUN echo IMAGE_B > /marker\n#5 DONE 0.2s\n\n#6 exporting to image\n#6 exporting layers done\n#6 writing image sha256:3f88ddd2cc81c89db34eb596a811dbd7613ea41a746be7ecc24b8033b1976a2a done\n#6 naming to docker.io/library/dockerun-scenario-b:local done\n#6 DONE 0.0s\n"
+}
