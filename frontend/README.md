@@ -236,5 +236,5 @@ pnpm type-check
 
 ## 许可证
 
-MIT License
+[Apache License, Version 2.0](../LICENSE)
 
